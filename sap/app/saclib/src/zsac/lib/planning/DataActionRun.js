@@ -131,7 +131,7 @@ sap.ui.define([
         try {
           const r = await provider.runMultiAction(action.Id, { Values: pc.values });
           result.destroyItems();
-          result.addItem(new MessageStrip({ type: r.Status === "S" ? "Success" : "Error", showIcon: true, text: r.Status === "S" ? "Done, " + r.Changed + " values changed by data actions" : "Stopped at a failing step" }).addStyleClass("sapUiTinyMarginBottom"));
+          result.addItem(new MessageStrip({ type: r.Status === "S" ? "Success" : "Error", showIcon: true, text: r.Status === "S" ? "Done" + (r.Changed ? ", " + r.Changed + " values changed by data actions" : "") : "Stopped at a failing step" }).addStyleClass("sapUiTinyMarginBottom"));
           (r.Steps || []).forEach((st, i) => result.addItem(new VBox({ items: [new Title({ text: (i + 1) + ". " + st.name, level: "H6" }), new Text({ text: st.message || "" }).addStyleClass("zsacSmall")] }).addStyleClass("zsacTraceCard" + (/^Failed/.test(st.message) ? " zsacTraceFailed" : ""))));
           if (opts.onDone) { opts.onDone(r); }
         } catch (e) { fail(e); }

@@ -175,6 +175,28 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
             entry.touched = r.Published;
             entry.message = "Published " + source + " to " + target;
             log.push(step.Name + ": published " + source + " to " + target + ", " + r.Published + " values");
+          } else if (step.StepType === "VERSION") {
+            const source = MultiActionSchema.versionValue(step.SourceVersion, values);
+            const version = MultiActionSchema.versionValue(step.Version, values);
+            if (step.Operation === "CREATE_PRIVATE") {
+              const v = await this.createPrivateVersion(step.ModelId, source, step.VersionName || "");
+              entry.message = "Created private version " + v.VersionId + " from " + source;
+            } else if (step.Operation === "REVERT") {
+              await this.revertVersion(step.ModelId, version);
+              entry.message = "Reverted " + version;
+            } else {
+              await this.deleteVersion(step.ModelId, version);
+              entry.message = "Deleted version " + version;
+            }
+            log.push(step.Name + ": " + entry.message);
+          } else if (step.StepType === "LOCK") {
+            const version = MultiActionSchema.versionValue(step.Version, values);
+            const locked = step.Operation === "LOCK";
+            const v = (await this.listVersions(step.ModelId)).find((x) => x.VersionId === version);
+            if (!v) { throw new Error("version " + version + " does not exist"); }
+            if (!!v.Locked !== locked) { await this.saveVersion(Object.assign({}, v, { Locked: locked })); }
+            entry.message = (locked ? "Locked " : "Unlocked ") + version + (!!v.Locked === locked ? " (already so)" : "");
+            log.push(step.Name + ": " + entry.message);
           } else {
             throw new Error("unknown step type " + step.StepType);
           }

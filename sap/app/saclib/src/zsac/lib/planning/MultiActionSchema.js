@@ -6,7 +6,9 @@
  *            Steps: [step] }
  * step   = { Id, StepNo, StepType: "DATAACTION"|"PUBLISH", Name, Description, Active,
  *            DATAACTION  ActionId, ParamMap: { dataActionParam: value | "@multiParam" }   (a parameter left out uses the default of the data action)
- *            PUBLISH     ModelId, SourceVersion, TargetVersion                            (each a version id or "@multiParam") }
+ *            PUBLISH     ModelId, SourceVersion, TargetVersion                            (each a version id or "@multiParam")
+ *            VERSION     ModelId, Operation: CREATE_PRIVATE (SourceVersion, VersionName) | REVERT (Version) | DELETE (Version)
+ *            LOCK        ModelId, Operation: LOCK | UNLOCK, Version                         (a version id or "@multiParam") }
  * A value written "@Name" is the parameter Name of the multi action.
  */
 sap.ui.define(["./DataActionSchema"], function (DA) {
@@ -14,7 +16,13 @@ sap.ui.define(["./DataActionSchema"], function (DA) {
 
   const STEP_TYPES = {
     DATAACTION: { label: "Data Action", icon: "sap-icon://workflow-tasks", hint: "Run a data action; its parameters take the values of the multi action parameters" },
-    PUBLISH: { label: "Publish Version", icon: "sap-icon://upload-to-cloud", hint: "Publish a version over another version of the model" }
+    PUBLISH: { label: "Publish Version", icon: "sap-icon://upload-to-cloud", hint: "Publish a version over another version of the model" },
+    VERSION: { label: "Version Management", icon: "sap-icon://tag", hint: "Create a private copy of a version, revert a private version to its source, or delete a version" },
+    LOCK: { label: "Data Locking", icon: "sap-icon://locked", hint: "Lock a version so nothing can write to it, or unlock it again" }
+  };
+  const OPERATIONS = {
+    VERSION: { CREATE_PRIVATE: "Create private version", REVERT: "Revert private version", DELETE: "Delete version" },
+    LOCK: { LOCK: "Lock version", UNLOCK: "Unlock version" }
   };
   const ID = /^[A-Za-z][A-Za-z0-9_]*$/;
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -23,7 +31,8 @@ sap.ui.define(["./DataActionSchema"], function (DA) {
 
   function normalizeStep(step, index) {
     const type = STEP_TYPES[step.StepType] ? step.StepType : "DATAACTION";
-    const s = Object.assign({ Name: "", Description: "", Active: true, ActionId: "", ParamMap: {}, ModelId: "", SourceVersion: "", TargetVersion: "" }, clone(step), { StepType: type });
+    const s = Object.assign({ Name: "", Description: "", Active: true, ActionId: "", ParamMap: {}, ModelId: "", SourceVersion: "", TargetVersion: "", Version: "", VersionName: "" }, clone(step), { StepType: type });
+    if (OPERATIONS[type] && !OPERATIONS[type][s.Operation]) { s.Operation = Object.keys(OPERATIONS[type])[0]; }
     s.Id = s.Id || ("S" + (index + 1));
     s.Name = s.Name || (STEP_TYPES[type].label + " " + (index + 1));
     s.ParamMap = s.ParamMap || {};
@@ -47,7 +56,7 @@ sap.ui.define(["./DataActionSchema"], function (DA) {
     const out = new Set();
     const add = (v) => { if (isRef(v)) { out.add(refName(v)); } };
     Object.keys(step.ParamMap || {}).forEach((k) => valuesOf(step.ParamMap[k]).forEach(add));
-    add(step.SourceVersion); add(step.TargetVersion);
+    add(step.SourceVersion); add(step.TargetVersion); add(step.Version);
     return out;
   }
 
@@ -144,6 +153,28 @@ sap.ui.define(["./DataActionSchema"], function (DA) {
         check(s.SourceVersion, "source", false);
         check(s.TargetVersion, "target", true);
         if (s.SourceVersion && s.SourceVersion === s.TargetVersion) { err(i, where + ": source and target version are the same"); }
+      } else if (s.StepType === "VERSION" || s.StepType === "LOCK") {
+        const model = models.get(s.ModelId);
+        if (!model) { err(i, where + ": choose the model"); return; }
+        const versions = versionsOf(s.ModelId);
+        const check = (v, what, test) => {
+          if (!v) { err(i, where + ": choose the " + what); return null; }
+          if (isRef(v)) { refOk(v, what, "MEMBER", "VERSION"); return null; }
+          const ver = versions.get(v);
+          if (!ver) { err(i, where + ": version " + v + " does not exist in the model"); return null; }
+          if (test) { test(ver); }
+          return ver;
+        };
+        if (s.StepType === "LOCK") {
+          check(s.Version, "version to " + (s.Operation === "LOCK" ? "lock" : "unlock"));
+          if (!model.DataLocking) { warn(i, where + ": Data Locking is not switched on in the model"); }
+        } else if (s.Operation === "CREATE_PRIVATE") {
+          check(s.SourceVersion, "version to copy");
+        } else if (s.Operation === "REVERT") {
+          check(s.Version, "private version to revert", (ver) => { if (ver.Category !== "PRIVATE") { err(i, where + ": version " + ver.VersionId + " is not a private version"); } });
+        } else {
+          check(s.Version, "version to delete", (ver) => { if (ver.Locked) { err(i, where + ": version " + ver.VersionId + " is locked, unlock it first"); } });
+        }
       } else {
         err(i, where + ": unknown step type " + s.StepType);
       }
@@ -151,5 +182,5 @@ sap.ui.define(["./DataActionSchema"], function (DA) {
     return out;
   }
 
-  return { STEP_TYPES, normalizeAction, normalizeStep, newStep, refsOf, usage, childValues, versionValue, validate, resolveValues: DA.resolveValues, isRef, refName };
+  return { STEP_TYPES, OPERATIONS, normalizeAction, normalizeStep, newStep, refsOf, usage, childValues, versionValue, validate, resolveValues: DA.resolveValues, isRef, refName };
 });

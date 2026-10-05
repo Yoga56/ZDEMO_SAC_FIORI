@@ -242,7 +242,14 @@ def multiactions():
                  {"StepNo": 10, "StepType": "DATAACTION", "Name": "Forecast from run-rate", "Description": "Copy actuals into the forecast and uplift Q3",
                   "ActionId": "DA_FORECAST_FROM_ACT", "ParamMap": {"Region": "@Region", "Uplift": "@Uplift"}},
                  {"StepNo": 20, "StepType": "PUBLISH", "Name": "Publish forecast", "Description": "Overwrite the chosen version with the forecast",
-                  "ModelId": "SALES_PLAN", "SourceVersion": "FCT", "TargetVersion": "@Target"}]}]
+                  "ModelId": "SALES_PLAN", "SourceVersion": "FCT", "TargetVersion": "@Target"}]},
+            {"Id": "MA_CLOSE_VERSION", "Name": "Snapshot and lock a version", "Description": "Keep a private copy of a version, then lock the version so nobody changes it",
+             "Parameters": [{"Id": "Version", "Prompt": "Version to close", "Type": "MEMBER", "ModelId": "SALES_PLAN", "DimId": "VERSION", "Multi": False, "Default": ["FCT"]}],
+             "Steps": [
+                 {"StepNo": 10, "StepType": "VERSION", "Name": "Private snapshot", "Description": "A private copy to keep working on",
+                  "ModelId": "SALES_PLAN", "Operation": "CREATE_PRIVATE", "SourceVersion": "@Version", "VersionName": "Snapshot before close"},
+                 {"StepNo": 20, "StepType": "LOCK", "Name": "Lock the version", "Description": "Planners and data actions can no longer write to it",
+                  "ModelId": "SALES_PLAN", "Operation": "LOCK", "Version": "@Version"}]}]
 
 
 def files():
@@ -260,6 +267,7 @@ def files():
         f("F_DATAACTION_DA_ALLOC_OPEX", "DATAACTION", "DA_ALLOC_OPEX", "Allocate HR budget to departments", ""),
         f("F_DATAACTION_DA_FORECAST_CYCLE", "DATAACTION", "DA_FORECAST_CYCLE", "Forecast refresh (aggressive)", ""),
         f("F_MULTIACTION_MA_FORECAST_CYCLE", "MULTIACTION", "MA_FORECAST_CYCLE", "Forecast cycle", ""),
+        f("F_MULTIACTION_MA_CLOSE_VERSION", "MULTIACTION", "MA_CLOSE_VERSION", "Snapshot and lock a version", ""),
     ]
 
 

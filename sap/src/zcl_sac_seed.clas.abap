@@ -53,8 +53,8 @@ CLASS zcl_sac_seed IMPLEMENTATION.
     DELETE FROM zsac_story   WHERE story_id IN ( 'STORY_SALES' ).
     DELETE FROM zsac_dastep  WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX', 'DA_FORECAST_CYCLE' ).
     DELETE FROM zsac_dataact WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX', 'DA_FORECAST_CYCLE' ).
-    DELETE FROM zsac_mastep  WHERE action_id = 'MA_FORECAST_CYCLE'.
-    DELETE FROM zsac_multiact WHERE action_id = 'MA_FORECAST_CYCLE'.
+    DELETE FROM zsac_mastep  WHERE action_id IN ( 'MA_FORECAST_CYCLE', 'MA_CLOSE_VERSION' ).
+    DELETE FROM zsac_multiact WHERE action_id IN ( 'MA_FORECAST_CYCLE', 'MA_CLOSE_VERSION' ).
     DELETE FROM zsac_file    WHERE file_id LIKE 'F\_%' ESCAPE '\' AND owner_id = 'SEED'.
     DELETE FROM zsac_caltask WHERE task_id IN ( 'T1', 'T2', 'T3', 'T4' ).
   ENDMETHOD.
@@ -263,6 +263,10 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         description = 'Run the forecast action, then publish the forecast to the budget'
         parameters = `[{"Id":"Region","Prompt":"Regions (empty = all)","Type":"MEMBER","ModelId":"SALES_PLAN","DimId":"REGION","Multi":true,"Default":[]},{"Id":"Uplift","Prompt":"Q3 uplift factor","Type` &&
                     `":"NUMBER","Default":1.05},{"Id":"Target","Prompt":"Publish to version","Type":"MEMBER","ModelId":"SALES_PLAN","DimId":"VERSION","Multi":false,"Default":["BUD"]}]`
+        created_at = now last_changed_at = now local_last_changed_at = now )
+      ( action_id = 'MA_CLOSE_VERSION' action_name = 'Snapshot and lock a version'
+        description = 'Keep a private copy of a version, then lock the version so nobody changes it'
+        parameters = `[{"Id":"Version","Prompt":"Version to close","Type":"MEMBER","ModelId":"SALES_PLAN","DimId":"VERSION","Multi":false,"Default":["FCT"]}]`
         created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
     INSERT zsac_mastep FROM TABLE @( VALUE #(
       ( action_id = 'MA_FORECAST_CYCLE' step_no = 10 step_type = 'DATAACTION' step_name = 'Forecast from run-rate' description = 'Copy actuals into the forecast and uplift Q3' active = abap_true
@@ -270,6 +274,12 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         local_last_changed_at = now )
       ( action_id = 'MA_FORECAST_CYCLE' step_no = 20 step_type = 'PUBLISH' step_name = 'Publish forecast' description = 'Overwrite the chosen version with the forecast' active = abap_true
         config = `{"ModelId":"SALES_PLAN","SourceVersion":"FCT","TargetVersion":"@Target"}`
+        local_last_changed_at = now )
+      ( action_id = 'MA_CLOSE_VERSION' step_no = 10 step_type = 'VERSION' step_name = 'Private snapshot' description = 'A private copy to keep working on' active = abap_true
+        config = `{"ModelId":"SALES_PLAN","Operation":"CREATE_PRIVATE","SourceVersion":"@Version","VersionName":"Snapshot before close"}`
+        local_last_changed_at = now )
+      ( action_id = 'MA_CLOSE_VERSION' step_no = 20 step_type = 'LOCK' step_name = 'Lock the version' description = 'Planners and data actions can no longer write to it' active = abap_true
+        config = `{"ModelId":"SALES_PLAN","Operation":"LOCK","Version":"@Version"}`
         local_last_changed_at = now ) ) ).
 
     INSERT zsac_file FROM TABLE @( VALUE #(
@@ -283,6 +293,8 @@ CLASS zcl_sac_seed IMPLEMENTATION.
       ( file_id = 'F_DATAACTION_DA_FORECAST_CYCLE' file_type = 'DATAACTION' object_id = 'DA_FORECAST_CYCLE' file_name = 'Forecast refresh (aggressive)'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
       ( file_id = 'F_DATAACTION_DA_FORECAST_FROM_ACT' file_type = 'DATAACTION' object_id = 'DA_FORECAST_FROM_ACT' file_name = 'Forecast Q4 from run-rate'
+        owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
+      ( file_id = 'F_MULTIACTION_MA_CLOSE_VERSION' file_type = 'MULTIACTION' object_id = 'MA_CLOSE_VERSION' file_name = 'Snapshot and lock a version'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
       ( file_id = 'F_MULTIACTION_MA_FORECAST_CYCLE' file_type = 'MULTIACTION' object_id = 'MA_FORECAST_CYCLE' file_name = 'Forecast cycle'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now ) ) ).

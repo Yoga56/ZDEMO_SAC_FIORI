@@ -283,7 +283,9 @@ sap.ui.define([
       this._field(edit, "Step Active", new HBox({ alignItems: "Center", items: [
         new Switch({ state: s.Active, change: (e) => { s.Active = e.getParameter("state"); this._changed(false); } }),
         new Text({ text: "Step is active (inactive steps are skipped)" }).addStyleClass("sapUiTinyMarginBegin")] }));
-      if (s.StepType === "DATAACTION") { this._dataActionEditor(edit, s); } else { this._publishEditor(edit, s); }
+      if (s.StepType === "DATAACTION") { this._dataActionEditor(edit, s); }
+      else if (s.StepType === "PUBLISH") { this._publishEditor(edit, s); }
+      else { this._versionStepEditor(edit, s); }
     },
 
     /** ComboBox: the list holds the compatible multi action parameters (as @Id); the text can also be typed (a number or a member id). */
@@ -337,6 +339,29 @@ sap.ui.define([
       const members = this._members(s.ModelId, "VERSION");
       this._field(edit, "Source version", this._combo((raw) => { s.SourceVersion = raw; }, s.SourceVersion, versionParams, members), "The version whose values are published.");
       this._field(edit, "Target version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, versionParams, members), "The version that is overwritten. Choose a version parameter to ask for it when the multi action runs.");
+    },
+
+    /** Version Management and Data Locking: model, operation and the version it works on (a version id or a version parameter). */
+    _versionStepEditor(edit, s) {
+      this._field(edit, "Model", new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        change: (e) => { s.ModelId = e.getParameter("selectedItem").getKey(); s.SourceVersion = ""; s.Version = ""; this._changed(true); } }));
+      const ops = Schema.OPERATIONS[s.StepType];
+      this._field(edit, "Operation", new Select({ width: "100%", selectedKey: s.Operation, items: Object.keys(ops).map((k) => new Item({ key: k, text: ops[k] })),
+        change: (e) => { s.Operation = e.getParameter("selectedItem").getKey(); this._changed(true); } }));
+      if (!s.ModelId) { return; }
+      const versionParams = this._a.Parameters.filter((p) => p.Type === "MEMBER" && p.DimId === "VERSION");
+      const members = this._members(s.ModelId, "VERSION");
+      if (s.StepType === "VERSION" && s.Operation === "CREATE_PRIVATE") {
+        this._field(edit, "Version to copy", this._combo((raw) => { s.SourceVersion = raw; }, s.SourceVersion, versionParams, members), "The private version starts with a copy of its values.");
+        this._field(edit, "Name of the private version", this._text(s, "VersionName"));
+        return;
+      }
+      const label = s.StepType === "LOCK" ? (s.Operation === "LOCK" ? "Version to lock" : "Version to unlock")
+        : (s.Operation === "REVERT" ? "Private version to revert" : "Version to delete");
+      const hint = s.StepType === "LOCK" ? "A locked version cannot be written to by planners or by data actions."
+        : (s.Operation === "REVERT" ? "The private version gets the values of the version it was copied from." : "The version and its values are removed. A locked version cannot be deleted.");
+      this._field(edit, label, this._combo((raw) => { s.Version = raw; }, s.Version, versionParams, members), hint);
     },
 
     // validation results -------------------------------------------------------------------------------------------------------------

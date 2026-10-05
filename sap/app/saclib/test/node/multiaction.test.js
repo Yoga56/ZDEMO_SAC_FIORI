@@ -59,3 +59,35 @@ test("multi action run: inactive steps are skipped and the first failing step st
   assert.match(r.Steps[0].message, /skipped/);
   assert.match(r.Steps[1].message, /locked/);
 });
+
+test("version management and data locking steps: snapshot, lock, unlock, revert, delete", async () => {
+  const p = make();
+  const r = await p.runMultiAction("MA_CLOSE_VERSION", { Values: { Version: ["BUD"] } });
+  assert.strictEqual(r.Status, "S", r.Log.join("\n"));
+  const versions = await p.listVersions("SALES_PLAN");
+  assert.ok(versions.some((v) => v.Category === "PRIVATE" && v.Name === "Snapshot before close" && v.SourceVersion === "BUD"));
+  assert.strictEqual(versions.find((v) => v.VersionId === "BUD").Locked, true);
+  await p.saveMultiAction({ Id: "U", Name: "u", Parameters: [], Steps: [
+    { StepNo: 10, StepType: "LOCK", ModelId: "SALES_PLAN", Operation: "UNLOCK", Version: "BUD" },
+    { StepNo: 20, StepType: "VERSION", ModelId: "SALES_PLAN", Operation: "DELETE", Version: "PRIV1" }] });
+  const u = await p.runMultiAction("U", {});
+  assert.strictEqual(u.Status, "S", u.Log.join("\n"));
+  const after = await p.listVersions("SALES_PLAN");
+  assert.strictEqual(after.find((v) => v.VersionId === "BUD").Locked, false);
+  assert.ok(!after.some((v) => v.VersionId === "PRIV1"));
+});
+
+test("version management and data locking validation", async () => {
+  const p = make();
+  const a = Schema.normalizeAction({ Name: "x", Steps: [
+    { StepType: "LOCK", ModelId: "OPEX_PLAN", Operation: "LOCK", Version: "BUD" },
+    { StepType: "VERSION", ModelId: "SALES_PLAN", Operation: "REVERT", Version: "BUD" },
+    { StepType: "VERSION", ModelId: "SALES_PLAN", Operation: "DELETE", Version: "ACT" },
+    { StepType: "VERSION", ModelId: "SALES_PLAN", Operation: "CREATE_PRIVATE", SourceVersion: "NOPE" },
+    { StepType: "LOCK", Operation: "LOCK" }] });
+  const r = Schema.validate(a, await ctxOf(p));
+  const msgs = r.map((x) => x.severity + ": " + x.message).join("\n");
+  for (const part of ["Data Locking is not switched on", "is not a private version", "is locked, unlock it first", "version NOPE does not exist", "choose the model"]) {
+    assert.ok(msgs.includes(part), part + "\n" + msgs);
+  }
+});
