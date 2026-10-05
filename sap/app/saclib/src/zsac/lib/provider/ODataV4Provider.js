@@ -152,7 +152,12 @@ sap.ui.define([
       await this._replaceDeep("/Model", "/Model(ModelId=" + quote(m.ModelId) + ")", this._modelPayload(m), old);
       return m;
     }
-    deleteModel(id) { return this._invokeDelete("/Model(ModelId=" + quote(id) + ")"); }
+    /** Deleting an object also removes its entry in Files (the mock provider does the same). */
+    async _dropFile(type, id) {
+      const rows = await this._list("/File", [new Filter("ObjectId", FilterOperator.EQ, id)]);
+      for (const f of rows.filter((x) => x.FileKind === type)) { await this._delete("/File(FileId=" + quote(f.FileId) + ")").catch(() => {}); }
+    }
+    async deleteModel(id) { await this._invokeDelete("/Model(ModelId=" + quote(id) + ")"); await this._dropFile("MODEL", id); }
 
     // ---- facts ------------------------------------------------------------------------------
     async readFacts(modelId, filters) {
@@ -249,7 +254,7 @@ sap.ui.define([
       await this._replaceDeep("/Story", "/Story(StoryId=" + quote(s.Id) + ")", this._storyPayload(s), old);
       return s;
     }
-    deleteStory(id) { return this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); }
+    async deleteStory(id) { await this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); await this._dropFile("STORY", id); }
 
     // ---- data actions -----------------------------------------------------------------------
     /** A step is its own columns for what every step has and CONFIG (JSON) for what depends on the step type. */
@@ -277,7 +282,7 @@ sap.ui.define([
       await this._replaceDeep("/DataAction", "/DataAction(ActionId=" + quote(a.Id) + ")", this._dataActionPayload(a), old);
       return a;
     }
-    deleteDataAction(id) { return this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); }
+    async deleteDataAction(id) { await this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); await this._dropFile("DATAACTION", id); }
     // executing (executeDataAction, previewDataAction, runMultiAction) is inherited: the steps run in the client and the difference is written as facts
 
     // ---- comments on cells --------------------------------------------------------------------
@@ -329,7 +334,7 @@ sap.ui.define([
       await this._replaceDeep("/MultiAction", "/MultiAction(ActionId=" + quote(a.Id) + ")", this._multiPayload(a), old);
       return a;
     }
-    deleteMultiAction(id) { return this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); }
+    async deleteMultiAction(id) { await this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); await this._dropFile("MULTIACTION", id); }
 
     // ---- files and calendar -----------------------------------------------------------------
     _toFile(e) { return { Id: e.FileId, ParentId: e.ParentId, Type: e.FileKind, ObjectId: e.ObjectId, Name: e.FileName, Description: e.Description,
