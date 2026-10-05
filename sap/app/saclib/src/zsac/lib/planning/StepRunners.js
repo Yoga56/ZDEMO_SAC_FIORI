@@ -120,7 +120,16 @@ sap.ui.define(["./MultiActionSchema", "./ImportEngine", "./Forecaster", "../core
     return { touched: n, message: "Deleted " + n + " comments of " + version };
   }
 
-  const RUNNERS = { IMPORT: runImport, PREDICT: runPredict, API: runApi, PAPM: runPapm, COMMENT: runComment };
+  async function runSource(provider, step, values) {
+    const from = one(step.FromPeriod, values);
+    const to = one(step.ToPeriod, values);
+    const months = from || to ? HierarchyEngine.monthRange(from || to, to || from) : [];
+    if ((from || to) && !months.length) { throw new Error("the months " + (from || "(empty)") + " to " + (to || "(empty)") + " are not valid"); }
+    const r = await provider.importFromSource(step.ModelId, { VersionId: one(step.TargetVersion, values), Filters: months.length ? { PERIOD: months } : {}, Mode: step.Mode === "REPLACE" ? "REPLACE" : "UPDATE" });
+    return { touched: r.Written, message: "Read " + r.Read + " values from the source" + (r.Deleted ? ", replaced " + r.Deleted + " existing values" : "") + (months.length ? " (" + months[0] + " to " + months[months.length - 1] + ")" : "") };
+  }
+
+  const RUNNERS = { SOURCE: runSource, IMPORT: runImport, PREDICT: runPredict, API: runApi, PAPM: runPapm, COMMENT: runComment };
 
   return { run: (provider, step, values, parameters) => RUNNERS[step.StepType](provider, step, values, parameters), handles: (type) => !!RUNNERS[type], statusOk };
 });

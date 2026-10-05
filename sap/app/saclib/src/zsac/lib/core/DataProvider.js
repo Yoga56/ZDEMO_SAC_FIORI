@@ -6,7 +6,7 @@
  * A subclass implements the underscore-free primitives below (all return promises). `query`, `saveStory`,
  * `saveModel` ... are composed here from those primitives so every provider behaves the same.
  */
-sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners"], function (QueryEngine, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners) {
+sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource"], function (QueryEngine, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource) {
   "use strict";
 
   const abstract = (name) => function () { return Promise.reject(new Error(this.constructor.name + " does not implement " + name)); };
@@ -30,6 +30,52 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
     /** Upsert facts by key (Model, Version, Period, Measure, Dim1..5). */
     writeFacts(/* modelId, rows */) { return abstract("writeFacts").call(this); }
     deleteFacts(/* modelId, rows */) { return abstract("deleteFacts").call(this); }
+
+    // --- CDS / OData sources (models with a Source, see provider/LiveSource) --------------------
+    /** { json(url), text(url) }: how this provider reads a data source. The default is the browser's fetch with the session of the user. */
+    sourceFetch() { return LiveSource.browserFetch(); }
+
+    /** Entity sets and their fields found in the $metadata of a service. */
+    discoverSource(service) { return LiveSource.discover(service, this.sourceFetch().text); }
+
+    /** Members and period range found in the source of a (not yet saved) model. */
+    loadSourceMembers(model) { return LiveSource.loadMembers(model, this.sourceFetch().json); }
+
+    /** Reads the source of a (not yet saved) model: how many facts it gives and the first few, to try a mapping. */
+    async testSource(model) {
+      const facts = await LiveSource.readFacts(model, {}, this.sourceFetch().json);
+      return { Count: facts.length, Sample: facts.slice(0, 5) };
+    }
+
+    /** Models with a live source are read only. */
+    async _assertWritable(modelId) {
+      const model = await this.getModel(modelId);
+      if (LiveSource.isLive(model)) { throw new Error("The model " + modelId + " reads its data live from " + model.Source.Entity + " and is read only"); }
+    }
+
+    /**
+     * Copies the rows of the source of an IMPORT model into a version. opts = { VersionId, Filters: {PERIOD: [...], DIM: [...]}, Mode: "UPDATE" | "REPLACE" }.
+     * UPDATE writes the rows over the same cells; REPLACE first deletes the facts of the version within the same filters.
+     * @returns {Promise<{Read:number, Written:number, Deleted:number}>}
+     */
+    async importFromSource(modelId, opts) {
+      const model = await this.getModel(modelId);
+      const src = model.Source;
+      if (!src || src.Mode !== "IMPORT") { throw new Error("The model " + modelId + " has no import source"); }
+      const target = (await this.listVersions(modelId)).find((v) => v.VersionId === opts.VersionId);
+      if (!target) { throw new Error("Version " + (opts.VersionId || "(empty)") + " does not exist in " + modelId); }
+      if (target.Locked) { throw new Error("Version " + target.VersionId + " is locked"); }
+      const filters = QueryEngine.expandFilters(model, Object.assign({}, opts.Filters || {}, { VERSION: [] }));
+      const facts = (await LiveSource.readFacts(model, filters, this.sourceFetch().json)).map((f) => Object.assign({}, f, { VersionId: target.VersionId }));
+      let deleted = 0;
+      if (opts.Mode === "REPLACE") {
+        const old = await this.readFacts(modelId, Object.assign({}, filters, { VERSION: [target.VersionId] }));
+        if (old.length) { await this.deleteFacts(modelId, old); }
+        deleted = old.length;
+      }
+      if (facts.length) { await this.writeFacts(modelId, facts); }
+      return { Read: facts.length, Written: facts.length, Deleted: deleted };
+    }
 
     /** Change history of plan data for a model (newest first); only where capabilities.audit is true. */
     listAudit(/* modelId, limit */) { return abstract("listAudit").call(this); }

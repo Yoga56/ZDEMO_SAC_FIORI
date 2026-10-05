@@ -5,9 +5,11 @@
  * model   = { ModelId, Name, Description, Currency, PeriodFrom, PeriodTo, PlanningEnabled, DataLocking, DataAudit, DataSource,
  *             Dimensions: [{ DimId, Label, Slot, Type, Attributes: [{Id, Label}], Members: [{Id, Text, Props}],
  *                            Hierarchies: [{Id, Label, Parents: {childId: parentId}}] }],
- *             Measures:   [{ MeasureId, Label, DataType, Aggregation, ExceptionAggregation, ExceptionDims, UnitType, Unit, Scale, Decimals }] }
+ *             Measures:   [{ MeasureId, Label, DataType, Aggregation, ExceptionAggregation, ExceptionDims, UnitType, Unit, Scale, Decimals }],
+ *             Source:     null | { Type: "CDS", Mode: "LIVE" | "IMPORT", Service, Entity, Version, PeriodField, PeriodFormat, Dims, Texts, Measures, MaxRows } }
+ * A model with a LIVE source reads its data from the source on demand: it is read only, so planning is switched off (see provider/LiveSource).
  */
-sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
+sap.ui.define(["./HierarchyEngine", "../provider/LiveSource"], function (HierarchyEngine, LiveSource) {
   "use strict";
 
   const AGGREGATIONS = ["SUM", "AVG", "MIN", "MAX", "COUNT"];
@@ -48,10 +50,13 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
 
   /** Fills every missing property so engines and widgets never test for undefined. */
   function normalize(model) {
+    const source = model.Source ? LiveSource.defaults(model.Source) : null;
+    const live = !!source && source.Mode === "LIVE";
     return Object.assign({ Description: "", Currency: "", PlanningEnabled: true, DataLocking: false, DataAudit: false, DataSource: "" }, model, {
       Dimensions: (model.Dimensions || []).map(normalizeDimension),
-      Measures: (model.Measures || []).map(normalizeMeasure)
-    });
+      Measures: (model.Measures || []).map(normalizeMeasure),
+      Source: source
+    }, live ? { PlanningEnabled: false, DataLocking: false, DataAudit: false } : {});
   }
 
   function newModel() {
@@ -91,6 +96,7 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
       if (new Set(ids).size !== ids.length) { p.push("Dimension " + d.DimId + ": member ids must be unique"); }
       HierarchyEngine.validate(d).forEach((x) => p.push(x));
     });
+    LiveSource.validate(model).forEach((x) => p.push(x));
     const known = dims.map((d) => d.DimId).concat(["PERIOD", "VERSION"]);
     measures.forEach((x) => {
       if (AGGREGATIONS.indexOf(x.Aggregation) < 0) { p.push("Measure " + x.MeasureId + ": unknown aggregation " + x.Aggregation); }

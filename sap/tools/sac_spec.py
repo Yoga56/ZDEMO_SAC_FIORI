@@ -38,7 +38,7 @@ ENTITIES = [
          children=[("DIM", "_Dimension"), ("MEASURE", "_Measure")], fields=[
         ("*MODEL_ID", "CHAR 20"), ("MODEL_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("CURRENCY", "CHAR 5"),
         ("PERIOD_FROM", "CHAR 7"), ("PERIOD_TO", "CHAR 7"), ("PLANNING_ENABLED", BOOL), ("DATA_LOCKING", BOOL),
-        ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80")],
+        ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80"), ("SOURCE_JSON", "STRG")],
         validations=[("CheckStructure", "ModelName")]),
     dict(id="DIM", table="ZSAC_DIM", label="Model Dimension", set="Dimension", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
         ("*MODEL_ID", "CHAR 20"), ("*DIM_ID", "CHAR 20"), ("LABEL", "CHAR 40"), ("SLOT", "INT4"), ("MEMBERS", "STRG"),

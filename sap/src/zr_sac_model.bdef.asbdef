@@ -33,6 +33,7 @@ etag master LocalLastChangedAt
     DataLocking = data_locking;
     DataAudit = data_audit;
     DataSource = data_source;
+    SourceJson = source_json;
     CreatedBy = created_by;
     CreatedAt = created_at;
     LastChangedBy = last_changed_by;

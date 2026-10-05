@@ -13,7 +13,8 @@
  *            PREDICT     ModelId, MeasureId, SourceVersion, TargetVersion, HistoryFrom/To, ForecastFrom/To, Method, Window, Alpha
  *            API         Method, Url, Headers [{Name, Value}], Body, Expect ("2xx" or "200,201"), TimeoutSec     (text may hold @multiParam)
  *            PAPM        Environment, FunctionId, Parameters [{Name, Value}]                                      (values may be @multiParam)
- *            COMMENT     ModelId, Operation: COPY (SourceVersion, TargetVersion) | DELETE (Version) }
+ *            COMMENT     ModelId, Operation: COPY (SourceVersion, TargetVersion) | DELETE (Version)
+ *            SOURCE      ModelId (a model with an IMPORT source), TargetVersion, FromPeriod, ToPeriod (empty: every month), Mode: UPDATE | REPLACE }
  * A value written "@Name" is the parameter Name of the multi action.
  */
 sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvParser) {
@@ -28,7 +29,8 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
     PREDICT: { label: "Predictive", icon: "sap-icon://predictive-analytics", hint: "Forecast future months from the history of a version with a statistical method" },
     API: { label: "API", icon: "sap-icon://chain-link", hint: "Call an HTTP endpoint, for example to start a process in another system" },
     PAPM: { label: "PaPM Integration", icon: "sap-icon://connected", hint: "Run a function of SAP Profitability and Performance Management" },
-    COMMENT: { label: "Comment Management", icon: "sap-icon://comment", hint: "Copy the comments of a version to another version, or delete them" }
+    COMMENT: { label: "Comment Management", icon: "sap-icon://comment", hint: "Copy the comments of a version to another version, or delete them" },
+    SOURCE: { label: "Import from Source", icon: "sap-icon://database", hint: "Copy rows of the CDS view behind an import model into a version" }
   };
   const OPERATIONS = {
     VERSION: { CREATE_PRIVATE: "Create private version", REVERT: "Revert private version", DELETE: "Delete version" },
@@ -46,7 +48,7 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
   function normalizeStep(step, index) {
     const type = STEP_TYPES[step.StepType] ? step.StepType : "DATAACTION";
     const s = Object.assign({ Name: "", Description: "", Active: true, ActionId: "", ParamMap: {}, ModelId: "", SourceVersion: "", TargetVersion: "", Version: "", VersionName: "",
-      Csv: "", Mapping: {}, MeasureId: "", Mode: "UPDATE", OnError: "FAIL",
+      Csv: "", Mapping: {}, MeasureId: "", FromPeriod: "", ToPeriod: "", Mode: "UPDATE", OnError: "FAIL",
       HistoryFrom: "", HistoryTo: "", ForecastFrom: "", ForecastTo: "", Method: type === "API" ? "POST" : "LINEAR", Window: 3, Alpha: 0.3,
       Url: "", Headers: [], Body: "", Expect: "2xx", TimeoutSec: 30, Environment: "", FunctionId: "", Parameters: [] }, clone(step), { StepType: type });
     if (OPERATIONS[type] && !OPERATIONS[type][s.Operation]) { s.Operation = Object.keys(OPERATIONS[type])[0]; }
@@ -73,7 +75,7 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
     const out = new Set();
     const add = (v) => { if (isRef(v)) { out.add(refName(v)); } };
     Object.keys(step.ParamMap || {}).forEach((k) => valuesOf(step.ParamMap[k]).forEach(add));
-    [step.SourceVersion, step.TargetVersion, step.Version, step.MeasureId, step.HistoryFrom, step.HistoryTo, step.ForecastFrom, step.ForecastTo].forEach(add);
+    [step.SourceVersion, step.TargetVersion, step.Version, step.MeasureId, step.HistoryFrom, step.HistoryTo, step.ForecastFrom, step.ForecastTo, step.FromPeriod, step.ToPeriod].forEach(add);
     if (step.StepType === "API" || step.StepType === "PAPM") {
       const scan = (t) => { String(t || "").replace(/@([A-Za-z][A-Za-z0-9_]*)/g, (m, n) => { out.add(n); return m; }); };
       [step.Url, step.Body].forEach(scan);
@@ -255,6 +257,23 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
           else if (isRef(m)) { refOk(m, "Measure", "MEMBER", "MEASURE"); }
           else if (!(model.Measures || []).some((x) => x.MeasureId === m)) { err(i, where + ": measure " + m + " does not exist"); }
         }
+      } else if (s.StepType === "SOURCE") {
+        const model = models.get(s.ModelId);
+        if (!model) { err(i, where + ": choose the model"); return; }
+        if (!model.Source || model.Source.Mode !== "IMPORT") { err(i, where + ": the model has no import source, set one up in the Modeller"); return; }
+        const v = s.TargetVersion;
+        if (!v) { err(i, where + ": choose the version to import into"); }
+        else if (isRef(v)) { refOk(v, "Target version", "MEMBER", "VERSION"); }
+        else if (!versionsOf(s.ModelId).get(v)) { err(i, where + ": version " + v + " does not exist in the model"); }
+        else if (versionsOf(s.ModelId).get(v).Locked) { err(i, where + ": version " + v + " is locked"); }
+        const month = (x, what) => {
+          if (!x) { return; }
+          if (isRef(x)) { refOk(x, what, "MEMBER", "PERIOD"); } else if (!PERIOD.test(x)) { err(i, where + ": " + what + " " + x + " is not of the form 2026-03"); }
+        };
+        month(s.FromPeriod, "first month"); month(s.ToPeriod, "last month");
+        if (s.FromPeriod && s.ToPeriod && !isRef(s.FromPeriod) && !isRef(s.ToPeriod) && s.FromPeriod > s.ToPeriod) { err(i, where + ": the first month is after the last month"); }
+        if (["UPDATE", "REPLACE"].indexOf(s.Mode) < 0) { err(i, where + ": unknown mode " + s.Mode); }
+        if (s.Mode === "REPLACE" && !s.FromPeriod && !s.ToPeriod) { warn(i, where + ": without months the whole version is replaced"); }
       } else if (s.StepType === "PREDICT") {
         const model = models.get(s.ModelId);
         if (!model) { err(i, where + ": choose the model"); return; }

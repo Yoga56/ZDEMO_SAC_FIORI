@@ -13,8 +13,9 @@ sap.ui.define([
   "../core/DataProvider",
   "../core/ModelSchema",
   "sap/ui/model/Filter",
-  "sap/ui/model/FilterOperator"
-], function (DataProvider, ModelSchema, Filter, FilterOperator) {
+  "sap/ui/model/FilterOperator",
+  "./LiveSource"
+], function (DataProvider, ModelSchema, Filter, FilterOperator, LiveSource) {
   "use strict";
 
   const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
@@ -82,7 +83,7 @@ sap.ui.define([
       return ModelSchema.normalize({
         ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency,
         PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking,
-        DataAudit: !!e.DataAudit, DataSource: e.DataSource,
+        DataAudit: !!e.DataAudit, DataSource: e.DataSource, Source: json(e.SourceJson, null),
         Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
           Attributes: json(d.Attributes, undefined), Hierarchies: json(d.Hierarchies, []) }))
           .sort((a, b) => a.Slot - b.Slot),
@@ -100,7 +101,7 @@ sap.ui.define([
       await this._replace("/Model", key, {
         ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
         PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking,
-        DataAudit: !!m.DataAudit, DataSource: m.DataSource || ""
+        DataAudit: !!m.DataAudit, DataSource: m.DataSource || "", SourceJson: m.Source ? str(m.Source) : ""
       });
       for (const d of m.Dimensions || []) {
         await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: str(d.Members || []),
@@ -118,6 +119,7 @@ sap.ui.define([
     // ---- facts ------------------------------------------------------------------------------
     async readFacts(modelId, filters) {
       const model = await this.getModel(modelId);
+      if (LiveSource.isLive(model)) { return LiveSource.readFacts(model, filters, this.sourceFetch().json); }
       const list = [new Filter("ModelId", FilterOperator.EQ, modelId)];
       const slot = { VERSION: "VersionId", PERIOD: "Period", MEASURE: "Measure" };
       Object.keys(filters || {}).forEach((dim) => {
@@ -132,11 +134,13 @@ sap.ui.define([
       return rows.map((r) => Object.assign(strip(r), { Value: Number(r.Value) }));
     }
     async writeFacts(modelId, rows) {
+      await this._assertWritable(modelId);
       rows = rows.map((r) => Object.assign({}, r, { ModelId: modelId }));
       await this._action("/Fact/" + NS + "WriteFacts(...)", { Payload: this._payload(rows) });
       return rows.length;
     }
     async deleteFacts(modelId, rows) {
+      await this._assertWritable(modelId);
       rows = rows.map((r) => Object.assign({}, r, { ModelId: modelId }));
       await this._action("/Fact/" + NS + "DeleteFacts(...)", { Payload: this._payload(rows) });
       return rows.length;
@@ -151,6 +155,10 @@ sap.ui.define([
     // ---- versions ---------------------------------------------------------------------------
     _toVersion(e) { return { ModelId: e.ModelId, VersionId: e.VersionId, Name: e.VersionName, Category: e.Category, Locked: !!e.Locked, Owner: e.OwnerId, SourceVersion: e.SourceVersion, Status: e.Status }; }
     async listVersions(modelId) {
+      if (modelId) {
+        const model = await this.getModel(modelId).catch(() => null);
+        if (model && LiveSource.isLive(model)) { return [LiveSource.liveVersion(model)]; }
+      }
       const filters = modelId ? [new Filter("ModelId", FilterOperator.EQ, modelId)] : [];
       return (await this._list("/Version", filters)).map((e) => this._toVersion(e));
     }

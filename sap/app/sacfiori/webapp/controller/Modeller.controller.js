@@ -2,12 +2,14 @@ sap.ui.define([
   "./BaseController",
   "../model/DataTools",
   "../model/MasterDataDialog",
+  "../model/SourceDialog",
   "sap/ui/model/json/JSONModel",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
+  "sap/m/Dialog", "sap/m/Button", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/ui/core/Item",
   "zsac/lib/core/ModelSchema",
   "zsac/lib/planning/DataActionEngine"
-], function (BaseController, DataTools, MasterDataDialog, JSONModel, Filter, FilterOperator, ModelSchema) {
+], function (BaseController, DataTools, MasterDataDialog, SourceDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema) {
   "use strict";
 
   const BUILTIN_ROWS = (versions, periods) => [
@@ -229,13 +231,66 @@ sap.ui.define([
       })();
     },
 
+    // ---- CDS source ------------------------------------------------------------------------
+    /** Connects the model to a CDS view; members and period range found in the source are merged into the model when asked for. */
+    onSource: function () {
+      this.guard(async () => {
+        const result = await SourceDialog.open({ provider: await this.provider(), model: this._collect(), source: this._m.getProperty("/Source") });
+        if (!result) { return; }
+        const src = result.Source;
+        this._m.setProperty("/Source", src);
+        if (!src) { this._m.setProperty("/DataSource", ""); return; }
+        this._m.setProperty("/DataSource", (src.Mode === "LIVE" ? "Live from CDS " : "Import from CDS ") + src.Entity);
+        if (src.Mode === "LIVE") {
+          this._m.setProperty("/PlanningEnabled", false); this._m.setProperty("/DataLocking", false); this._m.setProperty("/DataAudit", false);
+        }
+        const found = result.Found;
+        if (found) {
+          const dims = this._m.getProperty("/Dimensions");
+          dims.forEach((d) => {
+            if (d.builtin || !found.Members[d.DimId]) { return; }
+            const have = new Set((d.Members || []).map((x) => x.Id));
+            found.Members[d.DimId].forEach((x) => { if (!have.has(x.Id)) { d.Members.push({ Id: x.Id, Text: x.Text || x.Id, Props: {} }); } });
+          });
+          this._m.setProperty("/Dimensions", dims);
+          if (found.PeriodFrom && (src.Mode === "LIVE" || !this._m.getProperty("/PeriodFrom"))) {
+            this._m.setProperty("/PeriodFrom", found.PeriodFrom); this._m.setProperty("/PeriodTo", found.PeriodTo);
+          }
+        }
+        this.toast("Source set. Save the model to keep it.");
+      })();
+    },
+
+    /** Import model: copies the rows of the source into a version (the multi action step does the same on a schedule of your choosing). */
+    onImportSource: function () {
+      this.guard(async () => {
+        const p = await this.provider();
+        const id = this._m.getProperty("/ModelId");
+        const versions = (await p.listVersions(id)).filter((v) => !v.Locked);
+        if (!versions.length) { throw new Error("The model has no unlocked version to import into"); }
+        const version = new Select({ width: "100%", selectedKey: versions[0].VersionId, items: versions.map((v) => new Item({ key: v.VersionId, text: v.Name })) });
+        const mode = new Select({ width: "100%", selectedKey: "REPLACE", items: [new Item({ key: "REPLACE", text: "Replace the values of the version" }), new Item({ key: "UPDATE", text: "Update the same cells, keep the rest" })] });
+        const dlg = new Dialog({ title: "Import from source",
+          content: [this._margin({ width: "22rem", items: [new Label({ text: "Into version" }), version, new Label({ text: "Existing values" }).addStyleClass("sapUiTinyMarginTop"), mode,
+            new Text({ text: "All periods of the source are copied. For a part of the months use the Import from Source step of a multi action." }).addStyleClass("zsacSmall sapUiTinyMarginTop")] })],
+          beginButton: new Button({ text: "Import", type: "Emphasized", press: this.guard(async () => {
+            dlg.close();
+            const r = await p.importFromSource(id, { VersionId: version.getSelectedKey(), Filters: {}, Mode: mode.getSelectedKey() });
+            this.toast(r.Written + " values copied" + (r.Deleted ? ", " + r.Deleted + " replaced" : ""));
+            await this._load(id);
+          }) }),
+          endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+        dlg.open();
+      })();
+    },
+
     // ---- save ------------------------------------------------------------------------------
     _collect() {
       const d = this._m.getData();
       const dims = d.Dimensions.filter((x) => !x.builtin);
       return {
         ModelId: d.ModelId, Name: (d.Name || "").trim(), Description: d.Description || "", Currency: d.Currency || "", PeriodFrom: d.PeriodFrom, PeriodTo: d.PeriodTo,
-        PlanningEnabled: !!d.PlanningEnabled, DataLocking: !!d.DataLocking, DataAudit: !!d.DataAudit, DataSource: d.DataSource || "",
+        PlanningEnabled: !!d.PlanningEnabled, DataLocking: !!d.DataLocking, DataAudit: !!d.DataAudit, DataSource: d.DataSource || "", Source: d.Source || null,
         Dimensions: dims.map((x, i) => ({ DimId: x.DimId, Label: x.Label || x.DimId, Slot: i + 1, Type: x.Type || "GENERIC",
           Attributes: (x.Attributes || []).filter((a) => a.Id).map((a) => ({ Id: a.Id, Label: a.Label || a.Id })),
           Hierarchies: (x.Hierarchies || []).map((h) => ({ Id: h.Id, Label: h.Label || h.Id, Parents: h.Parents || {} })),

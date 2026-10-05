@@ -16,6 +16,7 @@ define root view entity ZC_SAC_MODEL
   DataLocking,
   DataAudit,
   DataSource,
+  SourceJson,
   CreatedBy,
   CreatedAt,
   LastChangedBy,

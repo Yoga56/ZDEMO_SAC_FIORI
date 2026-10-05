@@ -10,8 +10,10 @@ sap.ui.define([
   "../core/QueryEngine",
   "../core/ModelSchema",
   "../planning/DataActionEngine",
-  "../planning/VersionEngine"
-], function (DataProvider, QueryEngine, ModelSchema, DataActionEngine, VersionEngine) {
+  "../planning/VersionEngine",
+  "./LiveSource",
+  "./FakeODataService"
+], function (DataProvider, QueryEngine, ModelSchema, DataActionEngine, VersionEngine, LiveSource, FakeODataService) {
   "use strict";
 
   const STORE_KEY = "zsac.mock.v1";
@@ -93,12 +95,37 @@ sap.ui.define([
     }
 
     // facts
+    /**
+     * The sample data source: a fake OData service "mock://cds/ZSALES_CUBE" whose rows are the actuals of SALES_PLAN (region, product, channel, a YYYYMM period,
+     * revenue and cost), so a model with a CDS source can be tried without a backend.
+     */
+    sourceFetch() {
+      const fake = FakeODataService.createFetch({
+        "mock://cds/ZSALES_CUBE": {
+          entitySet: "ZSalesCube",
+          properties: { Region: "Edm.String", Product: "Edm.String", Channel: "Edm.String", FiscalPeriod: "Edm.String", Revenue: "Edm.Decimal", Cost: "Edm.Decimal" },
+          rows: () => {
+            const rows = new Map();
+            this._db.facts.filter((f) => f.ModelId === "SALES_PLAN" && f.VersionId === "ACT").forEach((f) => {
+              const k = [f.Dim1, f.Dim2, f.Dim3, f.Period].join("|");
+              if (!rows.has(k)) { rows.set(k, { Region: f.Dim1, Product: f.Dim2, Channel: f.Dim3, FiscalPeriod: f.Period.replace("-", ""), Revenue: null, Cost: null }); }
+              rows.get(k)[f.Measure === "REVENUE" ? "Revenue" : "Cost"] = f.Value;
+            });
+            return Array.from(rows.values());
+          }
+        }
+      });
+      return LiveSource.browserFetch((url, init) => (String(url).indexOf("mock://") === 0 ? fake(url, init) : window.fetch(url, init)));
+    }
+
     async readFacts(modelId, filters) {
       const model = await this.getModel(modelId);
+      if (LiveSource.isLive(model)) { return clone(await LiveSource.readFacts(model, filters, this.sourceFetch().json)); }
       const own = this._db.facts.filter((f) => f.ModelId === modelId);
       return clone(QueryEngine.applyFilters(model, own, filters || {}));
     }
     async writeFacts(modelId, rows) {
+      await this._assertWritable(modelId);
       const model = this._db.models.find((x) => x.ModelId === modelId);
       const audit = !!(model && model.DataAudit);
       const at = new Date().toISOString();
@@ -118,6 +145,7 @@ sap.ui.define([
       return rows.length;
     }
     async deleteFacts(modelId, rows) {
+      await this._assertWritable(modelId);
       const keys = new Set(rows.map((r) => DataActionEngine.keyOf(Object.assign({ ModelId: modelId, Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r))));
       this._remove("facts", (f) => keys.has(DataActionEngine.keyOf(f)));
       return rows.length;
@@ -128,7 +156,11 @@ sap.ui.define([
     }
 
     // versions
-    listVersions(modelId) { return wait(this._db.versions.filter((v) => !modelId || v.ModelId === modelId)); }
+    listVersions(modelId) {
+      const model = modelId && this._db.models.find((m) => m.ModelId === modelId);
+      if (model && model.Source && model.Source.Mode === "LIVE") { return wait([LiveSource.liveVersion(model)]); }
+      return wait(this._db.versions.filter((v) => !modelId || v.ModelId === modelId));
+    }
     saveVersion(v) { return Promise.resolve(this._upsert("versions", v, (x) => x.ModelId + "|" + x.VersionId)).then(clone); }
     async createPrivateVersion(modelId, fromVersionId, name) {
       let n = 1;

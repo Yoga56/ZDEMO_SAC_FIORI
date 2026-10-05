@@ -173,6 +173,12 @@
                   <Text text="{= ${m>/DataSource} || 'No data imported yet'}"/>
                   <Link text="Open Data Management" press=".onOpenData" class="sapUiTinyMarginTop"/>
 
+                  <Title text="CDS Source" level="H5" class="sapUiMediumMarginTop"/>
+                  <Text text="{= ${m>/Source} ? ((${m>/Source/Mode} === 'LIVE' ? 'Live: ' : 'Import: ') + ${m>/Source/Entity} + ' (' + ${m>/Source/Service} + ')') : 'None. The data is typed in, imported from a CSV file or planned.'}"/>
+                  <Button text="{= ${m>/Source} ? 'Change source ...' : 'Connect to CDS ...'}" icon="sap-icon://database" press=".onSource" class="sapUiTinyMarginTop"/>
+                  <Button text="Import from source" icon="sap-icon://download" press=".onImportSource" class="sapUiTinyMarginTop sapUiTinyMarginBegin"
+                          visible="{= ${m>/Source/Mode} === 'IMPORT' &amp;&amp; !${m>/isNew}}"/>
+
                   <Title text="{= 'Related Objects (' + ${rel>/items}.length + ')'}" level="H5" class="sapUiMediumMarginTop"/>
                   <List items="{path: 'rel>/items', templateShareable: false}" noDataText="Nothing uses this model yet" showSeparators="None">
                     <StandardListItem title="{rel>title}" description="{rel>kind}" icon="{rel>icon}" type="Navigation" press=".onRelated"/>

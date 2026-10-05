@@ -145,6 +145,15 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Data actions: see the next section.
 * Version: private = copy of a source; publish replaces the target version; revert copies the source again.
 
+### CDS sources
+
+`model.Source` (`ModelSchema`, stored as JSON in `ZSAC_MODEL.SOURCE_JSON`) maps an OData V4 entity set to the model: service URL, entity, period field and format, a field per dimension (and optional text field)
+and per measure. `LiveSource` (pure, fetch injected) builds the requests and turns rows into facts. **LIVE** models: `readFacts` of the providers delegates to `LiveSource.readFacts`
+(`$apply=filter(..)/groupby((..),aggregate(..))`, months of a date field merged, a service that cannot aggregate is read plain and aggregated here), `listVersions` returns the one locked live version,
+writes are refused, planning is off. **IMPORT** models keep their own facts; `DataProvider.importFromSource` (UPDATE or REPLACE within the filters) and the multi action step `SOURCE` copy the rows
+of the source into a version. `discoverSource` reads `$metadata`, `loadSourceMembers` the members and period range, `testSource` tries a mapping. `MockProvider.sourceFetch` serves the sample service
+`mock://cds/ZSALES_CUBE` (`FakeODataService`, the actuals of the sales plan) for the models SALES_LIVE and SALES_IMPORT. How to expose a CDS view and connect it: `sap/docs/cds-sources.md`.
+
 ### Multi actions
 
 `MultiActionSchema` (shape, validation, parameter mapping) is shared by every provider; `DataProvider.runMultiAction` runs it client side through `executeDataAction` and `publishVersion`.

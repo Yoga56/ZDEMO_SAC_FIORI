@@ -302,6 +302,7 @@ sap.ui.define([
       else if (s.StepType === "PUBLISH") { this._publishEditor(edit, s); }
       else if (s.StepType === "IMPORT") { this._importEditor(edit, s); }
       else if (s.StepType === "PREDICT") { this._predictEditor(edit, s); }
+      else if (s.StepType === "SOURCE") { this._sourceEditor(edit, s); }
       else if (s.StepType === "API") { this._apiEditor(edit, s); }
       else if (s.StepType === "PAPM") { this._papmEditor(edit, s); }
       else { this._versionStepEditor(edit, s); }
@@ -462,6 +463,24 @@ sap.ui.define([
       header.forEach((h) => { next[h] = s.Mapping[h] !== undefined ? s.Mapping[h] : guess[h]; });
       s.Mapping = next;
       this._changed(true);
+    },
+
+    // Import from Source -------------------------------------------------------------------------------------------------------
+    _sourceEditor(edit, s) {
+      const importModels = this._models.filter((m) => m.Source && m.Source.Mode === "IMPORT");
+      this._field(edit, "Import model", new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,
+        items: [new Item({ key: "", text: "Choose a model" })].concat(importModels.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        change: (e) => { s.ModelId = e.getParameter("selectedItem").getKey(); s.TargetVersion = ""; this._changed(true); } }),
+        importModels.length ? "A model with a CDS source in import mode (set up in the Modeller)." : "No model has an import source yet. Connect one to a CDS view in the Modeller.");
+      if (!s.ModelId) { return; }
+      const m = this._model(s.ModelId);
+      if (m && m.Source) { edit.addItem(new Text({ text: "Reads " + m.Source.Entity + " from " + m.Source.Service }).addStyleClass("zsacSmall")); }
+      const per = this._members(s.ModelId, "PERIOD");
+      const pp = this._params("MEMBER", "PERIOD");
+      this._field(edit, "Into version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, this._params("MEMBER", "VERSION"), this._members(s.ModelId, "VERSION")), "The version must not be locked.");
+      this._field(edit, "First month", this._combo((raw) => { s.FromPeriod = raw; }, s.FromPeriod, pp, per), "Leave both months empty to copy every month of the source.");
+      this._field(edit, "Last month", this._combo((raw) => { s.ToPeriod = raw; }, s.ToPeriod, pp, per));
+      this._field(edit, "Existing values", this._choice(s.Mode, [["UPDATE", "Update the same cells, keep the rest"], ["REPLACE", "Replace: delete the version's values of these months first"]], (v) => { s.Mode = v; }));
     },
 
     // Predictive -------------------------------------------------------------------------------------------------------------

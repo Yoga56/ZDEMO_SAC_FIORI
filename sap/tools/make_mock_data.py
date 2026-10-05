@@ -114,11 +114,27 @@ def opex_facts():
     return rows
 
 
+# the same sales structure, read from the sample CDS service mock://cds/ZSALES_CUBE (see MockProvider.sourceFetch)
+def cds_model(model_id, name, description, mode, planning):
+    import copy
+    m = copy.deepcopy(SALES)
+    m.update({"ModelId": model_id, "Name": name, "Description": description, "PlanningEnabled": planning, "DataLocking": False, "DataAudit": False,
+              "DataSource": ("Live from CDS ZSalesCube" if mode == "LIVE" else "Import from CDS ZSalesCube"),
+              "Source": {"Type": "CDS", "Mode": mode, "Service": "mock://cds/ZSALES_CUBE", "Entity": "ZSalesCube", "Version": "ACT", "PeriodField": "FiscalPeriod",
+                         "PeriodFormat": "YYYYMM", "Dims": {"REGION": "Region", "PRODUCT": "Product", "CHANNEL": "Channel"}, "Texts": {},
+                         "Measures": {"REVENUE": "Revenue", "COST": "Cost"}, "MaxRows": 100000}})
+    return m
+
+
+SALES_LIVE = cds_model("SALES_LIVE", "Sales (live from CDS)", "Revenue and cost read live from the CDS view ZSalesCube", "LIVE", False)
+SALES_IMPORT = cds_model("SALES_IMPORT", "Sales (import from CDS)", "A planning model that is filled from the CDS view ZSalesCube", "IMPORT", True)
+
+
 def versions():
     out = []
-    for m in ("SALES_PLAN", "OPEX_PLAN"):
+    for m in ("SALES_PLAN", "OPEX_PLAN", "SALES_IMPORT"):
         out += [
-            {"ModelId": m, "VersionId": "ACT", "Name": "Actual", "Category": "ACTUAL", "Locked": True,
+            {"ModelId": m, "VersionId": "ACT", "Name": "Actual", "Category": "ACTUAL", "Locked": m != "SALES_IMPORT",
              "Owner": "SYSTEM", "SourceVersion": "", "Status": "P"},
             {"ModelId": m, "VersionId": "BUD", "Name": "Budget 2026", "Category": "BUDGET", "Locked": False,
              "Owner": "SYSTEM", "SourceVersion": "", "Status": "P"},
@@ -269,7 +285,13 @@ def multiactions():
                   "ModelId": "SALES_PLAN", "MeasureId": "REVENUE", "SourceVersion": "ACT", "TargetVersion": "FCT", "HistoryFrom": "2026-01", "HistoryTo": "2026-09",
                   "ForecastFrom": "2026-10", "ForecastTo": "2026-12", "Method": "LINEAR", "Window": 3, "Alpha": 0.3},
                  {"StepNo": 20, "StepType": "COMMENT", "Name": "Carry budget comments to the forecast", "Description": "",
-                  "ModelId": "SALES_PLAN", "Operation": "COPY", "SourceVersion": "BUD", "TargetVersion": "FCT"}]}]
+                  "ModelId": "SALES_PLAN", "Operation": "COPY", "SourceVersion": "BUD", "TargetVersion": "FCT"}]},
+            {"Id": "MA_LOAD_ACTUALS", "Name": "Load actuals from CDS", "Description": "Copy the months you choose from the CDS view into the actual version of the import model",
+             "Parameters": [{"Id": "From", "Prompt": "First month", "Type": "MEMBER", "ModelId": "SALES_IMPORT", "DimId": "PERIOD", "Multi": False, "Default": ["2026-01"]},
+                            {"Id": "To", "Prompt": "Last month", "Type": "MEMBER", "ModelId": "SALES_IMPORT", "DimId": "PERIOD", "Multi": False, "Default": ["2026-09"]}],
+             "Steps": [
+                 {"StepNo": 10, "StepType": "SOURCE", "Name": "Read the CDS view", "Description": "Replaces the months in the actual version",
+                  "ModelId": "SALES_IMPORT", "TargetVersion": "ACT", "FromPeriod": "@From", "ToPeriod": "@To", "Mode": "REPLACE"}]}]
 
 
 def files():
@@ -282,6 +304,8 @@ def files():
         f("F_STORY_STORY_OPEX", "STORY", "STORY_OPEX", "Opex Review", "Operating expense by department", False, False, "F_FOLDER_FIN"),
         f("F_STORY_STORY_PLAN", "STORY", "STORY_PLAN", "Sales Planning", "Plan revenue on the forecast version", True, False, "F_FOLDER_FIN"),
         f("F_MODEL_SALES_PLAN", "MODEL", "SALES_PLAN", "Sales Plan", "Revenue and cost by region, product and channel", True),
+        f("F_MODEL_SALES_LIVE", "MODEL", "SALES_LIVE", "Sales (live from CDS)", "Revenue and cost read live from the CDS view ZSalesCube", False),
+        f("F_MODEL_SALES_IMPORT", "MODEL", "SALES_IMPORT", "Sales (import from CDS)", "A planning model that is filled from the CDS view ZSalesCube", False),
         f("F_MODEL_OPEX_PLAN", "MODEL", "OPEX_PLAN", "Opex Plan", "Operating expense by department and account"),
         f("F_DATAACTION_DA_FORECAST_FROM_ACT", "DATAACTION", "DA_FORECAST_FROM_ACT", "Forecast Q4 from run-rate", "", False, True),
         f("F_DATAACTION_DA_ALLOC_OPEX", "DATAACTION", "DA_ALLOC_OPEX", "Allocate HR budget to departments", ""),
@@ -308,7 +332,7 @@ def dump(name, data):
 
 
 if __name__ == "__main__":
-    dump("models.json", [SALES, OPEX])
+    dump("models.json", [SALES, OPEX, SALES_LIVE, SALES_IMPORT])
     dump("facts.json", sales_facts() + opex_facts())
     dump("versions.json", versions())
     dump("stories.json", stories())
