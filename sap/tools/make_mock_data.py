@@ -22,6 +22,7 @@ def noise(*parts):
 SALES = {
     "ModelId": "SALES_PLAN", "Name": "Sales Plan", "Description": "Revenue and cost by region, product and channel",
     "Currency": "USD", "PeriodFrom": "2026-01", "PeriodTo": "2026-12",
+    "PlanningEnabled": True, "DataLocking": True, "DataAudit": True, "DataSource": "Sample data (make_mock_data.py)",
     "Dimensions": [
         {"DimId": "REGION", "Label": "Region", "Slot": 1, "Members": [
             {"Id": "APAC", "Text": "Asia Pacific"}, {"Id": "EMEA", "Text": "Europe, Middle East, Africa"},
@@ -34,13 +35,14 @@ SALES = {
             {"Id": "Direct", "Text": "Direct"}, {"Id": "Partner", "Text": "Partner"}]},
     ],
     "Measures": [
-        {"MeasureId": "REVENUE", "Label": "Revenue", "Unit": "USD", "Aggregation": "SUM"},
-        {"MeasureId": "COST", "Label": "Cost", "Unit": "USD", "Aggregation": "SUM"},
+        {"MeasureId": "REVENUE", "Label": "Revenue", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0},
+        {"MeasureId": "COST", "Label": "Cost", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0},
     ],
 }
 OPEX = {
     "ModelId": "OPEX_PLAN", "Name": "Opex Plan", "Description": "Operating expense by department and account",
     "Currency": "USD", "PeriodFrom": "2026-01", "PeriodTo": "2026-12",
+    "PlanningEnabled": True, "DataLocking": False, "DataAudit": False, "DataSource": "Sample data (make_mock_data.py)",
     "Dimensions": [
         {"DimId": "DEPARTMENT", "Label": "Department", "Slot": 1, "Members": [
             {"Id": "Finance", "Text": "Finance"}, {"Id": "Sales", "Text": "Sales"}, {"Id": "R&D", "Text": "R&D"},
@@ -49,7 +51,7 @@ OPEX = {
             {"Id": "Salaries", "Text": "Salaries"}, {"Id": "Travel", "Text": "Travel"},
             {"Id": "Software", "Text": "Software"}, {"Id": "Facilities", "Text": "Facilities"}]},
     ],
-    "Measures": [{"MeasureId": "AMOUNT", "Label": "Amount", "Unit": "USD", "Aggregation": "SUM"}],
+    "Measures": [{"MeasureId": "AMOUNT", "Label": "Amount", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0}],
 }
 
 
@@ -221,3 +223,4 @@ if __name__ == "__main__":
     dump("multiactions.json", multiactions())
     dump("files.json", files())
     dump("tasks.json", tasks())
+    dump("audit.json", [])

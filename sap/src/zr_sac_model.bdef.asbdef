@@ -29,6 +29,10 @@ etag master LocalLastChangedAt
     Currency = currency;
     PeriodFrom = period_from;
     PeriodTo = period_to;
+    PlanningEnabled = planning_enabled;
+    DataLocking = data_locking;
+    DataAudit = data_audit;
+    DataSource = data_source;
     CreatedBy = created_by;
     CreatedAt = created_at;
     LastChangedBy = last_changed_by;
@@ -85,6 +89,12 @@ etag dependent by _Model
     Label = label;
     Unit = unit;
     Aggregation = aggregation;
+    DataType = data_type;
+    UnitType = unit_type;
+    Scale = scale;
+    Decimals = decimals;
+    ExceptionAgg = exception_agg;
+    ExceptionDims = exception_dims;
     LocalLastChangedAt = local_last_changed_at;
   }
 }

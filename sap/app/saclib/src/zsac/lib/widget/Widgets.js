@@ -15,8 +15,9 @@ sap.ui.define([
   "./WidgetCard",
   "./KpiTile",
   "./PivotTable",
-  "./ChartData"
-], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData) {
+  "./ChartData",
+  "../core/ModelSchema"
+], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {} });
@@ -120,7 +121,7 @@ sap.ui.define([
       { key: "Binding.Measure", label: "Measure", kind: "measure" },
       { key: "Binding.Filters", label: "Filters", kind: "filters" },
       { key: "Props.CompareVersion", label: "Compare with version", kind: "version" },
-      { key: "Props.Format", label: "Number format", kind: "select", options: [["compact", "Compact (1.2M)"], ["full", "Full (1,234,567)"]] },
+      { key: "Props.Format", label: "Number format", kind: "select", options: [["compact", "Compact (1.2M)"], ["full", "Full (1,234,567)"], ["measure", "Measure format (scale, decimals)"]] },
       { key: "Props.LowerIsBetter", label: "Lower is better", kind: "bool" }
     ]),
     create(widget, ctx) {
@@ -130,7 +131,13 @@ sap.ui.define([
         const result = await runQuery(widget, ctx);
         const measure = (result.model.Measures || []).find((m) => m.MeasureId === widget.Binding.Measure);
         tile.setValue(result.grand);
-        tile.setUnit(measure ? measure.Unit : "");
+        if (measure && widget.Props.Format === "measure") {
+          tile.setScale(measure.Scale > 1 ? measure.Scale : 1);
+          tile.setDecimals(measure.Decimals);
+          tile.setUnit(ModelSchema.unitLabel(measure));
+        } else {
+          tile.setUnit(measure && measure.UnitType !== "None" ? measure.Unit : "");
+        }
         if (widget.Props.CompareVersion) {
           tile.setCompare((await runQuery(widget, ctx, (f) => { f.VERSION = [widget.Props.CompareVersion]; })).grand);
           tile.setCompareLabel(widget.Props.CompareVersion);
@@ -143,13 +150,14 @@ sap.ui.define([
 
   WidgetRegistry.register("table", {
     name: "Table", icon: "sap-icon://table-view", group: "Tables", size: { w: 12, h: 5 },
-    defaults: { Binding: Object.assign(emptyBinding(), { Rows: ["$FIRST_DIM"], Columns: ["VERSION"] }), Props: { ShowTotals: true, Decimals: 0 } },
+    defaults: { Binding: Object.assign(emptyBinding(), { Rows: ["$FIRST_DIM"], Columns: ["VERSION"] }), Props: { ShowTotals: true, UseMeasureFormat: true, Decimals: 0 } },
     builder: queryBuilder("Rows", "Columns", 3).concat([
       { key: "Props.ShowTotals", label: "Show totals", kind: "bool" },
-      { key: "Props.Decimals", label: "Decimals", kind: "number" }
+      { key: "Props.UseMeasureFormat", label: "Use the measure's scale and decimals", kind: "bool", default: true },
+      { key: "Props.Decimals", label: "Decimals (when not using the measure's)", kind: "number" }
     ]),
     create(widget, ctx) {
-      const table = new PivotTable({ showTotals: widget.Props.ShowTotals !== false, decimals: Number(widget.Props.Decimals) || 0 });
+      const table = new PivotTable({ showTotals: widget.Props.ShowTotals !== false, decimals: widget.Props.UseMeasureFormat === false ? Number(widget.Props.Decimals) || 0 : -1 });
       const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: table });
       return wire(card, widget, async () => { table.setResult(await runQuery(widget, ctx)); });
     }

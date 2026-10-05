@@ -101,7 +101,7 @@ sap.ui.define([
         case "text": return new Input({ value: val || "", width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
         case "textarea": return new TextArea({ value: val || "", width: "100%", rows: 3, change: (e) => this._set(f.key, e.getParameter("value")) });
         case "number": return new StepInput({ value: Number(val) || 0, min: 0, width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
-        case "bool": return new CheckBox({ selected: !!val, select: (e) => this._set(f.key, e.getParameter("selected")) });
+        case "bool": return new CheckBox({ selected: val === undefined ? !!f.default : !!val, select: (e) => this._set(f.key, e.getParameter("selected")) });
         case "select": {
           const sel = new Select({ width: "100%", selectedKey: val || f.options[0][0], change: (e) => this._set(f.key, e.getParameter("selectedItem").getKey()) });
           f.options.forEach((o) => sel.addItem(new Item({ key: o[0], text: o[1] })));

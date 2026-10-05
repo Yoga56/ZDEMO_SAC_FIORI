@@ -70,9 +70,11 @@ CLASS zcl_sac_seed IMPLEMENTATION.
     models = VALUE #(
       ( model_id = 'SALES_PLAN' model_name = 'Sales Plan' description = 'Revenue and cost by region, product and channel'
         currency = 'USD' period_from = '2026-01' period_to = '2026-12'
+        planning_enabled = abap_true data_locking = abap_true data_audit = abap_true data_source = 'Sample data (ZCL_SAC_SEED)'
         created_at = now last_changed_at = now local_last_changed_at = now )
       ( model_id = 'OPEX_PLAN' model_name = 'Opex Plan' description = 'Operating expense by department and account'
         currency = 'USD' period_from = '2026-01' period_to = '2026-12'
+        planning_enabled = abap_true data_source = 'Sample data (ZCL_SAC_SEED)'
         created_at = now last_changed_at = now local_last_changed_at = now ) ).
 
     dims = VALUE #(
@@ -88,9 +90,12 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         members = `[{"Id":"Salaries","Text":"Salaries"},{"Id":"Travel","Text":"Travel"},{"Id":"Software","Text":"Software"},{"Id":"Facilities","Text":"Facilities"}]` ) ).
 
     meas = VALUE #(
-      ( model_id = 'SALES_PLAN' measure_id = 'REVENUE' label = 'Revenue' unit = 'USD' aggregation = 'SUM' )
-      ( model_id = 'SALES_PLAN' measure_id = 'COST'    label = 'Cost'    unit = 'USD' aggregation = 'SUM' )
-      ( model_id = 'OPEX_PLAN'  measure_id = 'AMOUNT'  label = 'Amount'  unit = 'USD' aggregation = 'SUM' ) ).
+      ( model_id = 'SALES_PLAN' measure_id = 'REVENUE' label = 'Revenue' unit = 'USD' aggregation = 'SUM'
+        data_type = 'Decimal' unit_type = 'Currency' scale = 1 decimals = 0 )
+      ( model_id = 'SALES_PLAN' measure_id = 'COST'    label = 'Cost'    unit = 'USD' aggregation = 'SUM'
+        data_type = 'Decimal' unit_type = 'Currency' scale = 1 decimals = 0 )
+      ( model_id = 'OPEX_PLAN'  measure_id = 'AMOUNT'  label = 'Amount'  unit = 'USD' aggregation = 'SUM'
+        data_type = 'Decimal' unit_type = 'Currency' scale = 1 decimals = 0 ) ).
 
     LOOP AT models INTO DATA(m).
       APPEND VALUE #( model_id = m-model_id version_id = 'ACT' version_name = 'Actual'      category = 'ACTUAL'   locked = abap_true

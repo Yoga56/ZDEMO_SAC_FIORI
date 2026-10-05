@@ -10,6 +10,12 @@ define view entity ZC_SAC_MEASURE
   Label,
   Unit,
   Aggregation,
+  DataType,
+  UnitType,
+  Scale,
+  Decimals,
+  ExceptionAgg,
+  ExceptionDims,
   LocalLastChangedAt,
   _Model : redirected to parent ZC_SAC_MODEL
 }

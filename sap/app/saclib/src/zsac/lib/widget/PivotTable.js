@@ -1,5 +1,5 @@
 /** Read-only pivot grid for an aggregate result of QueryEngine: row dimensions left, column keys across, totals optional. */
-sap.ui.define(["sap/ui/core/Control", "../core/Format", "../core/QueryEngine"], function (Control, Format, QueryEngine) {
+sap.ui.define(["sap/ui/core/Control", "../core/Format", "../core/QueryEngine", "../core/ModelSchema"], function (Control, Format, QueryEngine, ModelSchema) {
   "use strict";
 
   const esc = Format.esc;
@@ -9,7 +9,7 @@ sap.ui.define(["sap/ui/core/Control", "../core/Format", "../core/QueryEngine"], 
       properties: {
         result: { type: "object", defaultValue: null },
         showTotals: { type: "boolean", defaultValue: true },
-        decimals: { type: "int", defaultValue: 0 }
+        decimals: { type: "int", defaultValue: -1 }   // -1: the measure's own decimal places
       }
     },
 
@@ -38,13 +38,18 @@ sap.ui.define(["sap/ui/core/Control", "../core/Format", "../core/QueryEngine"], 
       const r = this.getResult();
       if (!r || !r.rowKeys.length) { return '<div class="zsacCardMsg">No data</div>'; }
       const model = r.model;
-      const dec = this.getDecimals();
+      const measure = r.measure;
+      const scale = measure && measure.Scale > 1 ? measure.Scale : 1;
+      const dec = this.getDecimals() >= 0 ? this.getDecimals() : (measure ? measure.Decimals : 0);
+      const num = (v) => Format.full(v / scale, dec);
+      const valueHead = measure ? measure.Label + (ModelSchema.unitLabel(measure) ? " (" + ModelSchema.unitLabel(measure) + ")" : "") : "Value";
       const totals = this.getShowTotals();
       const cols = r.colKeys.length ? r.colKeys : [[]];
-      let h = '<table class="zsacGrid2"><thead><tr>';
+      let h = measure ? '<div class="zsacSmall zsacPivotCaption">' + esc(measure.Label + (ModelSchema.unitLabel(measure) ? ", " + ModelSchema.unitLabel(measure) : "")) + "</div>" : "";
+      h += '<table class="zsacGrid2"><thead><tr>';
       r.rowDims.forEach((d) => { h += "<th>" + esc(QueryEngine.labelOf(model, d)) + "</th>"; });
       if (!r.rowDims.length) { h += "<th></th>"; }
-      cols.forEach((c) => { h += '<th class="num">' + esc(c.join(" / ") || "Value") + "</th>"; });
+      cols.forEach((c) => { h += '<th class="num">' + esc(c.join(" / ") || valueHead) + "</th>"; });
       if (totals && r.colKeys.length > 1) { h += '<th class="num total">Total</th>'; }
       h += "</tr></thead><tbody>";
       let prev = [];
@@ -55,15 +60,15 @@ sap.ui.define(["sap/ui/core/Control", "../core/Format", "../core/QueryEngine"], 
           h += "<td" + (same ? ' class="repeat"' : "") + ">" + (same ? "" : esc(m)) + "</td>";
         });
         if (!rk.length) { h += "<td>All</td>"; }
-        cols.forEach((c) => { h += '<td class="num">' + Format.full(r.cell(rk, c) || 0, dec) + "</td>"; });
-        if (totals && r.colKeys.length > 1) { h += '<td class="num total">' + Format.full(r.rowTotal(rk), dec) + "</td>"; }
+        cols.forEach((c) => { h += '<td class="num">' + num(r.cell(rk, c) || 0) + "</td>"; });
+        if (totals && r.colKeys.length > 1) { h += '<td class="num total">' + num(r.rowTotal(rk)) + "</td>"; }
         h += "</tr>";
         prev = rk;
       });
       if (totals && r.rowKeys.length > 1) {
         h += '<tr class="grand"><td colspan="' + Math.max(1, r.rowDims.length) + '">Total</td>';
-        cols.forEach((c) => { h += '<td class="num">' + Format.full(r.colTotal(c), dec) + "</td>"; });
-        if (r.colKeys.length > 1) { h += '<td class="num total">' + Format.full(r.grand, dec) + "</td>"; }
+        cols.forEach((c) => { h += '<td class="num">' + num(r.colTotal(c)) + "</td>"; });
+        if (r.colKeys.length > 1) { h += '<td class="num total">' + num(r.grand) + "</td>"; }
         h += "</tr>";
       }
       return h + "</tbody></table>";

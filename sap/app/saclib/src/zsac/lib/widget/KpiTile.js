@@ -10,7 +10,9 @@ sap.ui.define(["sap/ui/core/Control", "../core/Format"], function (Control, Form
         compareLabel: { type: "string", defaultValue: "" },
         unit: { type: "string", defaultValue: "" },
         format: { type: "string", defaultValue: "compact" },
-        lowerIsBetter: { type: "boolean", defaultValue: false }
+        lowerIsBetter: { type: "boolean", defaultValue: false },
+        scale: { type: "float", defaultValue: 1 },
+        decimals: { type: "int", defaultValue: 0 }
       }
     },
 
@@ -21,7 +23,7 @@ sap.ui.define(["sap/ui/core/Control", "../core/Format"], function (Control, Form
         const c = tile.getCompare();
         rm.openStart("div", tile).class("zsacKpi").openEnd();
         rm.openStart("div").class("zsacKpiValue").openEnd()
-          .text(tile.getFormat() === "full" ? Format.full(v) : Format.compact(v))
+          .text(tile.getFormat() === "measure" ? Format.full(v / tile.getScale(), tile.getDecimals()) : tile.getFormat() === "full" ? Format.full(v) : Format.compact(v))
           .openStart("span").class("zsacKpiUnit").openEnd().text(tile.getUnit()).close("span").close("div");
         if (c !== null && c !== undefined && c !== 0) {
           const delta = ((v - c) / Math.abs(c)) * 100;

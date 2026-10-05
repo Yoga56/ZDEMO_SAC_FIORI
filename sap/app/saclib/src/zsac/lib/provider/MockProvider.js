@@ -8,13 +8,15 @@
 sap.ui.define([
   "../core/DataProvider",
   "../core/QueryEngine",
+  "../core/ModelSchema",
   "../planning/DataActionEngine",
   "../planning/VersionEngine"
-], function (DataProvider, QueryEngine, DataActionEngine, VersionEngine) {
+], function (DataProvider, QueryEngine, ModelSchema, DataActionEngine, VersionEngine) {
   "use strict";
 
   const STORE_KEY = "zsac.mock.v1";
-  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks"];
+  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit"];
+  const AUDIT_LIMIT = 2000;
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const wait = (v) => Promise.resolve(clone(v));
 
@@ -29,11 +31,13 @@ sap.ui.define([
 
     get id() { return "mock"; }
 
+    get capabilities() { return { audit: true }; }
+
     static async create(options) {
       const seed = {};
       await Promise.all(COLLECTIONS.map(async (name) => {
         const res = await fetch(sap.ui.require.toUrl("zsac/lib/provider/mockdata/" + name + ".json"));
-        seed[name] = await res.json();
+        seed[name] = res.ok ? await res.json() : [];
       }));
       return new MockProvider(Object.assign({ persist: true }, options, { seed }));
     }
@@ -43,7 +47,9 @@ sap.ui.define([
       if (this._persist) {
         try { db = JSON.parse(window.localStorage.getItem(STORE_KEY)); } catch (e) { db = null; }
       }
-      this._db = db && COLLECTIONS.every((c) => Array.isArray(db[c])) ? db : clone(this._seed);
+      this._db = db && typeof db === "object" ? db : clone(this._seed);
+      // a store written by an older version lacks newer collections: add them instead of dropping the user's work
+      COLLECTIONS.forEach((c) => { if (!Array.isArray(this._db[c])) { this._db[c] = clone(this._seed[c] || []); } });
     }
 
     _save() {
@@ -71,12 +77,12 @@ sap.ui.define([
     }
 
     // models
-    listModels() { return wait(this._db.models); }
+    listModels() { return wait(this._db.models.map(ModelSchema.normalize)); }
     getModel(id) {
       const m = this._db.models.find((x) => x.ModelId === id);
-      return m ? wait(m) : Promise.reject(new Error("Model not found: " + id));
+      return m ? wait(ModelSchema.normalize(m)) : Promise.reject(new Error("Model not found: " + id));
     }
-    _putModel(model) { return Promise.resolve(this._upsert("models", model, (x) => x.ModelId)).then(clone); }
+    _putModel(model) { return Promise.resolve(this._upsert("models", ModelSchema.normalize(model), (x) => x.ModelId)).then(clone); }
     deleteModel(id) {
       this._remove("models", (x) => x.ModelId === id);
       this._remove("facts", (x) => x.ModelId === id);
@@ -92,12 +98,21 @@ sap.ui.define([
       return clone(QueryEngine.applyFilters(model, own, filters || {}));
     }
     async writeFacts(modelId, rows) {
+      const model = this._db.models.find((x) => x.ModelId === modelId);
+      const audit = !!(model && model.DataAudit);
+      const at = new Date().toISOString();
       const index = new Map(this._db.facts.map((f, i) => [DataActionEngine.keyOf(f), i]));
       rows.forEach((r) => {
         const f = Object.assign({ Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r, { ModelId: modelId });
         const k = DataActionEngine.keyOf(f);
+        const old = index.has(k) ? this._db.facts[index.get(k)].Value : null;
+        if (audit && old !== f.Value) {
+          this._db.audit.unshift({ At: at, User: "ME", ModelId: modelId, VersionId: f.VersionId, Period: f.Period, Measure: f.Measure,
+            Dims: [f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].filter(Boolean).join(" / "), Old: old, New: f.Value });
+        }
         if (index.has(k)) { this._db.facts[index.get(k)] = f; } else { index.set(k, this._db.facts.push(f) - 1); }
       });
+      if (this._db.audit.length > AUDIT_LIMIT) { this._db.audit.length = AUDIT_LIMIT; }
       this._save();
       return rows.length;
     }
@@ -105,6 +120,10 @@ sap.ui.define([
       const keys = new Set(rows.map((r) => DataActionEngine.keyOf(Object.assign({ ModelId: modelId, Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r))));
       this._remove("facts", (f) => keys.has(DataActionEngine.keyOf(f)));
       return rows.length;
+    }
+
+    async listAudit(modelId, limit) {
+      return clone(this._db.audit.filter((a) => !modelId || a.ModelId === modelId).slice(0, limit || 100));
     }
 
     // versions

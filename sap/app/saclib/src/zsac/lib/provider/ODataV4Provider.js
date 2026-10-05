@@ -11,9 +11,10 @@
  */
 sap.ui.define([
   "../core/DataProvider",
+  "../core/ModelSchema",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator"
-], function (DataProvider, Filter, FilterOperator) {
+], function (DataProvider, ModelSchema, Filter, FilterOperator) {
   "use strict";
 
   const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
@@ -74,13 +75,16 @@ sap.ui.define([
 
     // ---- models -----------------------------------------------------------------------------
     _toModel(e) {
-      return {
+      return ModelSchema.normalize({
         ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency,
-        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo,
+        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking,
+        DataAudit: !!e.DataAudit, DataSource: e.DataSource,
         Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: json(d.Members, []) }))
           .sort((a, b) => a.Slot - b.Slot),
-        Measures: (e._Measure || []).map((m) => ({ MeasureId: m.MeasureId, Label: m.Label, Unit: m.Unit, Aggregation: m.Aggregation }))
-      };
+        Measures: (e._Measure || []).map((m) => ({ MeasureId: m.MeasureId, Label: m.Label, Unit: m.Unit, Aggregation: m.Aggregation || "SUM",
+          DataType: m.DataType || "Decimal", UnitType: m.UnitType || "None", Scale: m.Scale, Decimals: m.Decimals,
+          ExceptionAggregation: m.ExceptionAgg || "", ExceptionDims: String(m.ExceptionDims || "").split(",").filter(Boolean) }))
+      });
     }
     async listModels() {
       return (await this._list("/Model", [], { $expand: "_Dimension,_Measure" })).map((e) => this._toModel(e));
@@ -90,13 +94,16 @@ sap.ui.define([
       const key = "/Model(ModelId=" + quote(m.ModelId) + ")";
       await this._replace("/Model", key, {
         ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
-        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || ""
+        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking,
+        DataAudit: !!m.DataAudit, DataSource: m.DataSource || ""
       });
       for (const d of m.Dimensions || []) {
         await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: str(d.Members || []) }, true).created();
       }
       for (const x of m.Measures || []) {
-        await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, Label: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM" }, true).created();
+        await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, Label: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM",
+          DataType: x.DataType || "Decimal", UnitType: x.UnitType || "None", Scale: x.Scale || 1, Decimals: x.Decimals || 0,
+          ExceptionAgg: x.ExceptionAggregation || "", ExceptionDims: (x.ExceptionDims || []).join(",") }, true).created();
       }
       return m;
     }
@@ -132,6 +139,8 @@ sap.ui.define([
     _payload(rows) {
       return rows.map((r) => [r.ModelId, r.VersionId, r.Period, r.Measure, r.Dim1 || "", r.Dim2 || "", r.Dim3 || "", r.Dim4 || "", r.Dim5 || "", r.Value].join("\t")).join("\n");
     }
+
+    get capabilities() { return {}; }
 
     // ---- versions ---------------------------------------------------------------------------
     _toVersion(e) { return { ModelId: e.ModelId, VersionId: e.VersionId, Name: e.VersionName, Category: e.Category, Locked: !!e.Locked, Owner: e.OwnerId, SourceVersion: e.SourceVersion, Status: e.Status }; }

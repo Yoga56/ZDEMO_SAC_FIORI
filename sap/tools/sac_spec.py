@@ -37,12 +37,15 @@ ENTITIES = [
     dict(id="MODEL", table="ZSAC_MODEL", label="Planning Model", set="Model", admin=ADMIN,
          children=[("DIM", "_Dimension"), ("MEASURE", "_Measure")], fields=[
         ("*MODEL_ID", "CHAR 20"), ("MODEL_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("CURRENCY", "CHAR 5"),
-        ("PERIOD_FROM", "CHAR 7"), ("PERIOD_TO", "CHAR 7")],
+        ("PERIOD_FROM", "CHAR 7"), ("PERIOD_TO", "CHAR 7"), ("PLANNING_ENABLED", BOOL), ("DATA_LOCKING", BOOL),
+        ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80")],
         validations=[("CheckStructure", "ModelName")]),
     dict(id="DIM", table="ZSAC_DIM", label="Model Dimension", set="Dimension", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
         ("*MODEL_ID", "CHAR 20"), ("*DIM_ID", "CHAR 20"), ("LABEL", "CHAR 40"), ("SLOT", "INT4"), ("MEMBERS", "STRG")]),
     dict(id="MEASURE", table="ZSAC_MEASURE", label="Model Measure", set="Measure", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
-        ("*MODEL_ID", "CHAR 20"), ("*MEASURE_ID", "CHAR 20"), ("LABEL", "CHAR 40"), ("UNIT", "CHAR 10"), ("AGGREGATION", "CHAR 10")]),
+        ("*MODEL_ID", "CHAR 20"), ("*MEASURE_ID", "CHAR 20"), ("LABEL", "CHAR 40"), ("UNIT", "CHAR 10"), ("AGGREGATION", "CHAR 10"),
+        ("DATA_TYPE", "CHAR 10"), ("UNIT_TYPE", "CHAR 10"), ("SCALE", "INT4"), ("DECIMALS", "INT4"), ("EXCEPTION_AGG", "CHAR 10"),
+        ("EXCEPTION_DIMS", "CHAR 120")]),
 
     dict(id="VERSION", table="ZSAC_VERSION", label="Planning Version", set="Version", admin=ADMIN, fields=[
         ("*MODEL_ID", "CHAR 20"), ("*VERSION_ID", "CHAR 12"), ("VERSION_NAME", "CHAR 80"), ("CATEGORY", "CHAR 10"),

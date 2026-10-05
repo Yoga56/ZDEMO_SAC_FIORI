@@ -58,8 +58,47 @@ sap.ui.define([], function () {
 
   function keyOf(f, fields) { return fields.map((x) => f[x]).join(SEP); }
 
+  const FACT_FIELDS = ["VersionId", "Period", "Measure", "Dim1", "Dim2", "Dim3", "Dim4", "Dim5"];
+
+  function reduce(type, values) {
+    if (!values.length) { return 0; }
+    switch (type) {
+      case "AVG": return values.reduce((a, b) => a + b, 0) / values.length;
+      case "MIN": return Math.min.apply(null, values);
+      case "MAX": return Math.max.apply(null, values);
+      case "COUNT": return values.length;
+      default: return values.reduce((a, b) => a + b, 0);
+    }
+  }
+
   /**
-   * @returns {{rowDims, colDims, rowKeys, colKeys, cell(r,c), rowTotal(r), colTotal(c), grand, flat}}
+   * Value of a group of facts. Per measure: with an exception aggregation the facts are first reduced along the
+   * exception dimensions (everything else stays as it is), then the standard aggregation runs over the results.
+   * Groups holding several measures add the per-measure values.
+   */
+  function valueOf(model, facts) {
+    const byMeasure = new Map();
+    facts.forEach((f) => { (byMeasure.get(f.Measure) || byMeasure.set(f.Measure, []).get(f.Measure)).push(f); });
+    let total = 0;
+    byMeasure.forEach((list, id) => {
+      const spec = ((model && model.Measures) || []).find((m) => m.MeasureId === id) || {};
+      const agg = spec.Aggregation || "SUM";
+      if (spec.ExceptionAggregation && (spec.ExceptionDims || []).length) {
+        const drop = new Set(spec.ExceptionDims.map((d) => fieldOf(model, d)));
+        const keep = FACT_FIELDS.filter((x) => !drop.has(x));
+        const groups = new Map();
+        list.forEach((f) => { const k = keyOf(f, keep); (groups.get(k) || groups.set(k, []).get(k)).push(Number(f.Value) || 0); });
+        total += reduce(agg, Array.from(groups.values()).map((v) => reduce(spec.ExceptionAggregation, v)));
+      } else {
+        total += reduce(agg, list.map((f) => Number(f.Value) || 0));
+      }
+    });
+    return total;
+  }
+
+  /**
+   * @returns {{rowDims, colDims, rowKeys, colKeys, cell(r,c), rowTotal(r), colTotal(c), grand, flat, measure}}
+   * `measure` is the measure definition when the result holds exactly one measure, else null (formatting hint).
    */
   function aggregate(model, facts, spec) {
     const rowDims = spec.rows || [];
@@ -69,18 +108,29 @@ sap.ui.define([], function () {
     const kept = applyFilters(model, facts, spec.filters);
 
     const cells = new Map();
+    const rowGroups = new Map();
+    const colGroups = new Map();
     const rowSet = new Map();
     const colSet = new Map();
-    let grand = 0;
+    const measures = new Set();
     kept.forEach((f) => {
       const rk = keyOf(f, rowFields);
       const ck = keyOf(f, colFields);
-      const v = Number(f.Value) || 0;
-      cells.set(rk + "|" + ck, (cells.get(rk + "|" + ck) || 0) + v);
+      (cells.get(rk + "|" + ck) || cells.set(rk + "|" + ck, []).get(rk + "|" + ck)).push(f);
+      (rowGroups.get(rk) || rowGroups.set(rk, []).get(rk)).push(f);
+      (colGroups.get(ck) || colGroups.set(ck, []).get(ck)).push(f);
       if (!rowSet.has(rk)) { rowSet.set(rk, rowFields.map((x) => String(f[x]))); }
       if (!colSet.has(ck)) { colSet.set(ck, colFields.map((x) => String(f[x]))); }
-      grand += v;
+      measures.add(f.Measure);
     });
+
+    const values = new Map();
+    cells.forEach((list, k) => values.set(k, valueOf(model, list)));
+    const rowTotals = new Map();
+    rowGroups.forEach((list, k) => rowTotals.set(k, valueOf(model, list)));
+    const colTotals = new Map();
+    colGroups.forEach((list, k) => colTotals.set(k, valueOf(model, list)));
+    const grand = valueOf(model, kept);
 
     const cmp = (dims) => (a, b) => {
       for (let i = 0; i < dims.length; i++) {
@@ -93,17 +143,9 @@ sap.ui.define([], function () {
     const rowKeys = Array.from(rowSet.values()).sort(cmp(rowDims));
     const colKeys = Array.from(colSet.values()).sort(cmp(colDims));
 
-    const rowTotals = new Map();
-    const colTotals = new Map();
-    cells.forEach((v, k) => {
-      const [rk, ck] = k.split("|");
-      rowTotals.set(rk, (rowTotals.get(rk) || 0) + v);
-      colTotals.set(ck, (colTotals.get(ck) || 0) + v);
-    });
-
     const flat = [];
     rowKeys.forEach((r) => colKeys.forEach((c) => {
-      const v = cells.get(r.join(SEP) + "|" + c.join(SEP));
+      const v = values.get(r.join(SEP) + "|" + c.join(SEP));
       if (v === undefined) { return; }
       const row = {};
       rowDims.forEach((d, i) => { row[d] = r[i]; });
@@ -112,13 +154,14 @@ sap.ui.define([], function () {
       flat.push(row);
     }));
 
+    const single = measures.size === 1 ? ((model && model.Measures) || []).find((m) => m.MeasureId === Array.from(measures)[0]) || null : null;
     return {
-      rowDims, colDims, rowKeys, colKeys, flat, grand,
-      cell: (r, c) => cells.get(r.join(SEP) + "|" + c.join(SEP)),
+      rowDims, colDims, rowKeys, colKeys, flat, grand, measure: single,
+      cell: (r, c) => values.get(r.join(SEP) + "|" + c.join(SEP)),
       rowTotal: (r) => rowTotals.get(r.join(SEP)) || 0,
       colTotal: (c) => colTotals.get(c.join(SEP)) || 0
     };
   }
 
-  return { SEP, BUILTIN, fieldOf, labelOf, applyFilters, distinct, order, aggregate };
+  return { SEP, BUILTIN, fieldOf, labelOf, applyFilters, distinct, order, aggregate, reduce };
 });

@@ -14,6 +14,9 @@ sap.ui.define(["./QueryEngine"], function (QueryEngine) {
   class DataProvider {
     get id() { return "abstract"; }
 
+    /** What this source supports beyond reading and planning: { audit: change history of plan data }. */
+    get capabilities() { return {}; }
+
     // --- models (datasets) -------------------------------------------------------------------
     /** @returns {Promise<object[]>} models with Dimensions[] and Measures[] */
     listModels() { return abstract("listModels").call(this); }
@@ -27,6 +30,9 @@ sap.ui.define(["./QueryEngine"], function (QueryEngine) {
     /** Upsert facts by key (Model, Version, Period, Measure, Dim1..5). */
     writeFacts(/* modelId, rows */) { return abstract("writeFacts").call(this); }
     deleteFacts(/* modelId, rows */) { return abstract("deleteFacts").call(this); }
+
+    /** Change history of plan data for a model (newest first); only where capabilities.audit is true. */
+    listAudit(/* modelId, limit */) { return abstract("listAudit").call(this); }
 
     // --- versions ----------------------------------------------------------------------------
     listVersions(/* modelId */) { return abstract("listVersions").call(this); }

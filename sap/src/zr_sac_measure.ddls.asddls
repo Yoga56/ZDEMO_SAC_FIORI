@@ -10,6 +10,12 @@ define view entity ZR_SAC_MEASURE
   label as Label,
   unit as Unit,
   aggregation as Aggregation,
+  data_type as DataType,
+  unit_type as UnitType,
+  scale as Scale,
+  decimals as Decimals,
+  exception_agg as ExceptionAgg,
+  exception_dims as ExceptionDims,
   @Semantics.systemDateTime.localInstanceLastChangedAt: true,
   local_last_changed_at as LocalLastChangedAt,
   _Model
