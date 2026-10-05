@@ -76,10 +76,10 @@ ENTITIES = [
         ("ACTIVE", BOOL), ("CONFIG", "STRG")]),
 
     dict(id="MULTIACT", table="ZSAC_MULTIACT", label="Multi Action", set="MultiAction", admin=ADMIN, children=[("MASTEP", "_Step")], fields=[
-        ("*ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255")]),
+        ("*ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("PARAMETERS", "STRG")]),
     dict(id="MASTEP", table="ZSAC_MASTEP", label="Multi Action Step", set="MultiActionStep", admin=LOCAL_ONLY, parent=("MULTIACT", "_MultiAction"), fields=[
-        ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 12"), ("DATA_ACTION_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"),
-        ("SOURCE_VERSION", "CHAR 12"), ("TARGET_VERSION", "CHAR 12")]),
+        ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 12"), ("STEP_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"),
+        ("ACTIVE", BOOL), ("CONFIG", "STRG")]),
 
     # history of data action and multi action runs (written by the client after every run, read by the Job Monitor tab)
     dict(id="RUN", table="ZSAC_RUN", label="Action Run", set="ActionRun", admin=LOCAL_ONLY, fields=[

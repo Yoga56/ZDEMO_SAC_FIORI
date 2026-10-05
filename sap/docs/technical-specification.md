@@ -15,7 +15,7 @@
 |---|---|---|
 | core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `HierarchyEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
 | provider | `MockProvider`, `ODataV4Provider`, `mockdata/*.json` | data sources |
-| planning | `DataActionSchema`, `DataActionEngine`, `DataActionRun`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
+| planning | `DataActionSchema`, `MultiActionSchema`, `DataActionEngine`, `DataActionRun`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
 | widget | `SvgChart` + `ChartBuilders`/`ChartData`, `KpiTile`, `PivotTable`, `WidgetCard`, `Widgets` (registrations) | what a story shows |
 | designer | `StoryCanvas`, `StoryViewer`, `BuilderPanel`, `FilterEditor` | grid, drag and resize, viewer, generated forms |
 
@@ -145,6 +145,17 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Data actions: see the next section.
 * Version: private = copy of a source; publish replaces the target version; revert copies the source again.
 
+### Multi actions
+
+`MultiActionSchema` (shape, validation, parameter mapping) is shared by every provider; `DataProvider.runMultiAction` runs it client side through `executeDataAction` and `publishVersion`.
+A multi action has its own **parameters** (`{Id, Prompt, Type: MEMBER|NUMBER, ModelId, DimId, Multi, Default}`, the model is needed because a multi action spans models) which the
+run dialog asks for once. A **Data Action step** has a `ParamMap` `{dataActionParam: value | "@multiParam"}`; a parameter left out uses the default of the data action, so one
+multi action parameter (for example the version) can feed several steps. A **Publish Version step** takes source and target version as ids or `@multiParam`.
+Steps have name, description and an active switch (inactive steps are skipped). Steps run in order, the first failing step stops the run and earlier steps stay written.
+Validate checks the name, parameters (id, model, dimension, number default), that data actions exist and their parameters are mapped to parameters of the same type and
+dimension, that versions exist, the publish target is not locked and differs from the source; unused parameters are warnings and a parameter used nowhere shows in the list.
+Runs appear in the Run History (Job Monitor) of the Data Actions page. Backend: `ZSAC_MULTIACT.PARAMETERS` and `ZSAC_MASTEP` with name, description, active and `CONFIG` (JSON).
+
 ### Data actions
 
 `DataActionSchema` (shape, defaults, validation) and `DataActionEngine` (pure) are shared by every provider. **Execution is client side**: `DataProvider.executeDataAction`
@@ -174,5 +185,6 @@ Every real run is recorded (`_putRun`, entity `ActionRun`) and shown in the Run 
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
 * Planning: formulas cannot refer to members, other measures or other cells; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); the version panels are dialogs, not SAC's side panel, and "hold data" means the version has facts, not that a table uses it; the unpublished buffer is per browser page (not shared, not saved).
+* Multi actions: only Data Action and Publish Version steps (no Predictive, Version Management, Data Locking, Data Import, API, PaPM or Comment Management steps); a data action writes straight to its version, so there is no "publish after execution" option per step; no "Used In" list for stories yet.
 * Data actions: no Advanced Formulas, no Currency Conversion, no cross-model copy; the run is client side (one browser, no server job, large models read all facts of the model); the step flow is linear (no branches or loops).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

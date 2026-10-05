@@ -233,10 +233,16 @@ def dataactions():
 
 
 def multiactions():
-    return [{"Id": "MA_FORECAST_CYCLE", "Name": "Forecast cycle", "Description": "Run the forecast action, then publish a private version to Forecast",
+    return [{"Id": "MA_FORECAST_CYCLE", "Name": "Forecast cycle", "Description": "Run the forecast action, then publish the forecast to the budget",
+             "Parameters": [
+                 {"Id": "Region", "Prompt": "Regions (empty = all)", "Type": "MEMBER", "ModelId": "SALES_PLAN", "DimId": "REGION", "Multi": True, "Default": []},
+                 {"Id": "Uplift", "Prompt": "Q3 uplift factor", "Type": "NUMBER", "Default": 1.05},
+                 {"Id": "Target", "Prompt": "Publish to version", "Type": "MEMBER", "ModelId": "SALES_PLAN", "DimId": "VERSION", "Multi": False, "Default": ["BUD"]}],
              "Steps": [
-                 {"StepNo": 10, "StepType": "DATAACTION", "ActionId": "DA_FORECAST_FROM_ACT"},
-                 {"StepNo": 20, "StepType": "PUBLISH", "ModelId": "SALES_PLAN", "SourceVersion": "FCT", "TargetVersion": "BUD"}]}]
+                 {"StepNo": 10, "StepType": "DATAACTION", "Name": "Forecast from run-rate", "Description": "Copy actuals into the forecast and uplift Q3",
+                  "ActionId": "DA_FORECAST_FROM_ACT", "ParamMap": {"Region": "@Region", "Uplift": "@Uplift"}},
+                 {"StepNo": 20, "StepType": "PUBLISH", "Name": "Publish forecast", "Description": "Overwrite the chosen version with the forecast",
+                  "ModelId": "SALES_PLAN", "SourceVersion": "FCT", "TargetVersion": "@Target"}]}]
 
 
 def files():

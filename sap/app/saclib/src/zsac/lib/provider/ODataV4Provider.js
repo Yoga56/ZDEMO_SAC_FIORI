@@ -233,19 +233,21 @@ sap.ui.define([
     // ---- multi actions ----------------------------------------------------------------------
     _toMulti(e) {
       return {
-        Id: e.ActionId, Name: e.ActionName, Description: e.Description,
-        Steps: (e._Step || []).map((s) => ({ StepNo: s.StepNo, StepType: s.StepType, ActionId: s.DataActionId, ModelId: s.ModelId,
-          SourceVersion: s.SourceVersion, TargetVersion: s.TargetVersion })).sort((a, b) => a.StepNo - b.StepNo)
+        Id: e.ActionId, Name: e.ActionName, Description: e.Description, Parameters: json(e.Parameters, []),
+        Steps: (e._Step || []).map((s) => Object.assign(json(s.Config, {}), { StepNo: s.StepNo, StepType: s.StepType, Name: s.StepName,
+          Description: s.Description, Active: s.Active !== false })).sort((a, b) => a.StepNo - b.StepNo)
       };
     }
     async listMultiActions() { return (await this._list("/MultiAction", [], { $expand: "_Step" })).map((e) => this._toMulti(e)); }
     async getMultiAction(id) { return this._toMulti(await this._one("/MultiAction", ["ActionId", id], { $expand: "_Step" })); }
     async _putMultiAction(a) {
       const key = "/MultiAction(ActionId=" + quote(a.Id) + ")";
-      await this._replace("/MultiAction", key, { ActionId: a.Id, ActionName: a.Name, Description: a.Description || "" });
+      await this._replace("/MultiAction", key, { ActionId: a.Id, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []) });
       for (const s of a.Steps || []) {
-        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, DataActionId: s.ActionId || "",
-          ModelId: s.ModelId || "", SourceVersion: s.SourceVersion || "", TargetVersion: s.TargetVersion || "" }, true).created();
+        const config = Object.assign({}, s);
+        ["StepNo", "StepType", "Name", "Description", "Active"].forEach((k) => { delete config[k]; });
+        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, StepName: s.Name || "", Description: s.Description || "",
+          Active: s.Active !== false, Config: str(config) }, true).created();
       }
       return a;
     }

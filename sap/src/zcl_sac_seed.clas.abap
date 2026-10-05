@@ -261,10 +261,15 @@ CLASS zcl_sac_seed IMPLEMENTATION.
     INSERT zsac_multiact FROM TABLE @( VALUE #(
       ( action_id = 'MA_FORECAST_CYCLE' action_name = 'Forecast cycle'
         description = 'Run the forecast action, then publish the forecast to the budget'
+        parameters = `[{"Id":"Region","Prompt":"Regions (empty = all)","Type":"MEMBER","ModelId":"SALES_PLAN","DimId":"REGION","Multi":true,"Default":[]},{"Id":"Uplift","Prompt":"Q3 uplift factor","Type` &&
+                    `":"NUMBER","Default":1.05},{"Id":"Target","Prompt":"Publish to version","Type":"MEMBER","ModelId":"SALES_PLAN","DimId":"VERSION","Multi":false,"Default":["BUD"]}]`
         created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
     INSERT zsac_mastep FROM TABLE @( VALUE #(
-      ( action_id = 'MA_FORECAST_CYCLE' step_no = 10 step_type = 'DATAACTION' data_action_id = 'DA_FORECAST_FROM_ACT' local_last_changed_at = now )
-      ( action_id = 'MA_FORECAST_CYCLE' step_no = 20 step_type = 'PUBLISH' model_id = 'SALES_PLAN' source_version = 'FCT' target_version = 'BUD'
+      ( action_id = 'MA_FORECAST_CYCLE' step_no = 10 step_type = 'DATAACTION' step_name = 'Forecast from run-rate' description = 'Copy actuals into the forecast and uplift Q3' active = abap_true
+        config = `{"ActionId":"DA_FORECAST_FROM_ACT","ParamMap":{"Region":"@Region","Uplift":"@Uplift"}}`
+        local_last_changed_at = now )
+      ( action_id = 'MA_FORECAST_CYCLE' step_no = 20 step_type = 'PUBLISH' step_name = 'Publish forecast' description = 'Overwrite the chosen version with the forecast' active = abap_true
+        config = `{"ModelId":"SALES_PLAN","SourceVersion":"FCT","TargetVersion":"@Target"}`
         local_last_changed_at = now ) ) ).
 
     INSERT zsac_file FROM TABLE @( VALUE #(

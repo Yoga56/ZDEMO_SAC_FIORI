@@ -10,8 +10,8 @@
 sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/VBox", "sap/m/HBox", "sap/m/Text", "sap/m/Label", "sap/m/Title", "sap/m/ObjectStatus",
   "sap/m/MultiComboBox", "sap/m/Select", "sap/m/Input", "sap/m/MessageBox", "sap/m/MessageStrip", "sap/ui/core/Item", "sap/ui/core/Icon",
-  "./DataActionSchema", "../core/HierarchyEngine"
-], function (Dialog, Button, VBox, HBox, Text, Label, Title, ObjectStatus, MultiComboBox, Select, Input, MessageBox, MessageStrip, Item, Icon, Schema, HierarchyEngine) {
+  "./DataActionSchema", "./MultiActionSchema", "../core/HierarchyEngine"
+], function (Dialog, Button, VBox, HBox, Text, Label, Title, ObjectStatus, MultiComboBox, Select, Input, MessageBox, MessageStrip, Item, Icon, Schema, MultiSchema, HierarchyEngine) {
   "use strict";
 
   function memberItems(model, versions, dimId) {
@@ -24,7 +24,7 @@ sap.ui.define([
   const itemText = (m) => m.Id + (m.Text && m.Text !== m.Id ? " – " + m.Text : "");
 
   /** Inputs for the declared parameters. `values` is filled with the defaults and follows what the planner enters. */
-  function paramControls(action, model, versions, preset) {
+  function paramControls(action, model, versions, preset, lookup) {
     const norm = Schema.normalizeAction(action);
     const values = Schema.resolveValues(norm, preset);
     const box = new VBox({ width: "100%" });
@@ -34,7 +34,8 @@ sap.ui.define([
         box.addItem(new Input({ type: "Number", value: String(values[p.Id]), width: "100%", liveChange: (e) => { values[p.Id] = Number(e.getParameter("value")); } }).addStyleClass("sapUiTinyMarginBottom"));
         return;
       }
-      const members = memberItems(model, versions, p.DimId);
+      const src = lookup ? lookup(p) : { model, versions };
+      const members = src && src.model ? memberItems(src.model, src.versions, p.DimId) : [];
       if (p.Multi) {
         const c = new MultiComboBox({ width: "100%", placeholder: "All", selectionFinish: (e) => { values[p.Id] = e.getParameter("selectedItems").map((i) => i.getKey()); } });
         members.forEach((m) => c.addItem(new Item({ key: m.Id, text: itemText(m) })));
@@ -114,5 +115,32 @@ sap.ui.define([
     }).catch(fail);
   }
 
-  return { open, paramControls, traceView, memberItems };
+  /** Run dialog of a multi action: its parameters, then the log and the steps. */
+  function openMulti(opts) {
+    const { provider } = opts;
+    const fail = (e) => MessageBox.error((e && e.message) || String(e));
+    Promise.all([provider.getMultiAction(opts.actionId), provider.listModels(), provider.listVersions()]).then(([action, models, versions]) => {
+      const norm = MultiSchema.normalizeAction(action);
+      const lookup = (p) => ({ model: models.find((m) => m.ModelId === p.ModelId), versions: versions.filter((v) => v.ModelId === p.ModelId) });
+      const pc = paramControls({ Parameters: norm.Parameters }, null, null, opts.values, lookup);
+      const result = new VBox({ width: "100%" });
+      const content = new VBox({ width: "26rem", items: [
+        pc.count ? pc.box : new Text({ text: "This multi action has no parameters." }).addStyleClass("sapUiSmallMarginBottom"), result] }).addStyleClass("sapUiSmallMargin");
+      const run = new Button({ text: "Run", type: "Emphasized", icon: "sap-icon://play", press: async () => {
+        run.setEnabled(false);
+        try {
+          const r = await provider.runMultiAction(action.Id, { Values: pc.values });
+          result.destroyItems();
+          result.addItem(new MessageStrip({ type: r.Status === "S" ? "Success" : "Error", showIcon: true, text: r.Status === "S" ? "Done, " + r.Changed + " values changed by data actions" : "Stopped at a failing step" }).addStyleClass("sapUiTinyMarginBottom"));
+          (r.Steps || []).forEach((st, i) => result.addItem(new VBox({ items: [new Title({ text: (i + 1) + ". " + st.name, level: "H6" }), new Text({ text: st.message || "" }).addStyleClass("zsacSmall")] }).addStyleClass("zsacTraceCard" + (/^Failed/.test(st.message) ? " zsacTraceFailed" : ""))));
+          if (opts.onDone) { opts.onDone(r); }
+        } catch (e) { fail(e); }
+        run.setEnabled(true);
+      } });
+      const dlg = new Dialog({ title: "Run " + action.Name, content: [content], buttons: [run, new Button({ text: "Close", press: () => dlg.close() })], afterClose: () => dlg.destroy() });
+      dlg.open();
+    }).catch(fail);
+  }
+
+  return { open, openMulti, paramControls, traceView, memberItems };
 });

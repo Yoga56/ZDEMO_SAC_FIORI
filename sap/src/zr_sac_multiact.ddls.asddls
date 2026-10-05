@@ -8,6 +8,7 @@ define root view entity ZR_SAC_MULTIACT
   key action_id as ActionId,
   action_name as ActionName,
   description as Description,
+  parameters as Parameters,
   @Semantics.user.createdBy: true,
   created_by as CreatedBy,
   @Semantics.systemDateTime.createdAt: true,

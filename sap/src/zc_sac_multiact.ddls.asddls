@@ -9,6 +9,7 @@ define root view entity ZC_SAC_MULTIACT
   key ActionId,
   ActionName,
   Description,
+  Parameters,
   CreatedBy,
   CreatedAt,
   LastChangedBy,

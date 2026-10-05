@@ -1,36 +1,39 @@
 <mvc:View controllerName="zsac.fiori.controller.MultiActions" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
   <ScrollContainer height="100%" vertical="true">
     <VBox class="zsacPage">
-      <HBox class="zsacTwoPane">
-        <VBox class="zsacMaster">
-          <List id="list" items="{list>/items}" mode="SingleSelectMaster" selectionChange=".onSelect" noDataText="No multi actions">
-            <headerToolbar>
-              <OverflowToolbar>
-                <Title text="Multi Actions" level="H4"/>
-                <ToolbarSpacer/>
-                <Button icon="sap-icon://add" text="New" press=".onNew"/>
-              </OverflowToolbar>
-            </headerToolbar>
-            <StandardListItem title="{list>Name}" description="{list>Description}" icon="sap-icon://process"/>
-          </List>
-        </VBox>
-        <VBox class="zsacDetail" id="detail" visible="false">
-          <OverflowToolbar style="Clear">
-            <Title id="title" level="H3"/>
+      <Table id="table" items="{list>/items}" noDataText="No multi actions yet. Create one to automate a planning sequence." growing="true" growingThreshold="50">
+        <headerToolbar>
+          <OverflowToolbar>
+            <Title text="Multi Actions" level="H4"/>
+            <SearchField width="16rem" placeholder="Search" liveChange=".onSearch"/>
             <ToolbarSpacer/>
-            <Button text="Run" icon="sap-icon://play" press=".onRun" type="Emphasized"/>
-            <Button text="Save" icon="sap-icon://save" press=".onSave"/>
-            <Button icon="sap-icon://delete" press=".onDelete" tooltip="Delete"/>
+            <Link text="Job Monitor" press=".onJobs"/>
+            <Button text="Create" icon="sap-icon://add" type="Emphasized" press=".onNew"/>
           </OverflowToolbar>
-          <HBox wrap="Wrap" class="sapUiSmallMarginBottom">
-            <VBox class="sapUiSmallMarginEnd"><Label text="Name" required="true"/><Input id="name" width="16rem" change=".onHeader"/></VBox>
-            <VBox><Label text="Description"/><Input id="desc" width="28rem" change=".onHeader"/></VBox>
-          </HBox>
-          <Title text="Steps (run in order; the first failing step stops the run)" level="H5" class="sapUiSmallMarginBottom"/>
-          <VBox id="steps"/>
-          <Button text="Add step" icon="sap-icon://add" press=".onAddStep" class="sapUiSmallMarginTop"/>
-        </VBox>
-      </HBox>
+        </headerToolbar>
+        <columns>
+          <Column><Text text="Name"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Steps"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Parameters"/></Column>
+          <Column minScreenWidth="Desktop" demandPopin="true"><Text text="Last run"/></Column>
+          <Column width="12rem" hAlign="End"><Text text=""/></Column>
+        </columns>
+        <items>
+          <ColumnListItem type="Navigation" press=".onOpen">
+            <cells>
+              <ObjectIdentifier title="{list>Name}" text="{list>Description}"/>
+              <Text text="{list>StepCount}"/>
+              <Text text="{list>ParamCount}"/>
+              <ObjectStatus text="{list>LastRunText}" state="{list>LastRunState}"/>
+              <HBox justifyContent="End">
+                <Button icon="sap-icon://play" tooltip="Run" type="Transparent" press=".onRunRow"/>
+                <Button icon="sap-icon://duplicate" tooltip="Duplicate" type="Transparent" press=".onDuplicateRow"/>
+                <Button icon="sap-icon://delete" tooltip="Delete" type="Transparent" press=".onDeleteRow"/>
+              </HBox>
+            </cells>
+          </ColumnListItem>
+        </items>
+      </Table>
     </VBox>
   </ScrollContainer>
 </mvc:View>

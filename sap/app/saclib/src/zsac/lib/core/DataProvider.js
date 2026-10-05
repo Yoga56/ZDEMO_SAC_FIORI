@@ -6,7 +6,7 @@
  * A subclass implements the underscore-free primitives below (all return promises). `query`, `saveStory`,
  * `saveModel` ... are composed here from those primitives so every provider behaves the same.
  */
-sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema"], function (QueryEngine, DataActionEngine, DataActionSchema) {
+sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema"], function (QueryEngine, DataActionEngine, DataActionSchema, MultiActionSchema) {
   "use strict";
 
   const abstract = (name) => function () { return Promise.reject(new Error(this.constructor.name + " does not implement " + name)); };
@@ -140,33 +140,55 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
     /** Same run without writing: what each step would do. */
     previewDataAction(id, params) { return this.executeDataAction(id, params, { dryRun: true }); }
 
-    /** @returns {Promise<{Status:string, Log:string[]}>} the steps in order; the first failing step stops the run */
+    /**
+     * Runs a multi action: its steps in order, the first failing step stops the run (what earlier steps wrote stays written).
+     * params = { Values: {ParamId: members[] | number} } for the parameters of the multi action; each data action step maps them
+     * onto the parameters of its data action. Inactive steps are skipped.
+     * @returns {Promise<{Status:string, Changed:number, Log:string[], Steps:object[]}>}
+     */
     async runMultiAction(id, params) {
       const started = Date.now();
-      const action = await this.getMultiAction(id);
+      const action = MultiActionSchema.normalizeAction(await this.getMultiAction(id));
+      const values = MultiActionSchema.resolveValues(action, params && params.Values);
+      const actions = new Map((await this.listDataActions()).map((a) => [a.Id, a]));
       const log = [];
+      const steps = [];
       let status = "S";
       let changed = 0;
-      for (const step of (action.Steps || []).slice().sort((a, b) => a.StepNo - b.StepNo)) {
+      for (const step of action.Steps) {
+        const entry = { no: step.StepNo, name: step.Name, type: step.StepType, active: step.Active, touched: 0, message: "" };
+        steps.push(entry);
+        if (!step.Active) { entry.message = "Inactive, skipped"; log.push(step.Name + ": inactive, skipped"); continue; }
         try {
           if (step.StepType === "DATAACTION") {
-            const r = await this.executeDataAction(step.ActionId, params);
+            const child = actions.get(step.ActionId);
+            if (!child) { throw new Error("data action " + step.ActionId + " does not exist"); }
+            const r = await this.executeDataAction(step.ActionId, { Values: MultiActionSchema.childValues(step, child, values), Filter: (params && params.Filter) || {} });
             changed += r.Changed;
-            log.push("Step " + step.StepNo + " data action " + step.ActionId + ": " + r.Changed + " values changed");
+            entry.touched = r.Changed;
+            entry.message = "Ran " + child.Name;
+            log.push(step.Name + ": " + r.Changed + " values changed");
           } else if (step.StepType === "PUBLISH") {
-            const r = await this.publishVersion(step.ModelId, step.SourceVersion, step.TargetVersion);
-            log.push("Step " + step.StepNo + " publish " + step.SourceVersion + " to " + step.TargetVersion + ": " + r.Published + " values");
+            const source = MultiActionSchema.versionValue(step.SourceVersion, values);
+            const target = MultiActionSchema.versionValue(step.TargetVersion, values);
+            const r = await this.publishVersion(step.ModelId, source, target);
+            entry.touched = r.Published;
+            entry.message = "Published " + source + " to " + target;
+            log.push(step.Name + ": published " + source + " to " + target + ", " + r.Published + " values");
           } else {
-            log.push("Step " + step.StepNo + ": unknown type " + step.StepType);
+            throw new Error("unknown step type " + step.StepType);
           }
         } catch (e) {
-          log.push("Step " + step.StepNo + " failed: " + e.message);
+          entry.message = "Failed: " + e.message;
+          log.push(step.Name + " failed: " + e.message);
           status = "E";
           break;
         }
       }
-      await this._putRun({ Kind: "MULTI", ActionId: id, ActionName: action.Name, ModelId: "", Status: status, Changed: changed, DurationMs: Date.now() - started, ParamsText: "", Log: log, Steps: [] }).catch(() => {});
-      return { Status: status, Log: log };
+      const shown = Object.keys(values).map((k) => k + "=" + (Array.isArray(values[k]) ? values[k].join(",") || "(all)" : values[k])).join("; ");
+      await this._putRun({ Kind: "MULTI", ActionId: id, ActionName: action.Name, ModelId: "", Status: status, Changed: changed, DurationMs: Date.now() - started,
+        ParamsText: shown, Log: log, Steps: steps.map((x) => ({ no: x.no, name: x.name, type: x.type, touched: x.touched, message: x.message })) }).catch(() => {});
+      return { Status: status, Changed: changed, Log: log, Steps: steps };
     }
 
     /** Keeps the Files catalogue in step with the object a user saved. */

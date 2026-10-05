@@ -98,7 +98,7 @@ sap.ui.define([
         const mine = actions.filter((a) => a.ModelId === model.ModelId);
         mine.forEach((a) => items.push({ kind: "Data Action", title: a.Name, icon: "sap-icon://workflow-tasks", go: () => this.router().navTo("dataaction", { id: a.Id }) }));
         multis.filter((x) => (x.Steps || []).some((s) => (s.StepType === "DATAACTION" && mine.some((a) => a.Id === s.ActionId)) || (s.StepType === "PUBLISH" && s.ModelId === model.ModelId)))
-          .forEach((x) => items.push({ kind: "Multi Action", title: x.Name, icon: "sap-icon://process", go: () => this.router().navTo("multiactions", { query: { id: x.Id } }) }));
+          .forEach((x) => items.push({ kind: "Multi Action", title: x.Name, icon: "sap-icon://process", go: () => this.router().navTo("multiaction", { id: x.Id }) }));
         const full = await Promise.all(stories.map((s) => (s.ModelId === model.ModelId ? Promise.resolve(s) : p.getStory(s.Id).catch(() => s))));
         full.filter((s) => s.ModelId === model.ModelId || (s.Widgets || []).some((w) => w.Binding && w.Binding.ModelId === model.ModelId))
           .forEach((s) => items.push({ kind: "Story", title: s.Name, icon: "sap-icon://business-objects-experience", go: () => this.navTo("story", { id: s.Id }) }));

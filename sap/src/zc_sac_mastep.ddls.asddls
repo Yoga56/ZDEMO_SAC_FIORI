@@ -8,10 +8,10 @@ define view entity ZC_SAC_MASTEP
   key ActionId,
   key StepNo,
   StepType,
-  DataActionId,
-  ModelId,
-  SourceVersion,
-  TargetVersion,
+  StepName,
+  Description,
+  Active,
+  Config,
   LocalLastChangedAt,
   _MultiAction : redirected to parent ZC_SAC_MULTIACT
 }
