@@ -22,6 +22,13 @@ def write(name: str, text: str) -> None:
     (SRC / name).write_text(text, encoding="utf-8", newline="\n")
 
 
+def elem(e, col):
+    """CDS element name of a column. A dependent entity may not have a field named like the etag master field of its root
+    (LocalLastChangedAt), so the change timestamp of a child is ChildChangedAt."""
+    col = col.lstrip("*")
+    return "ChildChangedAt" if col == "LOCAL_LAST_CHANGED_AT" and "parent" in e else S.camel(col)
+
+
 def key_cols(e):
     return [n.lstrip("*") for n, _ in e["fields"] if n.startswith("*")]
 
@@ -40,9 +47,9 @@ def r_ddls(e, E):
     body = []
     for n, _ in S.all_fields(e):
         col = n.lstrip("*")
-        anno = ADMIN_ANNO.get(col)
+        anno = ADMIN_ANNO.get(col) if elem(e, col) == S.camel(col) else None   # only the etag master of a root carries the annotation
         # an annotation stands on its own line before the element and takes no comma
-        body.append((f"  {anno}\n" if anno else "") + f"  {'key ' if n.startswith('*') else ''}{col.lower()} as {S.camel(col)}")
+        body.append((f"  {anno}\n" if anno else "") + f"  {'key ' if n.startswith('*') else ''}{col.lower()} as {elem(e, col)}")
     exposed = [a for _, a in e.get("children", [])] + ([e["parent"][1]] if not root else [])
     out = ",\n".join(body + (["  " + a for a in exposed]))
     return "\n".join(lines) + "\n" + head + "\n{\n" + out + "\n}\n"
@@ -53,7 +60,7 @@ def c_ddls(e, E):
     lines = ["@Metadata.allowExtensions: true", "@Metadata.ignorePropagatedAnnotations: true",
              f"@EndUserText.label: '{e['label']}'", "@AccessControl.authorizationCheck: #NOT_REQUIRED"]
     head = f"define {'root ' if root else ''}view entity {S.c_view(e)}\n  {'provider contract transactional_query' + chr(10) + '  ' if root else ''}as projection on {S.r_view(e)}"
-    body = [f"  {'key ' if n.startswith('*') else ''}{S.camel(n.lstrip('*'))}" for n, _ in S.all_fields(e)]
+    body = [f"  {'key ' if n.startswith('*') else ''}{elem(e, n)}" for n, _ in S.all_fields(e)]
     for cid, assoc in e.get("children", []):
         body.append(f"  {assoc} : redirected to composition child {S.c_view(E[cid])}")
     if not root:
@@ -75,7 +82,12 @@ def r_bdef(e, E):
         pid, assoc = e["parent"]
         out += [f"lock dependent by {assoc}", f"authorization dependent by {assoc}", f"etag dependent by {assoc}"]
     out.append("{")
-    readonly = [S.camel(n) for n, _ in (e.get("admin") or [])]
+    # keys are given by the caller (external numbering): required when creating, fixed afterwards. The keys a child inherits from its parent are read only.
+    parent_keys = set(key_cols(E[e["parent"][0]])) if not root else set()
+    own = [S.camel(k) for k in key_cols(e) if k not in parent_keys]
+    if own:
+        out += ["  field ( mandatory : create )", "   " + ",\n   ".join(own) + ";", "", "  field ( readonly : update )", "   " + ",\n   ".join(own) + ";", ""]
+    readonly = [elem(e, n) for n, _ in (e.get("admin") or [])]
     if not root:
         readonly = [S.camel(k) for k in key_cols(E[e["parent"][0]])] + readonly
     if readonly:
@@ -95,7 +107,7 @@ def r_bdef(e, E):
     out += ["", f"  mapping for {e['table'].lower()}", "  {"]
     for n, _ in S.all_fields(e):
         col = n.lstrip("*")
-        out.append(f"    {S.camel(col)} = {col.lower()};")
+        out.append(f"    {elem(e, col)} = {col.lower()};")
     out += ["  }", "}"]
     return "\n".join(out) + "\n"
 

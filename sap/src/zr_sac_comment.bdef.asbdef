@@ -7,6 +7,12 @@ lock master
 authorization master ( global )
 etag master LocalLastChangedAt
 {
+  field ( mandatory : create )
+   CommentId;
+
+  field ( readonly : update )
+   CommentId;
+
   field ( readonly )
    CreatedBy,
    CreatedAt,

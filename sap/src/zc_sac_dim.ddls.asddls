@@ -13,6 +13,6 @@ define view entity ZC_SAC_DIM
   DimType,
   Attributes,
   Hierarchies,
-  LocalLastChangedAt,
+  ChildChangedAt,
   _Model : redirected to parent ZC_SAC_MODEL
 }

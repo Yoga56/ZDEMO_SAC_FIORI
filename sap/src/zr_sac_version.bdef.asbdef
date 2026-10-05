@@ -7,6 +7,14 @@ lock master
 authorization master ( global )
 etag master LocalLastChangedAt
 {
+  field ( mandatory : create )
+   ModelId,
+   VersionId;
+
+  field ( readonly : update )
+   ModelId,
+   VersionId;
+
   field ( readonly )
    CreatedBy,
    CreatedAt,

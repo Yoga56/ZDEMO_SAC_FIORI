@@ -12,6 +12,6 @@ define view entity ZC_SAC_DASTEP
   Description,
   Active,
   Config,
-  LocalLastChangedAt,
+  ChildChangedAt,
   _DataAction : redirected to parent ZC_SAC_DATAACT
 }

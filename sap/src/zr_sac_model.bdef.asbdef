@@ -7,6 +7,12 @@ lock master
 authorization master ( global )
 etag master LocalLastChangedAt
 {
+  field ( mandatory : create )
+   ModelId;
+
+  field ( readonly : update )
+   ModelId;
+
   field ( readonly )
    CreatedBy,
    CreatedAt,
@@ -48,9 +54,15 @@ lock dependent by _Model
 authorization dependent by _Model
 etag dependent by _Model
 {
+  field ( mandatory : create )
+   DimId;
+
+  field ( readonly : update )
+   DimId;
+
   field ( readonly )
    ModelId,
-   LocalLastChangedAt;
+   ChildChangedAt;
 
   // created through its parent
   update;
@@ -67,7 +79,7 @@ etag dependent by _Model
     DimType = dim_type;
     Attributes = attributes;
     Hierarchies = hierarchies;
-    LocalLastChangedAt = local_last_changed_at;
+    ChildChangedAt = local_last_changed_at;
   }
 }
 
@@ -77,9 +89,15 @@ lock dependent by _Model
 authorization dependent by _Model
 etag dependent by _Model
 {
+  field ( mandatory : create )
+   MeasureId;
+
+  field ( readonly : update )
+   MeasureId;
+
   field ( readonly )
    ModelId,
-   LocalLastChangedAt;
+   ChildChangedAt;
 
   // created through its parent
   update;
@@ -99,6 +117,6 @@ etag dependent by _Model
     Decimals = decimals;
     ExceptionAgg = exception_agg;
     ExceptionDims = exception_dims;
-    LocalLastChangedAt = local_last_changed_at;
+    ChildChangedAt = local_last_changed_at;
   }
 }

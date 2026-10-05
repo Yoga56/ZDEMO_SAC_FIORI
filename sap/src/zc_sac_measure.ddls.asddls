@@ -16,6 +16,6 @@ define view entity ZC_SAC_MEASURE
   Decimals,
   ExceptionAgg,
   ExceptionDims,
-  LocalLastChangedAt,
+  ChildChangedAt,
   _Model : redirected to parent ZC_SAC_MODEL
 }

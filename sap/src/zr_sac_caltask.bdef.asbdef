@@ -7,6 +7,12 @@ lock master
 authorization master ( global )
 etag master LocalLastChangedAt
 {
+  field ( mandatory : create )
+   TaskId;
+
+  field ( readonly : update )
+   TaskId;
+
   field ( readonly )
    CreatedBy,
    CreatedAt,

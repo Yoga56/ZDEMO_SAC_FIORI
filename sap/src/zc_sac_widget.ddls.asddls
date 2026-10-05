@@ -16,6 +16,6 @@ define view entity ZC_SAC_WIDGET
   GridH,
   Binding,
   Props,
-  LocalLastChangedAt,
+  ChildChangedAt,
   _Story : redirected to parent ZC_SAC_STORY
 }

@@ -16,7 +16,6 @@ define view entity ZR_SAC_MEASURE
   decimals as Decimals,
   exception_agg as ExceptionAgg,
   exception_dims as ExceptionDims,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt,
+  local_last_changed_at as ChildChangedAt,
   _Model
 }

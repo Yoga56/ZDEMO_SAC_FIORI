@@ -13,7 +13,6 @@ define view entity ZR_SAC_DIM
   dim_type as DimType,
   attributes as Attributes,
   hierarchies as Hierarchies,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt,
+  local_last_changed_at as ChildChangedAt,
   _Model
 }

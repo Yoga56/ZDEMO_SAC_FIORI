@@ -12,7 +12,6 @@ define view entity ZR_SAC_DASTEP
   description as Description,
   active as Active,
   config as Config,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt,
+  local_last_changed_at as ChildChangedAt,
   _DataAction
 }

@@ -12,6 +12,6 @@ define view entity ZC_SAC_MASTEP
   Description,
   Active,
   Config,
-  LocalLastChangedAt,
+  ChildChangedAt,
   _MultiAction : redirected to parent ZC_SAC_MULTIACT
 }

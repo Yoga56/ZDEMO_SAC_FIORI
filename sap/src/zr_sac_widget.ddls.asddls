@@ -16,7 +16,6 @@ define view entity ZR_SAC_WIDGET
   grid_h as GridH,
   binding as Binding,
   props as Props,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt,
+  local_last_changed_at as ChildChangedAt,
   _Story
 }

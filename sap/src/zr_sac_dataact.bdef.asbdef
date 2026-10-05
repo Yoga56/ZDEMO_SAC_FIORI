@@ -7,6 +7,12 @@ lock master
 authorization master ( global )
 etag master LocalLastChangedAt
 {
+  field ( mandatory : create )
+   ActionId;
+
+  field ( readonly : update )
+   ActionId;
+
   field ( readonly )
    CreatedBy,
    CreatedAt,
@@ -40,9 +46,15 @@ lock dependent by _DataAction
 authorization dependent by _DataAction
 etag dependent by _DataAction
 {
+  field ( mandatory : create )
+   StepNo;
+
+  field ( readonly : update )
+   StepNo;
+
   field ( readonly )
    ActionId,
-   LocalLastChangedAt;
+   ChildChangedAt;
 
   // created through its parent
   update;
@@ -58,6 +70,6 @@ etag dependent by _DataAction
     Description = description;
     Active = active;
     Config = config;
-    LocalLastChangedAt = local_last_changed_at;
+    ChildChangedAt = local_last_changed_at;
   }
 }
