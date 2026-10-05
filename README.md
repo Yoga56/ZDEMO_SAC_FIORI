@@ -18,7 +18,7 @@ widget registry and provider contract are the extension points).
 | Planning model | Modeller | SAC-style editor: measures (data type, aggregation, exception aggregation, units, scale, decimals), dimensions (types Generic, Organization, Account) with attributes, members and parent/child hierarchies, model preferences (planning, data locking, data audit), related objects |
 | Data of a model | Datasets, Modeller (Data Management) | preview, CSV import and export |
 | Version | Planning | public (Budget, Forecast, Actual) or private what-if copy; publish, revert, discard |
-| Plan data | Planning page, or a **Planning table** widget in any story | typed into an editable cross-tab (any dimensions on rows and columns, Date hierarchy year > quarter > month, parent nodes spread their value over the numbers below); changes stay **unpublished** (undo, redo) until Publish Data |
+| Plan data | Planning page, or a **Planning table** widget in any story | typed into an editable cross-tab (any dimensions on rows and columns, Date hierarchy year > quarter > month, parent nodes spread their value over the numbers below); changes stay **unpublished** (undo, redo) until Publish Data; select a block of cells to **Distribute Values** (equally, proportionally, or like another version) and to **copy and paste** to and from spreadsheets |
 | Data action | Data Actions; a **Data action trigger** widget runs one from a story with its own parameter inputs | steps copy, scale, delete, allocate; optional data filter parameter at run time |
 | Multi action | Multi Actions | ordered steps: run a data action, publish a version |
 | Task | Calendar | submit, approve, reject, tied to a model and version |

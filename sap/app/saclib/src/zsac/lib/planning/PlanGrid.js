@@ -13,8 +13,9 @@ sap.ui.define([
   "sap/m/MessageToast",
   "../core/Format",
   "../core/QueryEngine",
-  "./PlanEditor"
-], function (Control, MessageToast, Format, QueryEngine, PlanEditor) {
+  "./PlanEditor",
+  "./GridText"
+], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText) {
   "use strict";
 
   const SEP = "\u0001";
@@ -37,7 +38,7 @@ sap.ui.define([
     renderer: {
       apiVersion: 2,
       render(rm, grid) {
-        rm.openStart("div", grid).class("zsacPlan").openEnd();
+        rm.openStart("div", grid).class("zsacPlan").attr("tabindex", "0").openEnd();
         rm.unsafeHtml(grid._html());
         rm.close("div");
       }
@@ -46,6 +47,7 @@ sap.ui.define([
     setContext(ctx) {
       if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); }
       this._ctx = ctx;
+      this._sel = null;
       this._base = new Map(ctx.facts.map((f) => [[f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|"), f.Value]));
       if (ctx.plan) { ctx.plan.attachChange(this._onPlan); }
       this.invalidate();
@@ -83,7 +85,7 @@ sap.ui.define([
       this._colIndex = new Map(r.colKeys.map((k, i) => [keyStr(k), i]));
       const isOpen = (map, info, k, level) => (map.has(keyStr(k)) ? map.get(keyStr(k)) : info(k).depth < level);
 
-      const dec = o.decimals >= 0 ? o.decimals : ((r.measure || (c.model.Measures || [])[0] || {}).Decimals || 0);
+      const dec = (this._dec = o.decimals >= 0 ? o.decimals : ((r.measure || (c.model.Measures || [])[0] || {}).Decimals || 0));
       const dimLabel = (id) => QueryEngine.labelOf(c.model, id);
       const member = (id, v) => (id === "PERIOD" ? Format.period(v) : v);
       const attrs = (o.attributes || []).map((id) => {
@@ -149,9 +151,9 @@ sap.ui.define([
           const dirty = r.cellFacts(rk, ck).some((f) => c.plan && c.plan.has(f));
           const text = v === undefined ? "" : Format.full(v, dec);
           if (state.editable) {
-            h += '<td class="num"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
+            h += '<td class="num" data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
           } else {
-            h += '<td class="num' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + '"' + (o.editable && state.reason ? ' title="' + esc(state.reason) + '"' : "") + ">" + text + "</td>";
+            h += '<td data-ri="' + ri + '" data-ci="' + ci + '" class="num' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + '"' + (o.editable && state.reason ? ' title="' + esc(state.reason) + '"' : "") + ">" + text + "</td>";
           }
         });
         if (totals) { h += '<td class="num total">' + Format.full(r.rowTotal(rk), dec) + "</td>"; }
@@ -173,8 +175,10 @@ sap.ui.define([
         if (t) { t.focus(); t.select(); }
         this._focusNext = null;
       }
+      this._paint();
       if (root._zsacBound) { return; }
       root._zsacBound = true;
+      this._bindSelection(root);
       root.addEventListener("change", (e) => { if (e.target.matches("input.zsacCell2")) { this._onEdit(e.target); } });
       root.addEventListener("focusin", (e) => { if (e.target.matches("input.zsacCell2")) { e.target.select(); } });
       root.addEventListener("keydown", (e) => {
@@ -197,6 +201,179 @@ sap.ui.define([
         }
         this.invalidate();
       });
+    },
+
+    // ---- selection, copy, paste, distribute ------------------------------------------------
+    /** Shift+click (or drag) selects a block of cells; Copy, Paste and Distribute Values work on it. */
+    _bindSelection(root) {
+      const cellOf = (e) => { const td = e.target.closest ? e.target.closest("td[data-ri]") : null; return td ? { ri: Number(td.dataset.ri), ci: Number(td.dataset.ci) } : null; };
+      const touch = () => { this._paint(); if (this._ctx.plan) { this._ctx.plan.notifySelection(this); } };
+      root.addEventListener("mousedown", (e) => {
+        const c = cellOf(e);
+        if (this._ctx && this._ctx.plan) { this._ctx.plan.active = this; }
+        if (!c) { return; }
+        if (e.shiftKey && this._sel) { this._sel.b = c; e.preventDefault(); touch(); return; }
+        this._sel = { a: c, b: c };
+        this._dragging = true;
+        touch();
+      });
+      root.addEventListener("mouseover", (e) => {
+        if (!this._dragging || e.buttons !== 1) { return; }
+        const c = cellOf(e);
+        if (c && this._sel && (c.ri !== this._sel.b.ri || c.ci !== this._sel.b.ci)) { this._sel.b = c; touch(); }
+      });
+      document.addEventListener("mouseup", () => { this._dragging = false; });
+      root.addEventListener("copy", (e) => {
+        if (this.selectionInfo().count < 2) { return; }          // one cell: the input's own copy works
+        e.clipboardData.setData("text/plain", this.copySelection());
+        e.preventDefault();
+      });
+      root.addEventListener("paste", (e) => {
+        const text = e.clipboardData.getData("text/plain");
+        if (!/[\t\n]/.test(text.trim()) && this.selectionInfo().count < 2) { return; }   // one value into one cell: the input's own paste, then Enter
+        e.preventDefault();
+        this.paste(text);
+      });
+    },
+
+    _range() {
+      if (!this._sel) { return null; }
+      const { a, b } = this._sel;
+      const maxR = this._rows ? this._rows.length - 1 : 0;
+      const maxC = this._cols ? this._cols.length - 1 : 0;
+      return { r0: Math.min(a.ri, b.ri), r1: Math.min(maxR, Math.max(a.ri, b.ri)), c0: Math.min(a.ci, b.ci), c1: Math.min(maxC, Math.max(a.ci, b.ci)) };
+    },
+
+    _paint() {
+      const root = this.getDomRef();
+      if (!root) { return; }
+      const g = this._range();
+      root.querySelectorAll("td[data-ri]").forEach((td) => {
+        const ri = Number(td.dataset.ri); const ci = Number(td.dataset.ci);
+        td.classList.toggle("zsacSel", !!g && ri >= g.r0 && ri <= g.r1 && ci >= g.c0 && ci <= g.c1);
+      });
+    },
+
+    clearSelection() { this._sel = null; this._paint(); if (this._ctx && this._ctx.plan) { this._ctx.plan.notifySelection(this); } },
+
+    _stateOf(rk, ck) {
+      const c = this._ctx;
+      return PlanEditor.cellState({ model: c.model, spec: c.spec, versions: c.versions, editable: !!(this._o && this._o.editable) }, this._result, rk, ck);
+    },
+
+    /** @returns {{ri, ci, rk, ck, value, state}[]} the selected cells in reading order */
+    getSelectedCells() {
+      const g = this._range();
+      if (!g || !this._rows) { return []; }
+      const out = [];
+      for (let ri = g.r0; ri <= g.r1; ri++) {
+        for (let ci = g.c0; ci <= g.c1; ci++) {
+          const rk = this._rows[ri]; const ck = this._cols[ci];
+          if (rk && ck) { out.push({ ri, ci, rk, ck, value: this._result.cell(rk, ck), state: this._stateOf(rk, ck) }); }
+        }
+      }
+      return out;
+    },
+
+    selectionInfo() {
+      const cells = this.getSelectedCells();
+      return { count: cells.length, editable: cells.filter((x) => x.state.editable).length };
+    },
+
+    getDecimals() { return this._dec || 0; },
+
+    /** Versions (other than the table's) whose values can serve as the reference for Distribute Values. */
+    getReferenceVersions() {
+      const c = this._ctx;
+      if (!c.readReference || !this._rows || !this._rows.length) { return []; }
+      const own = PlanEditor.valueFor({ spec: c.spec }, this._result, this._rows[0], this._cols[0], "VERSION");
+      if (!own || (c.spec.rows || []).concat(c.spec.columns || []).indexOf("VERSION") >= 0) { return []; }
+      return (c.versions || []).filter((v) => v.VersionId !== own);
+    },
+
+    /** Values of the selected cells in another version, aligned with `cells` (undefined where the reference has no value). */
+    async getReferenceValues(versionId, cells) {
+      const c = this._ctx;
+      const own = PlanEditor.valueFor({ spec: c.spec }, this._result, this._rows[0], this._cols[0], "VERSION");
+      const facts = (await c.readReference(versionId)).map((f) => Object.assign({}, f, { VersionId: own }));
+      const r = QueryEngine.aggregate(c.model, facts, { rows: c.spec.rows, columns: c.spec.columns, filters: c.spec.filters, hierarchies: c.spec.hierarchies });
+      return cells.map((x) => r.cell(x.rk, x.ck));
+    },
+
+    /** The selection (or the focused cell) as tab separated text; also kept in the plan session for the Paste button. */
+    copySelection() {
+      const g = this._range();
+      if (!g) { return ""; }
+      const matrix = [];
+      for (let ri = g.r0; ri <= g.r1; ri++) {
+        const row = [];
+        for (let ci = g.c0; ci <= g.c1; ci++) { const v = this._rows[ri] && this._cols[ci] ? this._result.cell(this._rows[ri], this._cols[ci]) : undefined; row.push(v === undefined ? v : Math.round(v * 1e6) / 1e6); }
+        matrix.push(row);
+      }
+      const text = GridText.format(matrix);
+      if (this._ctx.plan) { this._ctx.plan.clipboard = text; }
+      return text;
+    },
+
+    /** pasteText plus the message to the planner. */
+    paste(text) {
+      const out = this.pasteText(text);
+      this._report(out);
+      return out;
+    },
+
+    /** Pastes tab separated text with its top left corner on the selection's top left (or the focused cell). One value fills the whole selection. */
+    pasteText(text) {
+      const matrix = GridText.parse(text);
+      if (!matrix.length) { return { cells: 0, skipped: 0, reason: "Nothing to paste" }; }
+      const g = this._range();
+      const focus = this.getDomRef() && this.getDomRef().querySelector("input.zsacCell2:focus");
+      const start = g ? { ri: g.r0, ci: g.c0 } : focus ? { ri: Number(focus.dataset.ri), ci: Number(focus.dataset.ci) } : null;
+      if (!start) { return { cells: 0, skipped: 0, reason: "Select a cell first" }; }
+      const items = [];
+      let skipped = 0;
+      const single = matrix.length === 1 && matrix[0].length === 1;
+      const place = (ri, ci, v) => {
+        if (v === null) { return; }
+        if (Number.isNaN(v)) { skipped++; return; }
+        if (!this._rows[ri] || !this._cols[ci]) { skipped++; return; }
+        items.push({ ri, ci, value: v });
+      };
+      if (single && g && (g.r1 > g.r0 || g.c1 > g.c0)) {
+        for (let ri = g.r0; ri <= g.r1; ri++) { for (let ci = g.c0; ci <= g.c1; ci++) { place(ri, ci, matrix[0][0]); } }
+      } else {
+        matrix.forEach((row, i) => row.forEach((v, j) => place(start.ri + i, start.ci + j, v)));
+      }
+      const out = this.applyCellValues(items);
+      out.skipped += skipped;
+      return out;
+    },
+
+    /**
+     * Sets several cells in one undoable step. Each value goes through the same rules as typing it (leaf write, spread, refusal).
+     * Cells of one block are independent; mixing a total and the numbers below it in one block gives the order of the block.
+     * @returns {{cells: number, skipped: number, reason: string}}
+     */
+    applyCellValues(items) {
+      const c = this._ctx;
+      const ctx = { model: c.model, spec: c.spec, versions: c.versions, editable: true };
+      const changes = new Map();
+      let cells = 0; let skipped = 0; let reason = "";
+      items.forEach((it) => {
+        const out = PlanEditor.edit(ctx, this._result, this._rows[it.ri], this._cols[it.ci], it.value);
+        if (out.error) { skipped++; reason = reason || out.error; return; }
+        cells++;
+        out.changes.forEach((f) => changes.set(PlanEditor.keyOfFact(f), f));
+      });
+      if (changes.size && c.plan) {
+        c.plan.apply(Array.from(changes.values()), (f) => { const v = this._base.get([f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|")); return v === undefined ? null : v; });
+      }
+      return { cells, skipped, reason };
+    },
+
+    _report(out) {
+      if (out.reason && !out.cells) { MessageToast.show(out.reason); return; }
+      MessageToast.show(out.cells + (out.cells === 1 ? " cell" : " cells") + " changed" + (out.skipped ? ", " + out.skipped + " skipped" + (out.reason ? " (" + out.reason + ")" : "") : ""));
     },
 
     _onEdit(input) {

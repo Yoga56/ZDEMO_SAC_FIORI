@@ -88,5 +88,7 @@ sap.ui.define(["../core/QueryEngine", "./Spreader"], function (QueryEngine, Spre
     return out;
   }
 
-  return { cellState, edit, newRows, valueFor, QueryEngine };
+  const keyOfFact = (f) => [f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|");
+
+  return { cellState, edit, newRows, valueFor, keyOfFact, QueryEngine };
 });

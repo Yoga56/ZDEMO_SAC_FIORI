@@ -112,6 +112,17 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * **Planning page.** Model, version and measure pickers around the same planning table widget; version work (private copy, publish a version, revert, lock,
   data actions) asks to publish the buffer first.
 
+* **Selection, Copy, Paste.** Click a cell, then shift+click (or drag) to select a block; the planning toolbar then enables Distribute Values, Copy and
+  Paste. Ctrl/Cmd+C copies a block of two or more cells as tab separated text (plain numbers, the format spreadsheets exchange); Ctrl/Cmd+V pastes
+  tab separated text with its top left corner on the selected cell, from this grid or from a spreadsheet (`1,234.5`, `1.234,5` and `(200)` are read as numbers,
+  empty cells are left alone). One pasted value fills the whole selection. Every pasted cell follows the typing rules (leaf write, spread, refusal) and the paste is
+  one undo step; cells that cannot be planned are skipped and counted. The toolbar's Copy and Paste buttons do the same through the browser clipboard, falling back to
+  the last copy of the session.
+* **Distribute Values (`DistributeDialog`, `Distributor`).** Splits a value over the selected plannable cells: equally, in proportion to their current values, or in
+  proportion to the same cells in another version (for example last year's actuals as the seasonal pattern); optionally only cells that are empty or zero. The
+  shares are rounded to the measure's decimals and add up to the value exactly (the remainder goes to the heaviest cell). A block that mixes a total and the numbers
+  below it is applied in reading order, so select cells of one level.
+
 ### Planning semantics (JS and ABAP twins)
 
 * Data action steps: COPY (source to target times factor), SCALE (target times factor), DELETE (target slice), ALLOCATE (sum of the
@@ -127,5 +138,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Authorization is open to every user (`get_global_authorizations` is empty, no DCL). Add owner and sharing rules per customer.
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
-* Planning: no Distribute Values dialog, formula bar or copy/paste yet; Version Management and Version History are toolbar buttons and the Data Audit dialog, not SAC's dialogs; the unpublished buffer is per browser page (not shared, not saved).
+* Planning: no formula bar yet; no select by header; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); Version Management and Version History are toolbar buttons and the Data Audit dialog, not SAC's dialogs; the unpublished buffer is per browser page (not shared, not saved).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

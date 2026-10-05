@@ -98,3 +98,10 @@
 .zsacPlanGrid input.zsacDirtyCell, .zsacPlanGrid td.zsacDirtyCell { background: var(--sapInformationBackground, #e1f0fc); }
 .zsacPlanBar { margin-bottom: 0.5rem; }
 .zsacTrigger { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* selected block of cells (shift+click or drag): copy, paste, distribute values */
+.zsacPlan { outline: none; }
+.zsacPlanGrid td.zsacSel { background: var(--sapList_SelectionBackgroundColor, #e5f0fa); box-shadow: inset 0 0 0 1px var(--sapContent_FocusColor, #0070f2); }
+.zsacPlanGrid td.zsacSel input.zsacCell2 { background: transparent; }
+.zsacPlanGrid td[data-ri] { user-select: none; }
+.zsacPlanGrid td[data-ri] input { user-select: text; }

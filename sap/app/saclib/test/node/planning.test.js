@@ -89,3 +89,37 @@ test("new rows: zero facts for the periods that do not exist yet", () => {
   const rows = PlanEditor.newRows(model, "BUD", "X", { REGION: "A" }, ["2026-01", "2026-02", "2026-03"], base);
   assert.deepStrictEqual(rows.map((f) => f.Period), ["2026-03"]);
 });
+
+const Distributor = req("zsac/lib/planning/Distributor");
+
+test("distribute values: equal with the remainder, proportional, reference, only empty cells", () => {
+  const cells = (vals, w) => vals.map((v, i) => ({ value: v, weight: w ? w[i] : undefined }));
+  let s = Distributor.distribute(cells([0, 0, 0]), 100, { method: "EQUAL", decimals: 0 });
+  assert.deepStrictEqual(s, [34, 33, 33]);
+  assert.strictEqual(s.reduce((a, b) => a + b, 0), 100);
+  assert.deepStrictEqual(Distributor.distribute(cells([10, 30]), 80, { method: "PROPORTIONAL", decimals: 2 }), [20, 60]);
+  assert.deepStrictEqual(Distributor.distribute(cells([0, 0]), 10, { method: "PROPORTIONAL", decimals: 2 }), [5, 5]);          // nothing to be proportional to
+  s = Distributor.distribute(cells([1, 1, 1], [100, 100, 200]), 400, { method: "REFERENCE", decimals: 0 });
+  assert.deepStrictEqual(s, [100, 100, 200]);
+  s = Distributor.distribute(cells([5, 0, undefined, 7]), 90, { method: "EQUAL", onlyEmpty: true, decimals: 0 });
+  assert.deepStrictEqual(s, [null, 45, 45, null]);
+  assert.deepStrictEqual(Distributor.distribute(cells([5, 7]), 90, { onlyEmpty: true }), [null, null]);
+  s = Distributor.distribute(cells([1, 1, 1]), 1, { method: "EQUAL", decimals: 2 });
+  assert.strictEqual(Math.round(s.reduce((a, b) => a + b, 0) * 100) / 100, 1);
+  const buffer = new PlanBuffer();
+  let notified = 0;
+  buffer.attachSelection(() => notified++);
+  buffer.notifySelection({ id: "grid" });
+  assert.ok(notified === 1 && buffer.active.id === "grid");
+});
+
+const GridText = req("zsac/lib/planning/GridText");
+
+test("grid text: copy format and paste parsing as spreadsheets exchange it", () => {
+  assert.strictEqual(GridText.format([[1, undefined, 2.5], [3, 4, null]]), "1\t\t2.5\n3\t4\t");
+  assert.deepStrictEqual(GridText.parse("1\t2\n3\t4\n"), [[1, 2], [3, 4]]);
+  assert.deepStrictEqual(GridText.parse("1,234.5\t(200)\t\t1.234,5"), [[1234.5, -200, null, 1234.5]]);
+  assert.ok(Number.isNaN(GridText.parse("abc")[0][0]));
+  assert.deepStrictEqual(GridText.parse("5\r\n6"), [[5], [6]]);
+  assert.deepStrictEqual(GridText.parse(GridText.format([[10, 20], [30, 40]])), [[10, 20], [30, 40]]);
+});

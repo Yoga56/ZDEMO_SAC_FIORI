@@ -214,6 +214,7 @@ sap.ui.define([
         if (b.Measure && !(filters.MEASURE && filters.MEASURE.length)) { filters.MEASURE = [b.Measure]; }
         const facts = await ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, filters));
         grid.setContext({ model, facts, versions, plan: ctx.plan,
+          readReference: (versionId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }))),
           spec: { rows: b.Rows || [], columns: b.Columns || [], filters, hierarchies: activeHierarchies(b) },
           options: { editable: widget.Props.Editable !== false, expandRows: Math.max(1, Number(widget.Props.ExpandRows) || 3), expandCols: Math.max(1, Number(widget.Props.ExpandCols) || 2),
             attributes: widget.Props.Attributes || [], showTotals: widget.Props.ShowTotals !== false } });

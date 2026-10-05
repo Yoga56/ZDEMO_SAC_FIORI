@@ -17,7 +17,15 @@ sap.ui.define(["./DataActionEngine"], function (DataActionEngine) {
       this._undo = [];
       this._redo = [];
       this._listeners = [];
+      this._selListeners = [];
+      this.active = null;          // the planning grid the planner last worked in (Copy, Paste and Distribute Values act on it)
+      this.clipboard = null;       // text of the last Copy, for Paste when the system clipboard cannot be read
     }
+
+    /** The selection of cells in the active grid changed. */
+    attachSelection(fn) { this._selListeners.push(fn); }
+    detachSelection(fn) { this._selListeners = this._selListeners.filter((x) => x !== fn); }
+    notifySelection(grid) { if (grid) { this.active = grid; } this._selListeners.slice().forEach((fn) => fn(this)); }
 
     attachChange(fn) { this._listeners.push(fn); }
     detachChange(fn) { this._listeners = this._listeners.filter((x) => x !== fn); }
