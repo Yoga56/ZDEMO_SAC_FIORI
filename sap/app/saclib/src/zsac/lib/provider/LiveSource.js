@@ -117,7 +117,9 @@ sap.ui.define([], function () {
       ? Object.assign(new Error(e.message + ". The amount " + m[2] + " needs its currency or unit field " + m[1] + " in the result: set it as the Currency field of the data source."), { status: e.status })
       : e;
   }
-  const applyUnsupported = (e) => !!e && (e.status === 501 || e.status === 405 || (e.status === 400 && /apply|aggregat/i.test(e.message || "")));
+  // "$apply processing failed" alone is not a refusal: the service tried and found something wrong with the request (a missing currency, a wrong field), which must be shown
+  const applyUnsupported = (e) => !!e && (e.status === 501 || e.status === 405
+    || (e.status === 400 && /(apply|aggregat)\w*[^.]{0,40}(not (yet )?(supported|implemented|allowed|available)|unsupported)/i.test(e.message || "") && !/Context element/i.test(e.message || "")));
 
   /**
    * Facts of a LIVE model (or of the source of an IMPORT model): rows of the service turned into facts.
