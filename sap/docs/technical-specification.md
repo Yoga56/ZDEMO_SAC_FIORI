@@ -119,7 +119,7 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * **Planning page.** Model, version and measure pickers around the same planning table widget; version work (private copy, publish a version, revert, lock,
   data actions) asks to publish the buffer first.
 
-* **Selection, Copy, Paste.** Click a cell, then shift+click (or drag) to select a block; the planning toolbar then enables Distribute Values, Copy and
+* **Selection, Copy, Paste.** Click a cell, then shift+click (or drag) to select a block; click a row label to select the row, a column header to select its column(s) (a spanning header selects all its columns, the top-left corner selects the table; shift+click extends); the planning toolbar then enables Distribute Values, Copy and
   Paste. Ctrl/Cmd+C copies a block of two or more cells as tab separated text (plain numbers, the format spreadsheets exchange); Ctrl/Cmd+V pastes
   tab separated text with its top left corner on the selected cell, from this grid or from a spreadsheet (`1,234.5`, `1.234,5` and `(200)` are read as numbers,
   empty cells are left alone). One pasted value fills the whole selection. Every pasted cell follows the typing rules (leaf write, spread, refusal) and the paste is
@@ -129,6 +129,16 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
   proportion to the same cells in another version (for example last year's actuals as the seasonal pattern); optionally only cells that are empty or zero. The
   shares are rounded to the measure's decimals and add up to the value exactly (the remainder goes to the heaviest cell). A block that mixes a total and the numbers
   below it is applied in reading order, so select cells of one level.
+
+* **Header selection.** A row, a column or the whole table picked by its header acts on the numbers, not on the totals in between: along an axis that holds
+  several cells the aggregated ones (parent nodes, years, quarters) are left out of Distribute Values, the formula bar and Copy-independent actions (Copy still takes
+  everything shown). Selecting a single aggregated row or column keeps it, so a year or a region total can be set by selecting it.
+* **Formula bar** (`FormulaEngine`, toolbar button *fx*). Shows the label and plain value of the selected cell; Enter applies the entry to every plannable selected cell
+  as one undoable step (history entry "Formula =ACT*1.05 on 3 cells"). Entries: a number (`1200`), arithmetic with `+ - * / ^` and parentheses
+  (`=120000*1.05`), a leading operator on the cell's own value (`*1.1`, `+500`, `-10%`), `current` for the cell's value, and a **version id** for the same cell in
+  that version (`=ACT*1.05`, `=ACT+10%`). A percentage after + or - is relative to the left side (`+10%` is x1.1), after * a fraction. The same entries typed straight into
+  a cell work too (a number as before; text starting with `=` or an operator and not just a signed number is calculated). No `eval`: a small parser, with errors
+  reported as messages. A reference needs a table with a single version and the version must exist; references to members or other measures are not supported.
 
 ### Planning semantics (JS and ABAP twins)
 
@@ -145,5 +155,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Authorization is open to every user (`get_global_authorizations` is empty, no DCL). Add owner and sharing rules per customer.
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
-* Planning: no formula bar yet; no select by header; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); the version panels are dialogs, not SAC's side panel, and "hold data" means the version has facts, not that a table uses it; the unpublished buffer is per browser page (not shared, not saved).
+* Planning: formulas cannot refer to members, other measures or other cells; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); the version panels are dialogs, not SAC's side panel, and "hold data" means the version has facts, not that a table uses it; the unpublished buffer is per browser page (not shared, not saved).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

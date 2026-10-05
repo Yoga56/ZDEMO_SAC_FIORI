@@ -140,3 +140,32 @@ test("plan history: labelled steps with times, undo and redo up to a step", () =
   assert.strictEqual(b.redoTo(0), 1);
   assert.strictEqual(b.count, 3);
 });
+
+const FormulaEngine = req("zsac/lib/planning/FormulaEngine");
+
+test("formulas: arithmetic, shorthand, percentages, references, errors", () => {
+  const run = (text, env) => { const f = FormulaEngine.compile(text); assert.ok(!f.error, f.error); return Math.round(f.evaluate(Object.assign({ current: 200, refs: {} }, env)) * 1e6) / 1e6; };
+  assert.strictEqual(run("=120000*1.05"), 126000);
+  assert.strictEqual(run("=2+3*4"), 14);
+  assert.strictEqual(run("=(2+3)*4"), 20);
+  assert.strictEqual(run("=-2^2+10"), 6);                  // -2^2 is -4
+  assert.strictEqual(run("=2^-1"), 0.5);
+  assert.strictEqual(run("*1.1"), 220);
+  assert.strictEqual(run("+500"), 700);
+  assert.strictEqual(run("-10%"), 180);                    // current minus 10 percent
+  assert.strictEqual(run("+10%"), 220);
+  assert.strictEqual(run("*10%"), 20);
+  assert.strictEqual(run("=10%"), 0.1);
+  assert.strictEqual(run("=current+current/4"), 250);
+  assert.strictEqual(run("=ACT*1.05", { refs: { ACT: 100 } }), 105);
+  assert.strictEqual(run("=act+10%", { refs: { ACT: 100 } }), 110);
+  assert.deepStrictEqual(FormulaEngine.compile("=ACT+BUD*2+current").names.sort(), ["ACT", "BUD"]);
+  assert.ok(FormulaEngine.compile("=2+").error);
+  assert.ok(FormulaEngine.compile("=2$3").error);
+  assert.ok(FormulaEngine.compile("=(2+3").error);
+  assert.throws(() => FormulaEngine.compile("=1/0").evaluate({ current: 0, refs: {} }), /Division by zero/);
+  assert.throws(() => FormulaEngine.compile("=FOO+1").evaluate({ current: 0, refs: {} }), /Unknown name FOO/);
+  assert.ok(FormulaEngine.isFormula("=5") && FormulaEngine.isFormula("*2") && FormulaEngine.isFormula("+10%") && FormulaEngine.isFormula("-10%"));
+  assert.ok(!FormulaEngine.isFormula("-5") && !FormulaEngine.isFormula("1,234") && !FormulaEngine.isFormula("10%") && !FormulaEngine.isFormula(""));
+  assert.strictEqual(run("=-5"), -5);                      // with "=" a sign is a sign, not shorthand
+});

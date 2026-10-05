@@ -19,6 +19,7 @@ sap.ui.define(["./DataActionEngine"], function (DataActionEngine) {
       this._redo = [];
       this._listeners = [];
       this._selListeners = [];
+      this.formulaBar = false;     // the formula bar of the active grid is shown
       this.active = null;          // the planning grid the planner last worked in (Copy, Paste and Distribute Values act on it)
       this.clipboard = null;       // text of the last Copy, for Paste when the system clipboard cannot be read
     }

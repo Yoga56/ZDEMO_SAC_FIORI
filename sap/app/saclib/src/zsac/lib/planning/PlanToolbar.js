@@ -8,12 +8,12 @@
  */
 sap.ui.define([
   "sap/ui/core/Control",
-  "sap/m/OverflowToolbar", "sap/m/Button", "sap/m/Text", "sap/m/ToolbarSpacer", "sap/m/MessageBox", "sap/m/MessageToast",
+  "sap/m/OverflowToolbar", "sap/m/Button", "sap/m/ToggleButton", "sap/m/Text", "sap/m/ToolbarSpacer", "sap/m/MessageBox", "sap/m/MessageToast",
   "./PlanPublisher",
   "./DistributeDialog",
   "./VersionManager",
   "./VersionHistory"
-], function (Control, OverflowToolbar, Button, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory) {
+], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory) {
   "use strict";
 
   return Control.extend("zsac.lib.planning.PlanToolbar", {
@@ -38,9 +38,11 @@ sap.ui.define([
       this._distribute = new Button({ text: "Distribute Values", icon: "sap-icon://calculator", enabled: false, press: () => { if (this._grid()) { DistributeDialog.open(this._grid()); } } });
       this._copy = new Button({ icon: "sap-icon://copy", tooltip: "Copy the selected cells (Ctrl+C)", type: "Transparent", enabled: false, press: () => this._doCopy() });
       this._paste = new Button({ icon: "sap-icon://paste", tooltip: "Paste at the selected cell (Ctrl+V)", type: "Transparent", enabled: false, press: () => this._doPaste() });
+      this._fx = new ToggleButton({ text: "fx", tooltip: "Formula bar: type a value or a formula for the selected cells", type: "Transparent", pressed: false,
+        press: (e) => { this._plan.formulaBar = e.getParameter("pressed"); this._plan.notifySelection(this._plan.active); } });
       this._versions = new Button({ text: "Versions", icon: "sap-icon://documents", tooltip: "Version Management", type: "Transparent", press: () => this._openVersions() });
       this._historyBtn = new Button({ icon: "sap-icon://history", tooltip: "Version History", type: "Transparent", press: () => this._openHistory() });
-      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste,
+      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx,
         this._versions, this._historyBtn, new ToolbarSpacer(), this._status] }));
       this._guard = (e) => { if (this._plan && this._plan.dirty) { e.preventDefault(); e.returnValue = ""; } };
       window.addEventListener("beforeunload", this._guard);
@@ -60,6 +62,7 @@ sap.ui.define([
       this._sync = () => this._update();
       this._plan.attachChange(this._sync);
       this._plan.attachSelection(this._sync);
+      this._fx.setPressed(!!this._plan.formulaBar);
       this._update();
       return this;
     },

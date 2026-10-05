@@ -105,3 +105,13 @@
 .zsacPlanGrid td.zsacSel input.zsacCell2 { background: transparent; }
 .zsacPlanGrid td[data-ri] { user-select: none; }
 .zsacPlanGrid td[data-ri] input { user-select: text; }
+
+/* formula bar and header selection */
+.zsacFxBar { display: none; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5); background: var(--sapList_HeaderBackground, #f5f6f7); }
+.zsacFxOn .zsacFxBar { display: flex; }
+.zsacFxName { min-width: 9rem; max-width: 14rem; font-size: 0.75rem; color: var(--sapContent_LabelColor, #556b82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zsacFxSym { font-style: italic; font-weight: 600; color: var(--sapContent_IconColor, #556b82); }
+input.zsacFx { flex: 1; min-width: 8rem; box-sizing: border-box; font: inherit; padding: 0.25rem 0.5rem; border: 1px solid var(--sapField_BorderColor, #89919a); border-radius: 0.25rem; background: var(--sapField_Background, #fff); color: inherit; }
+input.zsacFx:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); }
+.zsacPlanGrid [data-hr], .zsacPlanGrid th[data-hc], .zsacPlanGrid th[data-all] { cursor: pointer; user-select: none; }
+.zsacPlanGrid .zsacSelHdr { background: var(--sapList_SelectionBackgroundColor, #e5f0fa); color: var(--sapContent_FocusColor, #0070f2); }

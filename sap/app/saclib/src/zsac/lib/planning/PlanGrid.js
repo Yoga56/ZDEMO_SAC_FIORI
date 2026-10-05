@@ -14,8 +14,9 @@ sap.ui.define([
   "../core/Format",
   "../core/QueryEngine",
   "./PlanEditor",
-  "./GridText"
-], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText) {
+  "./GridText",
+  "./FormulaEngine"
+], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText, FormulaEngine) {
   "use strict";
 
   const SEP = "\u0001";
@@ -32,7 +33,7 @@ sap.ui.define([
     },
 
     exit() {
-      if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); }
+      if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); if (this._onSel) { this._ctx.plan.detachSelection(this._onSel); } }
     },
 
     renderer: {
@@ -45,11 +46,11 @@ sap.ui.define([
     },
 
     setContext(ctx) {
-      if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); }
+      if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); if (this._onSel) { this._ctx.plan.detachSelection(this._onSel); } }
       this._ctx = ctx;
       this._sel = null;
       this._base = new Map(ctx.facts.map((f) => [[f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|"), f.Value]));
-      if (ctx.plan) { ctx.plan.attachChange(this._onPlan); }
+      if (ctx.plan) { ctx.plan.attachChange(this._onPlan); this._onSel = this._onSel || (() => this._syncBar()); ctx.plan.attachSelection(this._onSel); }
       this.invalidate();
       return this;
     },
@@ -95,16 +96,18 @@ sap.ui.define([
       const lead = Math.max(1, spec.rows.length) + attrs.length;
       const totals = o.showTotals && !r.rowInfo && !r.colInfo;
 
-      let h = '<table class="zsacGrid2 zsacPlanGrid"><thead>';
+      let h = '<div class="zsacFxBar"><span class="zsacFxName">No cell selected</span><span class="zsacFxSym">fx</span>'
+        + '<input class="zsacFx" placeholder="Value or formula, for example 1200, *1.1, +500, -10%, =ACT*1.05" spellcheck="false"></div>';
+      h += '<table class="zsacGrid2 zsacPlanGrid"><thead>';
       const kc = spec.columns.length;
       spec.columns.forEach((cd, i) => {
         h += "<tr>";
         if (i < kc - 1) {
-          h += '<th colspan="' + lead + '" class="zsacHdrLabel">' + esc(dimLabel(cd)) + "</th>";
+          h += '<th colspan="' + lead + '" class="zsacHdrLabel" data-all="1">' + esc(dimLabel(cd)) + "</th>";
         } else {
-          spec.rows.forEach((rd) => { h += "<th>" + esc(dimLabel(rd)) + "</th>"; });
-          if (!spec.rows.length) { h += "<th></th>"; }
-          attrs.forEach((a) => { h += "<th>" + esc(a.label) + "</th>"; });
+          spec.rows.forEach((rd) => { h += '<th data-all="1">' + esc(dimLabel(rd)) + "</th>"; });
+          if (!spec.rows.length) { h += '<th data-all="1"></th>'; }
+          attrs.forEach((a) => { h += '<th data-all="1">' + esc(a.label) + "</th>"; });
         }
         let n = 0;
         while (n < cols.length) {
@@ -119,7 +122,7 @@ sap.ui.define([
             cell = tog + cell;
             cls += " zsacColNode";
           }
-          h += '<th class="' + cls + '" colspan="' + span + '">' + cell + "</th>";
+          h += '<th class="' + cls + '" colspan="' + span + '" data-hc="' + n + "-" + (n + span - 1) + '">' + cell + "</th>";
           n += span;
         }
         if (totals && i === 0) { h += '<th class="num total" rowspan="' + kc + '">Total</th>'; }
@@ -135,14 +138,14 @@ sap.ui.define([
         rk.forEach((m, i) => {
           if (info && i === info.index) {
             const tog = info.hasChildren ? '<span class="zsacTog" data-r="' + this._rowIndex.get(keyStr(rk)) + '">' + (isOpen(this._rowOpen, r.rowInfo, rk, o.expandRows) ? "▾" : "▸") + "</span>" : '<span class="zsacTogGap"></span>';
-            h += '<td class="zsacNode" style="padding-left:' + (0.6 + (info.depth - 1) * 1.1) + 'rem">' + tog + esc(member(spec.rows[i], m)) + "</td>";
+            h += '<td class="zsacNode" data-hr="' + ri + '" style="padding-left:' + (0.6 + (info.depth - 1) * 1.1) + 'rem">' + tog + esc(member(spec.rows[i], m)) + "</td>";
             return;
           }
           const same = prev.slice(0, i + 1).join(SEP) === rk.slice(0, i + 1).join(SEP);
-          h += "<td" + (same ? ' class="repeat"' : "") + ">" + (same ? "" : esc(member(spec.rows[i], m))) + "</td>";
+          h += '<td data-hr="' + ri + '"' + (same ? ' class="repeat"' : "") + ">" + (same ? "" : esc(member(spec.rows[i], m))) + "</td>";
         });
-        if (!spec.rows.length) { h += "<td>All</td>"; }
-        attrs.forEach((a) => { h += "<td>" + esc(a.lookup.get(rk[a.idx]) || "") + "</td>"; });
+        if (!spec.rows.length) { h += '<td data-hr="' + ri + '">All</td>'; }
+        attrs.forEach((a) => { h += '<td data-hr="' + ri + '">' + esc(a.lookup.get(rk[a.idx]) || "") + "</td>"; });
         prev = rk;
         cols.forEach((ck, ci) => {
           const v = r.cell(rk, ck);
@@ -211,6 +214,25 @@ sap.ui.define([
       root.addEventListener("mousedown", (e) => {
         const c = cellOf(e);
         if (this._ctx && this._ctx.plan) { this._ctx.plan.active = this; }
+        // headers select a whole row, whole columns (a spanning header selects all its columns) or everything; totals are left out when acting on them
+        const lastR = this._rows ? this._rows.length - 1 : 0;
+        const lastC = this._cols ? this._cols.length - 1 : 0;
+        if (!c && lastR >= 0 && !e.target.closest(".zsacTog")) {
+          const hr = e.target.closest("[data-hr]");
+          const hc = e.target.closest("[data-hc]");
+          const all = e.target.closest("[data-all]");
+          if (hr) {
+            const r = Number(hr.dataset.hr);
+            if (e.shiftKey && this._sel && this._sel.byRow) { this._sel.b = { ri: r, ci: lastC }; } else { this._sel = { a: { ri: r, ci: 0 }, b: { ri: r, ci: lastC }, byRow: true, leafOnly: true }; }
+            e.preventDefault(); touch(); return;
+          }
+          if (hc) {
+            const [c0, c1] = hc.dataset.hc.split("-").map(Number);
+            if (e.shiftKey && this._sel && this._sel.byCol) { this._sel.b = { ri: lastR, ci: c1 >= this._sel.a.ci ? c1 : c0 }; } else { this._sel = { a: { ri: 0, ci: c0 }, b: { ri: lastR, ci: c1 }, byCol: true, leafOnly: true }; }
+            e.preventDefault(); touch(); return;
+          }
+          if (all) { this._sel = { a: { ri: 0, ci: 0 }, b: { ri: lastR, ci: lastC }, leafOnly: true }; e.preventDefault(); touch(); return; }
+        }
         if (!c) { return; }
         if (e.shiftKey && this._sel) { this._sel.b = c; e.preventDefault(); touch(); return; }
         this._sel = { a: c, b: c };
@@ -223,6 +245,10 @@ sap.ui.define([
         if (c && this._sel && (c.ri !== this._sel.b.ri || c.ci !== this._sel.b.ci)) { this._sel.b = c; touch(); }
       });
       document.addEventListener("mouseup", () => { this._dragging = false; });
+      root.addEventListener("keydown", (e) => {
+        if (!e.target.matches("input.zsacFx")) { return; }
+        if (e.key === "Enter") { e.preventDefault(); this._applyFormula(e.target.value); } else if (e.key === "Escape") { this._syncBar(); }
+      });
       root.addEventListener("copy", (e) => {
         if (this.selectionInfo().count < 2) { return; }          // one cell: the input's own copy works
         e.clipboardData.setData("text/plain", this.copySelection());
@@ -252,6 +278,72 @@ sap.ui.define([
         const ri = Number(td.dataset.ri); const ci = Number(td.dataset.ci);
         td.classList.toggle("zsacSel", !!g && ri >= g.r0 && ri <= g.r1 && ci >= g.c0 && ci <= g.c1);
       });
+      const fullCols = !!g && g.c0 === 0 && g.c1 === (this._cols ? this._cols.length - 1 : 0);
+      const fullRows = !!g && g.r0 === 0 && g.r1 === (this._rows ? this._rows.length - 1 : 0);
+      root.querySelectorAll("[data-hr]").forEach((el) => { const ri = Number(el.dataset.hr); el.classList.toggle("zsacSelHdr", fullCols && ri >= g.r0 && ri <= g.r1); });
+      root.querySelectorAll("th[data-hc]").forEach((el) => { const [a, b] = el.dataset.hc.split("-").map(Number); el.classList.toggle("zsacSelHdr", fullRows && a >= g.c0 && b <= g.c1); });
+      this._syncBar();
+    },
+
+    /** The formula bar shows the selected cell (its label and plain value) when it is switched on and this is the grid the planner works in. */
+    _syncBar() {
+      const root = this.getDomRef();
+      if (!root) { return; }
+      const plan = this._ctx && this._ctx.plan;
+      const on = !!(plan && plan.formulaBar && plan.active === this);
+      root.classList.toggle("zsacFxOn", on);
+      if (!on) { return; }
+      const name = root.querySelector(".zsacFxName");
+      const input = root.querySelector("input.zsacFx");
+      if (!name || !input) { return; }
+      const cells = this.getSelectedCells();
+      const editable = cells.filter((x) => x.state.editable);
+      input.disabled = !editable.length;
+      if (!cells.length) { name.textContent = "No cell selected"; input.value = ""; return; }
+      if (cells.length === 1) {
+        name.textContent = this._cellLabel(cells[0].rk, cells[0].ck);
+        input.value = cells[0].value === undefined ? "" : String(Math.round(cells[0].value * 1e6) / 1e6);
+      } else {
+        name.textContent = cells.length + " cells" + (editable.length < cells.length ? " (" + editable.length + " plannable)" : "");
+        input.value = "";
+      }
+    },
+
+    /** Applies a value or formula to every plannable selected cell, as one undoable step. */
+    _applyFormula(text) {
+      const cells = this.getSelectedCells().filter((x) => x.state.editable);
+      if (!cells.length) { MessageToast.show("Select the cells to change first"); return Promise.resolve(); }
+      return this._formulaFor(cells, text);
+    },
+
+    async _formulaFor(cells, text) {
+      const t = String(text).trim();
+      if (!t) { return; }
+      const f = FormulaEngine.compile(FormulaEngine.isFormula(t) || /^=/.test(t) ? t : "=" + t);
+      if (f.error) { MessageToast.show(f.error); this.invalidate(); return; }
+      const ids = (this._ctx.versions || []).map((v) => v.VersionId);
+      const usable = this.getReferenceVersions().map((v) => v.VersionId);
+      const refs = {};
+      for (const name of f.names) {
+        const id = ids.find((x) => x.toUpperCase() === name.toUpperCase());
+        if (!id) { MessageToast.show("Unknown name " + name + ". Use current or a version id: " + ids.join(", ")); this.invalidate(); return; }
+        if (usable.indexOf(id) < 0) { MessageToast.show("Version " + id + " cannot be used in this table"); this.invalidate(); return; }
+        refs[name] = await this.getReferenceValues(id, cells);
+      }
+      const items = [];
+      let bad = 0;
+      cells.forEach((c, i) => {
+        try {
+          const env = { current: c.value || 0, refs: {} };
+          Object.keys(refs).forEach((n) => { env.refs[n] = refs[n][i] || 0; });
+          const v = f.evaluate(env);
+          if (Number.isFinite(v)) { items.push({ ri: c.ri, ci: c.ci, value: v }); } else { bad++; }
+        } catch (e) { bad++; }
+      });
+      const out = this.applyCellValues(items, "Formula " + t + " on " + items.length + (items.length === 1 ? " cell" : " cells"));
+      out.skipped += bad;
+      this._report(out);
+      this.invalidate();
     },
 
     clearSelection() { this._sel = null; this._paint(); if (this._ctx && this._ctx.plan) { this._ctx.plan.notifySelection(this); } },
@@ -272,12 +364,19 @@ sap.ui.define([
           if (rk && ck) { out.push({ ri, ci, rk, ck, value: this._result.cell(rk, ck), state: this._stateOf(rk, ck) }); }
         }
       }
-      return out;
+      // a row, column or the whole table picked by its header acts on the numbers, not on the totals in between: along an axis that
+      // holds several cells the aggregated ones (parent nodes, years, quarters) are left out
+      const r = this._result;
+      if (!(this._sel && this._sel.leafOnly)) { return out; }
+      const rg = this._range();
+      const rowAgg = (rk) => !!(r.rowInfo && r.rowInfo(rk).hasChildren);
+      const colAgg = (ck) => !!(r.colInfo && r.colInfo(ck).hasChildren);
+      return out.filter((x) => (rg.r1 === rg.r0 || !rowAgg(x.rk)) && (rg.c1 === rg.c0 || !colAgg(x.ck)));
     },
 
     selectionInfo() {
       const cells = this.getSelectedCells();
-      return { count: cells.length, editable: cells.filter((x) => x.state.editable).length };
+      return { count: cells.length, editable: cells.filter((x) => x.state.editable).length, leafOnly: !!(this._sel && this._sel.leafOnly) };
     },
 
     getDecimals() { return this._dec || 0; },
@@ -388,6 +487,10 @@ sap.ui.define([
       const c = this._ctx;
       const rk = this._rows[Number(input.dataset.ri)];
       const ck = this._cols[Number(input.dataset.ci)];
+      if (FormulaEngine.isFormula(input.value)) {
+        this._formulaFor([{ ri: Number(input.dataset.ri), ci: Number(input.dataset.ci), rk, ck, value: this._result.cell(rk, ck), state: this._stateOf(rk, ck) }], input.value);
+        return;
+      }
       const value = num(input.value);
       const out = PlanEditor.edit({ model: c.model, spec: c.spec, versions: c.versions, editable: true }, this._result, rk, ck, value);
       if (out.error) {
