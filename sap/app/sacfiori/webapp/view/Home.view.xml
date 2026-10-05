@@ -7,7 +7,7 @@
         <Button text="Create story" icon="sap-icon://add" type="Emphasized" press=".onCreateStory" class="sapUiTinyMarginEnd"/>
         <Button text="Open planning" icon="sap-icon://projector" press=".onPlanning" class="sapUiTinyMarginEnd"/>
         <Button text="Analyse data" icon="sap-icon://pie-chart" press=".onAnalyser" class="sapUiTinyMarginEnd"/>
-        <Button text="Create dataset" icon="sap-icon://database" press=".onCreateDataset"/>
+        <Button text="Create model" icon="sap-icon://database" press=".onCreateDataset"/>
       </HBox>
       <Title text="My Metrics" level="H4" class="sapUiSmallMarginTop"/>
       <HBox id="metrics" wrap="Wrap"/>

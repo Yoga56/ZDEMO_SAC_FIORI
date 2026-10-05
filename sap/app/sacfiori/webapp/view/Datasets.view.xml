@@ -4,9 +4,9 @@
       <Table id="table" items="{view>/items}" noDataText="No datasets yet" sticky="ColumnHeaders,HeaderToolbar">
         <headerToolbar>
           <OverflowToolbar>
-            <Title text="Datasets" level="H3"/>
+            <Title text="Datasets" level="H3"/><Text text="Data of each model. The structure lives in the Modeller."/>
             <ToolbarSpacer/>
-            <Button text="Create dataset" icon="sap-icon://add" type="Emphasized" press=".onCreate"/>
+            <Button text="Create model" icon="sap-icon://add" type="Emphasized" press=".onCreate"/>
           </OverflowToolbar>
         </headerToolbar>
         <columns>
@@ -27,7 +27,7 @@
                 <Button icon="sap-icon://table-view" type="Transparent" press=".onPreview" tooltip="Preview data"/>
                 <Button icon="sap-icon://upload" type="Transparent" press=".onImport" tooltip="Import facts from CSV"/>
                 <Button icon="sap-icon://download" type="Transparent" press=".onExport" tooltip="Export facts to CSV"/>
-                <Button icon="sap-icon://edit" type="Transparent" press=".onEdit" tooltip="Edit model"/>
+                <Button icon="sap-icon://dimension" type="Transparent" press=".onEdit" tooltip="Open in Modeller"/>
                 <Button icon="sap-icon://delete" type="Transparent" press=".onDelete" tooltip="Delete"/>
               </HBox>
             </cells>

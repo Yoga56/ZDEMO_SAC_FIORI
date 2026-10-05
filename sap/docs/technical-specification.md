@@ -13,7 +13,7 @@
 
 | Area | Modules | Role |
 |---|---|---|
-| core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `FilterEngine`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
+| core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
 | provider | `MockProvider`, `ODataV4Provider`, `mockdata/*.json` | data sources |
 | planning | `DataActionEngine`, `VersionEngine`, `PlanningTable` | planning semantics and the editable grid |
 | widget | `SvgChart` + `ChartBuilders`/`ChartData`, `KpiTile`, `PivotTable`, `WidgetCard`, `Widgets` (registrations) | what a story shows |
@@ -29,6 +29,21 @@ Facts are flat rows `{ModelId, VersionId, Period, Measure, Dim1..Dim5, Value}`. 
 (`provider.query({ModelId, Rows, Columns, Filters})`) read facts through `readFacts` and aggregate with the shared `QueryEngine`
 in the browser. This is fine for planning sized models (some ten thousand facts); a server side `$apply` aggregation is the
 next step for larger data.
+
+### Model properties
+
+| Level | Properties |
+|---|---|
+| Model | `PlanningEnabled` (off: read only in Planning), `DataLocking` (planners can lock and unlock public versions), `DataAudit` (change history of plan values), `DataSource` (last CSV imported) |
+| Measure | `DataType`, `Aggregation` (SUM, AVG, MIN, MAX, COUNT), `ExceptionAggregation` + `ExceptionDims`, `UnitType` + `Unit`, `Scale` (1, 1000, 1000000), `Decimals` |
+| Dimension | `DimId`, `Label` (the description), `Slot`, members; Version and Date are shown as built-in dimensions |
+
+`QueryEngine.aggregate` applies the measure's aggregation to every cell and total (an average total is the average of the facts, not of the cell
+averages). With an exception aggregation the facts are first reduced along the exception dimensions, then the standard aggregation applies to
+the rest. Tables use the measure's scale and decimals unless the widget overrides them, KPI tiles can use them (`Number format: Measure format`),
+the planning grid uses the decimals. `ModelSchema` holds the defaults and the validation the Modeller runs before saving.
+
+Data Audit is recorded by `MockProvider` (`capabilities.audit`) and shown in Planning; the OData backend stores the flag but has no change log table yet.
 
 ### Story JSON
 
@@ -77,4 +92,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
   association paths, action names with the generated namespace `com.sap.gateway.srvd.zui_sac_o4.v0001.`.
 * Authorization is open to every user (`get_global_authorizations` is empty, no DCL). Add owner and sharing rules per customer.
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
+* Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder), dimension types beyond Generic, attributes or hierarchies.
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

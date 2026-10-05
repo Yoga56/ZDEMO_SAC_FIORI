@@ -22,6 +22,7 @@
             <tnt:NavigationListItem text="Stories" icon="sap-icon://business-objects-experience" key="stories"/>
             <tnt:NavigationListItem text="Data Analyser" icon="sap-icon://pie-chart" key="analyser"/>
             <tnt:NavigationListItem text="Datasets" icon="sap-icon://database" key="datasets"/>
+            <tnt:NavigationListItem text="Modeller" icon="sap-icon://dimension" key="modelers"/>
             <tnt:NavigationListItem text="Planning" icon="sap-icon://projector" key="planning"/>
             <tnt:NavigationListItem text="Data Actions" icon="sap-icon://workflow-tasks" key="dataactions"/>
             <tnt:NavigationListItem text="Multi Actions" icon="sap-icon://process" key="multiactions"/>

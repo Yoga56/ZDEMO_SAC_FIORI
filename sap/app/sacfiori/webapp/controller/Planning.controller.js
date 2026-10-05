@@ -3,10 +3,11 @@ sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/Menu", "sap/m/MenuItem",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/VBox", "sap/m/Text", "sap/m/TextArea",
+  "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem", "sap/m/ScrollContainer",
   "zsac/lib/designer/FilterEditor",
   "zsac/lib/core/QueryEngine",
   "zsac/lib/planning/DataActionEngine"
-], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, FilterEditor, QueryEngine, DataActionEngine) {
+], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor, QueryEngine, DataActionEngine) {
   "use strict";
 
   const CATEGORY = { ACTUAL: "Actual", BUDGET: "Budget", FORECAST: "Forecast", PRIVATE: "Private" };
@@ -75,16 +76,26 @@ sap.ui.define([
       const v = this._cur();
       const measure = this.byId("measure").getSelectedKey();
       const facts = await this._p.readFacts(m.ModelId, { VERSION: [v.VersionId], MEASURE: [measure] });
-      this._data = { model: m, version: v.VersionId, measure, facts, locked: !!v.Locked };
+      const spec = m.Measures.find((x) => x.MeasureId === measure) || {};
+      const off = !m.PlanningEnabled;
+      this._data = { model: m, version: v.VersionId, measure, facts, locked: !!v.Locked || off };
+      this.byId("table").setDecimals(spec.Decimals || 0);
       this.byId("table").setData(this._data);
       const strip = this.byId("lockStrip");
-      strip.setVisible(!!v.Locked || v.Category === "PRIVATE");
-      strip.setText(v.Locked ? "This version is locked. Actuals are loaded by import or data actions, not typed in."
+      strip.setVisible(!!v.Locked || off || v.Category === "PRIVATE");
+      strip.setText(off ? "Planning is not enabled for this model (Modeller, Model tab, Planning Capabilities). The numbers are read only."
+        : v.Locked ? "This version is locked. Actuals are loaded by import or data actions, not typed in."
         : "Private version: only you see these numbers until you publish them to a public version.");
-      strip.setType(v.Locked ? "Warning" : "Information");
+      strip.setType(off || v.Locked ? "Warning" : "Information");
       const priv = v.Category === "PRIVATE";
-      this.byId("publish").setEnabled(priv); this.byId("revert").setEnabled(priv); this.byId("discard").setEnabled(priv);
-      this.byId("addRow").setEnabled(!v.Locked);
+      this.byId("publish").setEnabled(priv && !off); this.byId("revert").setEnabled(priv && !off); this.byId("discard").setEnabled(priv);
+      this.byId("newPriv").setEnabled(!off);
+      this.byId("addRow").setEnabled(!v.Locked && !off);
+      this.byId("actions").setEnabled(!off);
+      const lock = this.byId("lock");
+      lock.setVisible(!!m.DataLocking && !priv && !off);
+      lock.setIcon(v.Locked ? "sap-icon://unlocked" : "sap-icon://locked");
+      this.byId("history").setVisible(!!m.DataAudit && !!this._p.capabilities.audit);
       await this._summary();
       this._actionsMenu();
     },
@@ -115,6 +126,31 @@ sap.ui.define([
     onVersion() { this._reload().catch((x) => this.fail(x)); },
     onMeasure() { this._reload().catch((x) => this.fail(x)); },
     onCompare() { this._summary().catch((x) => this.fail(x)); },
+
+    // ---- data locking and audit -----------------------------------------------------------
+    onLock: function () {
+      this.guard(async () => {
+        const v = this._cur();
+        await this._p.saveVersion(Object.assign({}, v, { Locked: !v.Locked }));
+        this.toast(v.Locked ? "Version unlocked" : "Version locked");
+        await this._versions(v.VersionId);
+      })();
+    },
+
+    onHistory: function () {
+      this.guard(async () => {
+        await this._flush();
+        const v = this._cur();
+        const rows = (await this._p.listAudit(this._model.ModelId, 200)).filter((a) => a.VersionId === v.VersionId);
+        const table = new Table({ noDataText: "No changes recorded yet", sticky: ["ColumnHeaders"] });
+        ["When", "User", "Period", "Measure", "Members", "Old", "New"].forEach((h) => table.addColumn(new Column({ header: new Text({ text: h }), hAlign: /Old|New/.test(h) ? "End" : "Begin" })));
+        rows.forEach((a) => table.addItem(new ColumnListItem({ cells: [new Text({ text: new Date(a.At).toLocaleString() }), new Text({ text: a.User }), new Text({ text: a.Period }),
+          new Text({ text: a.Measure }), new Text({ text: a.Dims }), new Text({ text: a.Old === null ? "(new)" : String(a.Old) }), new Text({ text: String(a.New) })] })));
+        const dlg = new Dialog({ title: "Change history: " + v.Name, contentWidth: "52rem", contentHeight: "26rem", content: [new ScrollContainer({ height: "100%", vertical: true, content: [table] })],
+          endButton: new Button({ text: "Close", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+        dlg.open();
+      })();
+    },
 
     // ---- cell writes ---------------------------------------------------------------------
     onCell(e) {

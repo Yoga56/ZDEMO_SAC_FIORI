@@ -13,6 +13,8 @@
         <Button id="publish" text="Publish" icon="sap-icon://upload-to-cloud" press=".onPublish" enabled="false"/>
         <Button id="revert" icon="sap-icon://undo" tooltip="Revert to source" press=".onRevert" enabled="false"/>
         <Button id="discard" icon="sap-icon://delete" tooltip="Discard private version" press=".onDiscard" enabled="false"/>
+        <Button id="lock" icon="sap-icon://locked" tooltip="Lock or unlock this version (Data Locking)" press=".onLock" visible="false"/>
+        <Button id="history" icon="sap-icon://history" tooltip="Change history (Data Audit)" press=".onHistory" visible="false"/>
         <ToolbarSpacer/>
         <Button id="addRow" text="Add row" icon="sap-icon://add" press=".onAddRow"/>
         <MenuButton id="actions" text="Run data action" icon="sap-icon://workflow-tasks" type="Emphasized"/>

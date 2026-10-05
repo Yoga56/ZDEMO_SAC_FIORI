@@ -1,80 +1,219 @@
 sap.ui.define([
   "./BaseController",
-  "sap/ui/model/json/JSONModel"
-], function (BaseController, JSONModel) {
+  "../model/DataTools",
+  "sap/ui/model/json/JSONModel",
+  "sap/ui/model/Filter",
+  "sap/ui/model/FilterOperator",
+  "zsac/lib/core/ModelSchema",
+  "zsac/lib/planning/DataActionEngine"
+], function (BaseController, DataTools, JSONModel, Filter, FilterOperator, ModelSchema) {
   "use strict";
 
-  const ID = /^[A-Z][A-Z0-9_]*$/;
-  const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
+  const BUILTIN_ROWS = (versions, periods) => [
+    { DimId: "VERSION", Label: "Version", Type: "Version", builtin: true, existing: true, CountText: String(versions), MembersText: "" },
+    { DimId: "PERIOD", Label: "Date", Type: "Date", builtin: true, existing: true, CountText: String(periods), MembersText: "" }
+  ];
 
   /**
-   * Model editor. A dimension that already carries data keeps its id and slot (the facts are stored per slot);
-   * new dimensions can be appended and members edited at any time.
+   * SAC style modeller: Model Structure (measures and dimensions in tables, details panel on the right), Calculations
+   * (not in this release), Data Management. A dimension that already carries data keeps its id and slot (facts are
+   * stored per slot); new dimensions are appended and members can be edited at any time.
    */
   return BaseController.extend("zsac.fiori.controller.Modeller", {
     onInit() {
       this._m = new JSONModel({});
-      this.getView().setModel(this._m, "m");
+      this._sel = new JSONModel({ measure: false, dim: false, canDelete: false });
+      this._rel = new JSONModel({ items: [] });
+      this._data = new JSONModel({ items: [] });
+      const v = this.getView();
+      v.setModel(this._m, "m"); v.setModel(this._sel, "sel"); v.setModel(this._rel, "rel"); v.setModel(this._data, "data");
       this.onRoute("modeller", (args) => this._load(args.id));
     },
 
-    async _load(id) {
-      const p = await this.provider();
-      if (id === "new") {
-        this._m.setData({ isNew: true, ModelId: "", Name: "", Description: "", Currency: "USD", PeriodFrom: "2026-01", PeriodTo: "2026-12",
-          Dimensions: [{ DimId: "REGION", Label: "Region", MembersText: "EMEA\nAPAC\nAMER", existing: false }],
-          Measures: [{ MeasureId: "AMOUNT", Label: "Amount", Unit: "USD", existing: false }] });
-        return;
-      }
-      const m = await p.getModel(id);
-      this._m.setData(Object.assign({}, m, { isNew: false,
-        Dimensions: m.Dimensions.map((d) => ({ DimId: d.DimId, Label: d.Label, existing: true,
-          MembersText: (d.Members || []).map((x) => (x.Text && x.Text !== x.Id ? x.Id + " | " + x.Text : x.Id)).join("\n") })),
-        Measures: m.Measures.map((x) => Object.assign({ existing: true }, x)) }));
+    // ---- formatters ------------------------------------------------------------------------
+    measureDetails(aggregation, exception, unitType, unit, scaleKey) {
+      const parts = [{ SUM: "Sum", AVG: "Average", MIN: "Minimum", MAX: "Maximum", COUNT: "Count" }[aggregation] || aggregation];
+      if (exception) { parts.push("exception: " + exception.toLowerCase()); }
+      const label = ModelSchema.unitLabel({ UnitType: unitType, Unit: unit, Scale: Number(scaleKey) || 1 });
+      if (label) { parts.push(label); }
+      return parts.join(" · ");
     },
 
-    onAddDim() { const d = this._m.getProperty("/Dimensions"); d.push({ DimId: "", Label: "", MembersText: "", existing: false }); this._m.setProperty("/Dimensions", d); },
-    onAddMeasure() { const d = this._m.getProperty("/Measures"); d.push({ MeasureId: "", Label: "", Unit: "", existing: false }); this._m.setProperty("/Measures", d); },
-    onRemoveDim(e) { this._remove("/Dimensions", e); },
-    onRemoveMeasure(e) { this._remove("/Measures", e); },
-    _remove(path, e) {
-      const i = Number(e.getSource().getBindingContext("m").getPath().split("/").pop());
-      const list = this._m.getProperty(path);
-      list.splice(i, 1);
-      this._m.setProperty(path, list);
+    memberCount(builtin, countText, membersText) {
+      return builtin ? countText : String(String(membersText || "").split("\n").filter((l) => l.trim()).length);
+    },
+
+    // ---- load ------------------------------------------------------------------------------
+    async _load(id) {
+      const p = (this._p = await this.provider());
+      this.byId("viewSel").setSelectedKey("structure");
+      this._show("structure");
+      this._clearSelection();
+      this.byId("auditNote").setVisible(!p.capabilities.audit);
+      let model;
+      let versions = [];
+      if (id === "new") {
+        model = ModelSchema.newModel();
+        model.isNew = true;
+      } else {
+        model = await p.getModel(id);
+        versions = await p.listVersions(id);
+        model.isNew = false;
+      }
+      const months = this._months(model.PeriodFrom, model.PeriodTo);
+      this._m.setData(Object.assign({}, model, {
+        Dimensions: BUILTIN_ROWS(versions.length || 3, months).concat(model.Dimensions.map((d) => ({
+          DimId: d.DimId, Label: d.Label, Type: "Generic", existing: !model.isNew, builtin: false, CountText: "",
+          MembersText: (d.Members || []).map((x) => (x.Text && x.Text !== x.Id ? x.Id + " | " + x.Text : x.Id)).join("\n") }))),
+        Measures: model.Measures.map((x) => Object.assign({}, x, { existing: !model.isNew, ScaleKey: String(x.Scale || 1) }))
+      }));
+      this.byId("tabs").setSelectedKey("model");
+      await this._related(model);
+      if (!model.isNew) { this._data.setProperty("/items", await DataTools.summary(this, model)); } else { this._data.setProperty("/items", []); }
+    },
+
+    _months(from, to) {
+      const a = /^(\d{4})-(\d{2})$/.exec(from || "");
+      const b = /^(\d{4})-(\d{2})$/.exec(to || "");
+      return a && b ? (b[1] - a[1]) * 12 + (b[2] - a[2]) + 1 : 0;
+    },
+
+    // ---- related objects -------------------------------------------------------------------
+    async _related(model) {
+      const items = [];
+      if (!model.isNew) {
+        const p = this._p;
+        const [actions, multis, stories, tasks] = await Promise.all([p.listDataActions(), p.listMultiActions(), p.listStories(), p.listTasks()]);
+        const mine = actions.filter((a) => a.ModelId === model.ModelId);
+        mine.forEach((a) => items.push({ kind: "Data Action", title: a.Name, icon: "sap-icon://workflow-tasks", go: () => this.router().navTo("dataactions", { query: { id: a.Id } }) }));
+        multis.filter((x) => (x.Steps || []).some((s) => (s.StepType === "DATAACTION" && mine.some((a) => a.Id === s.ActionId)) || (s.StepType === "PUBLISH" && s.ModelId === model.ModelId)))
+          .forEach((x) => items.push({ kind: "Multi Action", title: x.Name, icon: "sap-icon://process", go: () => this.router().navTo("multiactions", { query: { id: x.Id } }) }));
+        const full = await Promise.all(stories.map((s) => (s.ModelId === model.ModelId ? Promise.resolve(s) : p.getStory(s.Id).catch(() => s))));
+        full.filter((s) => s.ModelId === model.ModelId || (s.Widgets || []).some((w) => w.Binding && w.Binding.ModelId === model.ModelId))
+          .forEach((s) => items.push({ kind: "Story", title: s.Name, icon: "sap-icon://business-objects-experience", go: () => this.navTo("story", { id: s.Id }) }));
+        tasks.filter((t) => t.ModelId === model.ModelId)
+          .forEach((t) => items.push({ kind: "Calendar task", title: t.Title, icon: "sap-icon://task", go: () => this.navTo("calendar") }));
+      }
+      this._rel.setProperty("/items", items);
+    },
+
+    onRelated(e) { e.getSource().getBindingContext("rel").getObject().go(); },
+
+    // ---- views and panel -------------------------------------------------------------------
+    _show(view) { ["structure", "calculations", "data"].forEach((id) => this.byId(id).setVisible(id === view)); },
+    onView(e) { this._show(e.getParameter("selectedItem").getKey()); },
+    onOpenData() { this.byId("viewSel").setSelectedKey("data"); this._show("data"); },
+    onTogglePanel(e) { this.byId("side").setVisible(e.getParameter("pressed")); },
+    onTab() { /* the tab bar only switches content */ },
+
+    _clearSelection() {
+      this._sel.setData({ measure: false, dim: false, canDelete: false });
+      this.byId("measures").removeSelections(true);
+      this.byId("dims").removeSelections(true);
+    },
+
+    onSelectMeasure(e) {
+      this.byId("dims").removeSelections(true);
+      const ctx = e.getParameter("listItem").getBindingContext("m");
+      this.byId("measureDetail").bindElement({ path: ctx.getPath(), model: "m" });
+      this._sel.setData({ measure: true, dim: false, canDelete: !ctx.getObject().existing });
+      this.byId("tabs").setSelectedKey("measure");
+      this.byId("side").setVisible(true);
+    },
+
+    onSelectDim(e) {
+      this.byId("measures").removeSelections(true);
+      const ctx = e.getParameter("listItem").getBindingContext("m");
+      this.byId("dimDetail").bindElement({ path: ctx.getPath(), model: "m" });
+      this._sel.setData({ measure: false, dim: true, canDelete: !ctx.getObject().existing && !ctx.getObject().builtin });
+      this.byId("tabs").setSelectedKey("dimension");
+      this.byId("side").setVisible(true);
+    },
+
+    onSearch(e) {
+      const q = e.getParameter("newValue") || "";
+      const f = (a, b) => (q ? [new Filter({ filters: [new Filter(a, FilterOperator.Contains, q), new Filter(b, FilterOperator.Contains, q)], and: false })] : []);
+      this.byId("measures").getBinding("items").filter(f("MeasureId", "Label"));
+      this.byId("dims").getBinding("items").filter(f("DimId", "Label"));
+    },
+
+    // ---- edit ------------------------------------------------------------------------------
+    onAddMeasure() {
+      const list = this._m.getProperty("/Measures");
+      list.push(ModelSchema.normalizeMeasure({ MeasureId: "", Label: "", UnitType: "None", existing: false, ScaleKey: "1" }));
+      this._m.setProperty("/Measures", list);
+      this._pick("measures", list.length - 1, "measure");
+    },
+
+    onAddDim() {
+      const list = this._m.getProperty("/Dimensions");
+      if (list.length >= 7) { this.toast("A model has at most five dimensions besides Version and Date"); return; }
+      list.push({ DimId: "", Label: "", Type: "Generic", existing: false, builtin: false, CountText: "", MembersText: "" });
+      this._m.setProperty("/Dimensions", list);
+      this._pick("dims", list.length - 1, "dimension");
+    },
+
+    _pick(tableId, index, tab) {
+      const table = this.byId(tableId);
+      sap.ui.getCore().applyChanges();
+      const item = table.getItems()[index];
+      if (item) { table.setSelectedItem(item, true, true); }
+      this.byId("tabs").setSelectedKey(tab);
+    },
+
+    onDeleteSelected() {
+      const path = (this.byId("measures").getSelectedItem() || this.byId("dims").getSelectedItem() || { getBindingContextPath: () => "" }).getBindingContextPath("m");
+      if (!path) { return; }
+      const [, list, index] = path.split("/");
+      const rows = this._m.getProperty("/" + list);
+      if (rows[index].existing || rows[index].builtin) { this.toast("Measures and dimensions that hold data cannot be removed"); return; }
+      rows.splice(Number(index), 1);
+      this._m.setProperty("/" + list, rows);
+      this._clearSelection();
+    },
+
+    // ---- save ------------------------------------------------------------------------------
+    _collect() {
+      const d = this._m.getData();
+      const dims = d.Dimensions.filter((x) => !x.builtin);
+      return {
+        ModelId: d.ModelId, Name: (d.Name || "").trim(), Description: d.Description || "", Currency: d.Currency || "", PeriodFrom: d.PeriodFrom, PeriodTo: d.PeriodTo,
+        PlanningEnabled: !!d.PlanningEnabled, DataLocking: !!d.DataLocking, DataAudit: !!d.DataAudit, DataSource: d.DataSource || "",
+        Dimensions: dims.map((x, i) => ({ DimId: x.DimId, Label: x.Label || x.DimId, Slot: i + 1,
+          Members: String(x.MembersText || "").split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const [id, ...t] = l.split("|"); return { Id: id.trim(), Text: (t.join("|") || id).trim() }; }) })),
+        Measures: d.Measures.map((x) => ({ MeasureId: x.MeasureId, Label: x.Label || x.MeasureId, DataType: x.DataType, Aggregation: x.Aggregation,
+          ExceptionAggregation: x.ExceptionAggregation || "", ExceptionDims: x.ExceptionAggregation ? (x.ExceptionDims || []).filter((k) => k !== "MEASURE") : [],
+          UnitType: x.UnitType, Unit: x.UnitType === "None" ? "" : x.Unit || "", Scale: Number(x.ScaleKey) || 1, Decimals: Number(x.Decimals) || 0 }))
+      };
     },
 
     onSave: function () {
       this.guard(async () => {
-        const d = this._m.getData();
-        const problems = [];
-        if (!ID.test(d.ModelId || "")) { problems.push("Model ID: capital letters, digits and underscore, starting with a letter"); }
-        if (!(d.Name || "").trim()) { problems.push("Name is required"); }
-        if (!PERIOD.test(d.PeriodFrom || "") || !PERIOD.test(d.PeriodTo || "") || d.PeriodFrom > d.PeriodTo) { problems.push("Periods must look like 2026-01 and start before they end"); }
-        if (!d.Dimensions.length) { problems.push("At least one dimension"); }
-        if (!d.Measures.length) { problems.push("At least one measure"); }
-        const ids = d.Dimensions.map((x) => x.DimId).concat(d.Measures.map((x) => x.MeasureId));
-        if (ids.some((x) => !ID.test(x))) { problems.push("Dimension and measure IDs: capital letters, digits and underscore"); }
-        if (new Set(d.Dimensions.map((x) => x.DimId)).size !== d.Dimensions.length || ["VERSION", "PERIOD", "MEASURE"].some((x) => d.Dimensions.some((y) => y.DimId === x))) { problems.push("Dimension IDs must be unique and not VERSION, PERIOD or MEASURE"); }
-        if (new Set(d.Measures.map((x) => x.MeasureId)).size !== d.Measures.length) { problems.push("Measure IDs must be unique"); }
+        const model = this._collect();
+        const problems = ModelSchema.validate(model);
         if (problems.length) { throw new Error(problems.join("\n")); }
-
         const p = await this.provider();
-        const model = {
-          ModelId: d.ModelId, Name: d.Name.trim(), Description: d.Description || "", Currency: d.Currency || "", PeriodFrom: d.PeriodFrom, PeriodTo: d.PeriodTo,
-          Dimensions: d.Dimensions.map((x, i) => ({ DimId: x.DimId, Label: x.Label || x.DimId, Slot: i + 1,
-            Members: x.MembersText.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const [id, ...t] = l.split("|"); return { Id: id.trim(), Text: (t.join("|") || id).trim() }; }) })),
-          Measures: d.Measures.map((x) => ({ MeasureId: x.MeasureId, Label: x.Label || x.MeasureId, Unit: x.Unit || "", Aggregation: "SUM" }))
-        };
-        if (d.isNew && (await p.listModels()).some((m) => m.ModelId === d.ModelId)) { throw new Error("A model with ID " + d.ModelId + " already exists"); }
+        const isNew = this._m.getProperty("/isNew");
+        if (isNew && (await p.listModels()).some((m) => m.ModelId === model.ModelId)) { throw new Error("A model with ID " + model.ModelId + " already exists"); }
         await p.saveModel(model);
-        if (d.isNew) {
+        if (isNew) {
           for (const v of [["ACT", "Actual", "ACTUAL", true], ["BUD", "Budget", "BUDGET", false], ["FCT", "Forecast", "FORECAST", false]]) {
-            await p.saveVersion({ ModelId: d.ModelId, VersionId: v[0], Name: v[1], Category: v[2], Locked: v[3], Owner: "SYSTEM", SourceVersion: "", Status: "P" });
+            await p.saveVersion({ ModelId: model.ModelId, VersionId: v[0], Name: v[1], Category: v[2], Locked: v[3], Owner: "SYSTEM", SourceVersion: "", Status: "P" });
           }
         }
-        this.toast("Dataset saved");
-        this.navTo("datasets");
+        this.toast("Model saved");
+        if (isNew) { this.navTo("modeller", { id: model.ModelId }); } else { await this._load(model.ModelId); }
+      })();
+    },
+
+    // ---- data management -------------------------------------------------------------------
+    _model() { return Object.assign(this._collect(), { Name: this._m.getProperty("/Name") }); },
+    onPreview: function () { this.guard(() => DataTools.preview(this, this._model()))(); },
+    onExport: function () { this.guard(() => DataTools.exportCsv(this, this._model()))(); },
+    onImport: function () {
+      this.guard(async () => {
+        const n = await DataTools.importCsv(this, this._model());
+        if (n) { this.toast(n + " values imported"); await this._load(this._m.getProperty("/ModelId")); this.onOpenData(); }
       })();
     }
   });

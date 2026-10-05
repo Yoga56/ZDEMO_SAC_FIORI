@@ -14,7 +14,15 @@
 .zsacDetail { flex: 1; min-width: 0; background: var(--sapBaseColor, #fff); border: 1px solid var(--sapList_BorderColor, #e5e5e5); border-radius: 0.5rem; padding: 1rem; }
 .zsacDirty { color: var(--sapCriticalTextColor, #e26b0a); font-size: 0.75rem; }
 .zsacLog { font-family: var(--sapFontMonospaceFamily, monospace); font-size: 0.8125rem; white-space: pre-wrap; }
-@media (max-width: 900px) { .zsacTwoPane { flex-direction: column; } .zsacMaster { width: 100%; } .zsacRight { display: none; } }
+@media (max-width: 900px) {
+  .zsacTwoPane { flex-direction: column; } .zsacMaster { width: 100%; }
+  .zsacDesigner > .zsacRight:not(.zsacRightWide) { display: none; }
+  .zsacModeller { flex-direction: column; height: auto; }
+  .zsacModeller .zsacRightWide { width: auto; border-left: none; border-top: 1px solid var(--sapList_BorderColor, #e5e5e5); }
+  .zsacModeller .zsacStage { overflow: visible; }
+}
 .zsacAnalysisCard { height: calc(100vh - 11rem); min-height: 22rem; width: 100%; }
 .zsacPlanChart { width: 32rem; max-width: 100%; height: 11rem; }
 .zsacMetric { width: 16rem; height: 8rem; }
+.zsacRightWide { width: 26rem; }
+.zsacCalcNote { align-items: center; text-align: center; padding: 4rem 2rem; color: var(--sapContent_LabelColor, #556b82); }

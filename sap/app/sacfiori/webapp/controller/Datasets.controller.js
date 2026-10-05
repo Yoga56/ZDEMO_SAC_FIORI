@@ -1,9 +1,8 @@
 sap.ui.define([
   "./BaseController",
-  "../model/Csv",
-  "sap/ui/model/json/JSONModel",
-  "sap/m/Dialog", "sap/m/Button", "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem", "sap/m/Text", "sap/m/ScrollContainer"
-], function (BaseController, Csv, JSONModel, Dialog, Button, Table, Column, ColumnListItem, Text, ScrollContainer) {
+  "../model/DataTools",
+  "sap/ui/model/json/JSONModel"
+], function (BaseController, DataTools, JSONModel) {
   "use strict";
 
   /** Datasets: models with their facts. Preview, CSV import/export, open in the modeller. */
@@ -28,7 +27,7 @@ sap.ui.define([
     _m(e) { return e.getSource().getBindingContext("view").getObject(); },
 
     onCreate() { this.navTo("modeller", { id: "new" }); },
-    onEdit(e) { this.navTo("modeller", { id: this._m(e).ModelId }); },
+    onEdit(e) { this.navTo("modeller", { id: this._m(e).ModelId }); },   // the Modeller owns the model structure
 
     onDelete: function (e) {
       this.guard(async () => {
@@ -39,57 +38,12 @@ sap.ui.define([
       })();
     },
 
-    onPreview: function (e) {
-      this.guard(async () => {
-        const m = this._m(e);
-        const facts = (await (await this.provider()).readFacts(m.ModelId, {})).slice(0, 200);
-        const table = new Table({ growing: true, growingThreshold: 50, sticky: ["ColumnHeaders"] });
-        const cols = ["VersionId", "Period", "Measure"].concat(m.Dimensions.map((d) => "Dim" + d.Slot)).concat(["Value"]);
-        const heads = ["Version", "Period", "Measure"].concat(m.Dimensions.map((d) => d.Label)).concat(["Value"]);
-        heads.forEach((h) => table.addColumn(new Column({ header: new Text({ text: h }), hAlign: h === "Value" ? "End" : "Begin" })));
-        facts.forEach((f) => table.addItem(new ColumnListItem({ cells: cols.map((c) => new Text({ text: String(f[c]) })) })));
-        const dlg = new Dialog({ title: m.Name + " (first " + facts.length + " rows)", contentWidth: "60rem", contentHeight: "30rem", content: [new ScrollContainer({ height: "100%", vertical: true, content: [table] })],
-          endButton: new Button({ text: "Close", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
-        dlg.open();
-      })();
-    },
-
-    onExport: function (e) {
-      this.guard(async () => {
-        const m = this._m(e);
-        const facts = await (await this.provider()).readFacts(m.ModelId, {});
-        const head = ["VERSION", "PERIOD", "MEASURE"].concat(m.Dimensions.map((d) => d.DimId)).concat(["VALUE"]);
-        const rows = facts.map((f) => [f.VersionId, f.Period, f.Measure].concat(m.Dimensions.map((d) => f["Dim" + d.Slot])).concat([f.Value]));
-        Csv.download(m.ModelId + ".csv", Csv.write([head].concat(rows)));
-      })();
-    },
-
+    onPreview: function (e) { this.guard(() => DataTools.preview(this, this._m(e)))(); },
+    onExport: function (e) { this.guard(() => DataTools.exportCsv(this, this._m(e)))(); },
     onImport: function (e) {
       this.guard(async () => {
-        const m = this._m(e);
-        const p = await this.provider();
-        const file = await Csv.pick();
-        if (!file) { return; }
-        const rows = Csv.parse(file.text);
-        const head = rows.shift().map((h) => h.trim().toUpperCase());
-        const need = ["VERSION", "PERIOD", "MEASURE", "VALUE"].concat(m.Dimensions.map((d) => d.DimId));
-        const missing = need.filter((n) => head.indexOf(n) < 0);
-        if (missing.length) { throw new Error("Missing columns: " + missing.join(", ") + "\nExpected: " + need.join(", ")); }
-        const versions = (await p.listVersions(m.ModelId)).map((v) => v.VersionId);
-        const measures = m.Measures.map((x) => x.MeasureId);
-        const col = (n) => head.indexOf(n);
-        const facts = rows.map((r, i) => {
-          const f = { VersionId: r[col("VERSION")].trim(), Period: r[col("PERIOD")].trim(), Measure: r[col("MEASURE")].trim(), Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "",
-            Value: Number(r[col("VALUE")]) };
-          m.Dimensions.forEach((d) => { f["Dim" + d.Slot] = (r[col(d.DimId)] || "").trim(); });
-          if (versions.indexOf(f.VersionId) < 0) { throw new Error("Row " + (i + 2) + ": version " + f.VersionId + " does not exist"); }
-          if (measures.indexOf(f.Measure) < 0) { throw new Error("Row " + (i + 2) + ": unknown measure " + f.Measure); }
-          if (!/^\d{4}-\d{2}$/.test(f.Period)) { throw new Error("Row " + (i + 2) + ": period must look like 2026-03"); }
-          if (!isFinite(f.Value)) { throw new Error("Row " + (i + 2) + ": value is not a number"); }
-          return f;
-        });
-        for (let i = 0; i < facts.length; i += 500) { await p.writeFacts(m.ModelId, facts.slice(i, i + 500)); }
-        this.toast(facts.length + " values imported");
+        const n = await DataTools.importCsv(this, this._m(e));
+        if (n) { this.toast(n + " values imported"); await this._load(); }
       })();
     }
   });

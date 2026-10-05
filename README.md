@@ -15,7 +15,8 @@ widget registry and provider contract are the extension points).
 | Object | Where | What it is stored as |
 |---|---|---|
 | Story (dashboard) | Stories | pages and widgets (type, grid position, binding, properties) as data |
-| Dataset / planning model | Datasets, Modeller | up to 5 dimensions with members, measures, period range |
+| Planning model | Modeller | SAC-style editor: measures (data type, aggregation, exception aggregation, units, scale, decimals), dimensions with members, model preferences (planning, data locking, data audit), related objects |
+| Data of a model | Datasets, Modeller (Data Management) | preview, CSV import and export |
 | Version | Planning | public (Budget, Forecast, Actual) or private what-if copy; publish, revert, discard |
 | Plan data | Planning | typed into the grid, written in small batches |
 | Data action | Data Actions | steps copy, scale, delete, allocate; optional data filter parameter at run time |

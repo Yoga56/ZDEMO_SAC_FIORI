@@ -5,7 +5,7 @@ sap.ui.define([
   "use strict";
 
   const ROUTE_TO_KEY = { home: "home", files: "files", stories: "stories", story: "stories", analyser: "analyser", datasets: "datasets",
-    modeller: "datasets", planning: "planning", dataactions: "dataactions", multiactions: "multiactions", calendar: "calendar" };
+    modelers: "modelers", modeller: "modelers", planning: "planning", dataactions: "dataactions", multiactions: "multiactions", calendar: "calendar" };
 
   return BaseController.extend("zsac.fiori.controller.App", {
     onInit() {

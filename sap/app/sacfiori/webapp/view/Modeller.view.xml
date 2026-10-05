@@ -1,81 +1,264 @@
-<mvc:View controllerName="zsac.fiori.controller.Modeller" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:f="sap.ui.layout.form" height="100%">
-  <Page showHeader="false" enableScrolling="true">
+<mvc:View controllerName="zsac.fiori.controller.Modeller" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" height="100%">
+  <Page showHeader="false" enableScrolling="true" class="sapUiNoContentPadding">
     <subHeader>
       <OverflowToolbar>
         <Button icon="sap-icon://nav-back" type="Transparent" press=".onNavBack"/>
-        <Title text="{= ${m>/isNew} ? 'Create dataset' : 'Modeller: ' + ${m>/Name}}" level="H3"/>
+        <Title text="{= ${m>/isNew} ? 'New model' : ${m>/Name}}" level="H3"/>
+        <Text text="{= ${m>/isNew} ? '' : ${m>/ModelId}}" class="zsacSub"/>
+        <ToolbarSeparator/>
+        <Select id="viewSel" selectedKey="structure" change=".onView" width="12rem">
+          <core:Item key="structure" text="Model Structure"/>
+          <core:Item key="calculations" text="Calculations"/>
+          <core:Item key="data" text="Data Management"/>
+        </Select>
+        <ToolbarSeparator/>
+        <Button icon="sap-icon://save" tooltip="Save" press=".onSave"/>
+        <MenuButton icon="sap-icon://add" tooltip="Add">
+          <menu>
+            <Menu>
+              <MenuItem text="Measure" icon="sap-icon://measure" press=".onAddMeasure"/>
+              <MenuItem text="Dimension" icon="sap-icon://dimension" press=".onAddDim"/>
+            </Menu>
+          </menu>
+        </MenuButton>
+        <Button icon="sap-icon://delete" tooltip="Delete the selected measure or dimension (new ones only)" press=".onDeleteSelected" enabled="{sel>/canDelete}"/>
         <ToolbarSpacer/>
+        <SearchField width="14rem" liveChange=".onSearch" placeholder="Search"/>
+        <ToggleButton icon="sap-icon://detail-view" pressed="true" press=".onTogglePanel" tooltip="Details panel"/>
         <Button text="Save" type="Emphasized" press=".onSave"/>
       </OverflowToolbar>
     </subHeader>
     <content>
-      <VBox class="zsacPage">
-        <f:SimpleForm editable="true" layout="ResponsiveGridLayout" labelSpanXL="3" labelSpanL="3" labelSpanM="3" emptySpanXL="4" emptySpanL="4" emptySpanM="0">
-          <Label text="Model ID" required="true"/>
-          <Input value="{m>/ModelId}" enabled="{m>/isNew}" maxLength="20" placeholder="SALES_PLAN"/>
-          <Label text="Name" required="true"/>
-          <Input value="{m>/Name}"/>
-          <Label text="Description"/>
-          <Input value="{m>/Description}"/>
-          <Label text="Currency"/>
-          <Input value="{m>/Currency}" maxLength="5"/>
-          <Label text="Periods (YYYY-MM)"/>
-          <Input value="{m>/PeriodFrom}" placeholder="2026-01"/>
-          <Input value="{m>/PeriodTo}" placeholder="2026-12"/>
-        </f:SimpleForm>
+      <HBox class="zsacDesigner zsacModeller" renderType="Bare">
+        <ScrollContainer class="zsacStage" vertical="true">
+          <!-- Model Structure -->
+          <VBox id="structure">
+            <Panel expandable="true" expanded="true" headerText="Measures" class="sapUiSmallMarginBottom">
+              <headerToolbar>
+                <OverflowToolbar style="Clear">
+                  <Title text="Measures" level="H4"/>
+                  <ToolbarSpacer/>
+                  <Button icon="sap-icon://add" type="Transparent" press=".onAddMeasure" tooltip="Add measure"/>
+                </OverflowToolbar>
+              </headerToolbar>
+              <Table id="measures" items="{path: 'm>/Measures', templateShareable: false}" mode="SingleSelectMaster" selectionChange=".onSelectMeasure" noDataText="No measures">
+                <columns>
+                  <Column width="22%"><Text text="Name"/></Column>
+                  <Column width="28%" minScreenWidth="Tablet" demandPopin="true"><Text text="Description"/></Column>
+                  <Column width="14%" minScreenWidth="Tablet" demandPopin="true"><Text text="Data Type"/></Column>
+                  <Column width="36%" minScreenWidth="Tablet" demandPopin="true"><Text text="Additional Details"/></Column>
+                </columns>
+                <items>
+                  <ColumnListItem>
+                    <cells>
+                      <Text text="{m>MeasureId}"/>
+                      <Text text="{m>Label}"/>
+                      <Text text="{m>DataType}"/>
+                      <Text text="{parts: [{path: 'm>Aggregation'}, {path: 'm>ExceptionAggregation'}, {path: 'm>UnitType'}, {path: 'm>Unit'}, {path: 'm>ScaleKey'}], formatter: '.measureDetails'}"/>
+                    </cells>
+                  </ColumnListItem>
+                </items>
+              </Table>
+            </Panel>
+            <Panel expandable="true" expanded="true" headerText="Dimensions">
+              <headerToolbar>
+                <OverflowToolbar style="Clear">
+                  <Title text="Dimensions" level="H4"/>
+                  <ToolbarSpacer/>
+                  <Button icon="sap-icon://add" type="Transparent" press=".onAddDim" tooltip="Add dimension" enabled="{= ${m>/Dimensions}.length &lt; 7}"/>
+                </OverflowToolbar>
+              </headerToolbar>
+              <Table id="dims" items="{path: 'm>/Dimensions', templateShareable: false}" mode="SingleSelectMaster" selectionChange=".onSelectDim" noDataText="No dimensions">
+                <columns>
+                  <Column width="22%"><Text text="Name"/></Column>
+                  <Column width="28%" minScreenWidth="Tablet" demandPopin="true"><Text text="Description"/></Column>
+                  <Column width="16%" minScreenWidth="Tablet" demandPopin="true"><Text text="Type"/></Column>
+                  <Column width="36%" minScreenWidth="Tablet" demandPopin="true"><Text text="Additional Details"/></Column>
+                </columns>
+                <items>
+                  <ColumnListItem>
+                    <cells>
+                      <Text text="{m>DimId}"/>
+                      <Text text="{m>Label}"/>
+                      <HBox alignItems="Center">
+                        <core:Icon src="{= ${m>Type} === 'Version' ? 'sap-icon://history' : ${m>Type} === 'Date' ? 'sap-icon://calendar' : 'sap-icon://dimension'}" class="sapUiTinyMarginEnd"/>
+                        <Text text="{m>Type}"/>
+                      </HBox>
+                      <HBox alignItems="Center">
+                        <core:Icon src="sap-icon://list" class="sapUiTinyMarginEnd"/>
+                        <Text text="{parts: [{path: 'm>builtin'}, {path: 'm>CountText'}, {path: 'm>MembersText'}], formatter: '.memberCount'}" class="sapUiSmallMarginEnd"/>
+                        <core:Icon src="sap-icon://tree" class="sapUiTinyMarginEnd"/>
+                        <Text text="-"/>
+                      </HBox>
+                    </cells>
+                  </ColumnListItem>
+                </items>
+              </Table>
+            </Panel>
+          </VBox>
 
-        <Table items="{m>/Dimensions}" class="sapUiSmallMarginBottom">
-          <headerToolbar>
-            <OverflowToolbar>
-              <Title text="Dimensions (up to 5)" level="H4"/>
-              <ToolbarSpacer/>
-              <Button text="Add dimension" icon="sap-icon://add" press=".onAddDim" enabled="{= ${m>/Dimensions}.length &lt; 5}"/>
-            </OverflowToolbar>
-          </headerToolbar>
-          <columns>
-            <Column width="11rem"><Text text="ID"/></Column>
-            <Column width="12rem"><Text text="Label"/></Column>
-            <Column><Text text="Members (one per line: ID or ID | Text)"/></Column>
-            <Column width="4rem"/>
-          </columns>
-          <items>
-            <ColumnListItem vAlign="Top">
-              <cells>
-                <Input value="{m>DimId}" enabled="{= !${m>existing}}" maxLength="20"/>
-                <Input value="{m>Label}"/>
-                <TextArea value="{m>MembersText}" rows="4" width="100%"/>
-                <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveDim" enabled="{= !${m>existing}}"/>
-              </cells>
-            </ColumnListItem>
-          </items>
-        </Table>
+          <!-- Calculations -->
+          <VBox id="calculations" visible="false" class="zsacCalcNote">
+            <core:Icon src="sap-icon://simulate" size="2.5rem"/>
+            <Title text="Calculations" level="H3" class="sapUiSmallMarginTop"/>
+            <Text text="Calculated measures (formulas on measures) are not part of this release. Measures are defined under Model Structure; planning logic lives in Data Actions."/>
+          </VBox>
 
-        <Table items="{m>/Measures}">
-          <headerToolbar>
-            <OverflowToolbar>
-              <Title text="Measures" level="H4"/>
+          <!-- Data Management -->
+          <VBox id="data" visible="false">
+            <OverflowToolbar style="Clear">
+              <Title text="Data Management" level="H4"/>
               <ToolbarSpacer/>
-              <Button text="Add measure" icon="sap-icon://add" press=".onAddMeasure"/>
+              <Button text="Preview data" icon="sap-icon://table-view" press=".onPreview" enabled="{= !${m>/isNew}}"/>
+              <Button text="Import CSV" icon="sap-icon://upload" press=".onImport" enabled="{= !${m>/isNew}}"/>
+              <Button text="Export CSV" icon="sap-icon://download" press=".onExport" enabled="{= !${m>/isNew}}"/>
             </OverflowToolbar>
-          </headerToolbar>
-          <columns>
-            <Column width="11rem"><Text text="ID"/></Column>
-            <Column width="12rem"><Text text="Label"/></Column>
-            <Column width="8rem"><Text text="Unit"/></Column>
-            <Column width="4rem"/>
-          </columns>
-          <items>
-            <ColumnListItem>
-              <cells>
-                <Input value="{m>MeasureId}" enabled="{= !${m>existing}}" maxLength="20"/>
-                <Input value="{m>Label}"/>
-                <Input value="{m>Unit}"/>
-                <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveMeasure" enabled="{= !${m>existing}}"/>
-              </cells>
-            </ColumnListItem>
-          </items>
-        </Table>
-      </VBox>
+            <Text text="Save a new model first to load data into it." visible="{m>/isNew}" class="sapUiSmallMargin"/>
+            <Table items="{path: 'data>/items', templateShareable: false}" noDataText="No versions">
+              <columns>
+                <Column><Text text="Version"/></Column>
+                <Column><Text text="Category"/></Column>
+                <Column hAlign="End"><Text text="Rows"/></Column>
+                <Column><Text text="Periods"/></Column>
+              </columns>
+              <items>
+                <ColumnListItem>
+                  <cells>
+                    <ObjectIdentifier title="{data>Name}" text="{data>VersionId}"/>
+                    <ObjectStatus text="{= ${data>Locked} ? ${data>Category} + ' (locked)' : ${data>Category}}"/>
+                    <Text text="{data>Rows}"/>
+                    <Text text="{data>Range}"/>
+                  </cells>
+                </ColumnListItem>
+              </items>
+            </Table>
+          </VBox>
+        </ScrollContainer>
+
+        <!-- details panel -->
+        <ScrollContainer id="side" class="zsacRight zsacRightWide" vertical="true">
+          <IconTabBar id="tabs" expandable="false" stretchContentHeight="false" applyContentPadding="false" select=".onTab">
+            <items>
+              <IconTabFilter key="model" text="Model" icon="sap-icon://cubes">
+                <VBox class="zsacBuilder">
+                  <Title text="General" level="H5"/>
+                  <Label text="Name" required="true" class="sapUiSmallMarginTop"/>
+                  <Input value="{m>/Name}"/>
+                  <Label text="Model ID" required="true"/>
+                  <Input value="{m>/ModelId}" enabled="{m>/isNew}" maxLength="20" placeholder="SALES_PLAN"/>
+                  <Label text="Description"/>
+                  <Input value="{m>/Description}"/>
+                  <Label text="Currency"/>
+                  <Input value="{m>/Currency}" maxLength="5"/>
+                  <Label text="Periods (YYYY-MM)"/>
+                  <HBox>
+                    <Input value="{m>/PeriodFrom}" placeholder="2026-01" class="sapUiTinyMarginEnd"/>
+                    <Input value="{m>/PeriodTo}" placeholder="2026-12"/>
+                  </HBox>
+
+                  <Title text="Preferences" level="H5" class="sapUiMediumMarginTop"/>
+                  <CheckBox text="Planning Capabilities" selected="{m>/PlanningEnabled}" tooltip="Plan data can be typed in and published. Off: the model is read only in Planning."/>
+                  <CheckBox text="Data Locking" selected="{m>/DataLocking}" tooltip="Planners can lock and unlock public versions in Planning."/>
+                  <CheckBox id="auditBox" text="Data Audit" selected="{m>/DataAudit}" tooltip="Keeps a change history of plan values (shown in Planning)."/>
+                  <Text id="auditNote" class="zsacSmall" visible="false" text="This data source does not record a change history yet; the setting is kept but has no effect."/>
+                  <VBox class="sapUiSmallMarginTop">
+                    <HBox justifyContent="SpaceBetween"><Text text="Setting" class="zsacSmall"/><Text text="Status" class="zsacSmall"/></HBox>
+                    <HBox justifyContent="SpaceBetween"><Text text="Data Audit"/><Text text="{= ${m>/DataAudit} ? 'On' : 'Off'}"/></HBox>
+                    <HBox justifyContent="SpaceBetween"><Text text="Data Locking"/><Text text="{= ${m>/DataLocking} ? 'On' : 'Off'}"/></HBox>
+                    <HBox justifyContent="SpaceBetween"><Text text="Planning"/><Text text="{= ${m>/PlanningEnabled} ? 'On' : 'Off'}"/></HBox>
+                  </VBox>
+
+                  <Title text="Data" level="H5" class="sapUiMediumMarginTop"/>
+                  <Label text="Latest imported data source"/>
+                  <Text text="{= ${m>/DataSource} || 'No data imported yet'}"/>
+                  <Link text="Open Data Management" press=".onOpenData" class="sapUiTinyMarginTop"/>
+
+                  <Title text="{= 'Related Objects (' + ${rel>/items}.length + ')'}" level="H5" class="sapUiMediumMarginTop"/>
+                  <List items="{path: 'rel>/items', templateShareable: false}" noDataText="Nothing uses this model yet" showSeparators="None">
+                    <StandardListItem title="{rel>title}" description="{rel>kind}" icon="{rel>icon}" type="Navigation" press=".onRelated"/>
+                  </List>
+                </VBox>
+              </IconTabFilter>
+
+              <IconTabFilter key="measure" text="Measure" icon="sap-icon://measure">
+                <VBox id="measureDetail" class="zsacBuilder">
+                  <Text text="Select a measure in the table." visible="{= !${sel>/measure}}"/>
+                  <VBox visible="{= !!${sel>/measure}}">
+                    <Title text="General" level="H5"/>
+                    <Label text="Name" class="sapUiSmallMarginTop"/>
+                    <Input value="{m>MeasureId}" enabled="{= !${m>existing}}" maxLength="20"/>
+                    <Label text="Description"/>
+                    <Input value="{m>Label}"/>
+
+                    <Title text="Data Type" level="H5" class="sapUiMediumMarginTop"/>
+                    <Select selectedKey="{m>DataType}" width="100%">
+                      <core:Item key="Decimal" text="Decimal"/>
+                      <core:Item key="Integer" text="Integer"/>
+                    </Select>
+
+                    <Title text="Aggregations" level="H5" class="sapUiMediumMarginTop"/>
+                    <Label text="Aggregation Type"/>
+                    <Select selectedKey="{m>Aggregation}" width="100%">
+                      <core:Item key="SUM" text="Sum"/><core:Item key="AVG" text="Average"/><core:Item key="MIN" text="Minimum"/>
+                      <core:Item key="MAX" text="Maximum"/><core:Item key="COUNT" text="Count"/>
+                    </Select>
+                    <Label text="Exception Aggregation Type"/>
+                    <Select selectedKey="{m>ExceptionAggregation}" width="100%">
+                      <core:Item key="" text="(none)"/>
+                      <core:Item key="SUM" text="Sum"/><core:Item key="AVG" text="Average"/><core:Item key="MIN" text="Minimum"/>
+                      <core:Item key="MAX" text="Maximum"/><core:Item key="COUNT" text="Count"/>
+                    </Select>
+                    <Label text="Exception Aggregation Dimensions"/>
+                    <MultiComboBox selectedKeys="{m>ExceptionDims}" width="100%" enabled="{= !!${m>ExceptionAggregation}}" items="{path: 'm>/Dimensions', templateShareable: false}">
+                      <core:Item key="{m>DimId}" text="{m>Label}"/>
+                    </MultiComboBox>
+                    <Text class="zsacSmall" text="Reduced along these dimensions first (for example average over periods for a headcount), then the aggregation type applies to the rest."/>
+
+                    <Title text="Units &amp; Currencies" level="H5" class="sapUiMediumMarginTop"/>
+                    <Label text="Unit Type"/>
+                    <Select selectedKey="{m>UnitType}" width="100%">
+                      <core:Item key="None" text="None"/><core:Item key="Currency" text="Currency"/><core:Item key="Unit" text="Unit of measure"/>
+                    </Select>
+                    <Label text="Unit"/>
+                    <Input value="{m>Unit}" maxLength="10" enabled="{= ${m>UnitType} !== 'None'}" placeholder="USD"/>
+
+                    <Title text="Formatting" level="H5" class="sapUiMediumMarginTop"/>
+                    <Label text="Scale"/>
+                    <Select selectedKey="{m>ScaleKey}" width="100%">
+                      <core:Item key="1" text="None"/><core:Item key="1000" text="Thousand (k)"/><core:Item key="1000000" text="Million (M)"/>
+                    </Select>
+                    <Label text="Decimal Places"/>
+                    <StepInput value="{m>Decimals}" min="0" max="6" width="100%"/>
+                  </VBox>
+                </VBox>
+              </IconTabFilter>
+
+              <IconTabFilter key="dimension" text="Dimension" icon="sap-icon://dimension">
+                <VBox id="dimDetail" class="zsacBuilder">
+                  <Text text="Select a dimension in the table." visible="{= !${sel>/dim}}"/>
+                  <VBox visible="{= !!${sel>/dim}}">
+                    <Title text="General" level="H5"/>
+                    <Label text="Name" class="sapUiSmallMarginTop"/>
+                    <Input value="{m>DimId}" enabled="{= !${m>existing} &amp;&amp; !${m>builtin}}" maxLength="20"/>
+                    <Label text="Description"/>
+                    <Input value="{m>Label}" enabled="{= !${m>builtin}}"/>
+                    <Label text="Type"/>
+                    <Input value="{m>Type}" enabled="false"/>
+                    <VBox visible="{= !${m>builtin}}">
+                      <Title text="Members" level="H5" class="sapUiMediumMarginTop"/>
+                      <Text class="zsacSmall" text="One per line: ID or ID | Text. Members can be edited at any time; the ID of a dimension that holds data is fixed."/>
+                      <TextArea value="{m>MembersText}" rows="12" width="100%"/>
+                    </VBox>
+                    <VBox visible="{= ${m>builtin}}">
+                      <Text class="zsacSmall sapUiSmallMarginTop" text="{= ${m>Type} === 'Version' ? 'Versions are managed in Planning (Actual, Budget, Forecast, private versions).' : 'The period range comes from the model settings (Model tab).'}"/>
+                    </VBox>
+                  </VBox>
+                </VBox>
+              </IconTabFilter>
+            </items>
+          </IconTabBar>
+        </ScrollContainer>
+      </HBox>
     </content>
   </Page>
 </mvc:View>
