@@ -27,7 +27,7 @@ test("live source: periods in the three formats, query text, definition checks",
   const model = ModelSchema.normalize(seed.models.find((m) => m.ModelId === "SALES_LIVE"));
   const q = LiveSource.buildQuery(model, { REGION: ["EMEA", "APAC"], PERIOD: ["2026-01", "2026-02"], MEASURE: ["REVENUE"] });
   const apply = decodeURIComponent(q.url.split("$apply=")[1]);
-  assert.strictEqual(apply, "filter((Region eq 'EMEA' or Region eq 'APAC') and (FiscalPeriod eq '202601' or FiscalPeriod eq '202602'))/groupby((FiscalPeriod,Region,Product,Channel),aggregate(Revenue with sum as REVENUE))");
+  assert.strictEqual(apply, "filter((Region eq 'EMEA' or Region eq 'APAC') and (FiscalPeriod eq '202601' or FiscalPeriod eq '202602'))/groupby((FiscalPeriod,Region,Product,Channel),aggregate(Revenue with sum as ZSAC_REVENUE))");
   assert.ok(q.url.startsWith("mock://cds/ZSALES_CUBE/ZSalesCube?"));
   const dated = Object.assign({}, model, { Source: Object.assign({}, model.Source, { PeriodField: "PostingDate", PeriodFormat: "DATE" }) });
   assert.match(decodeURIComponent(LiveSource.buildQuery(dated, { PERIOD: ["2026-02"] }).url), /\(PostingDate ge 2026-02-01 and PostingDate le 2026-02-28\)/);
@@ -167,4 +167,22 @@ test("a failing service is reported, not swallowed", async () => {
   const model = ModelSchema.normalize(seed.models.find((m) => m.ModelId === "SALES_LIVE"));
   const io = LiveSource.browserFetch(async () => ({ ok: false, status: 403, json: async () => ({ error: { message: { value: "No authorization" } } }) }));
   await assert.rejects(() => LiveSource.readFacts(model, {}, io.json), /answered 403: No authorization/);
+});
+
+test("aggregate aliases cannot clash with a field of the same name in another case", async () => {
+  LiveSource.resetCapabilities();
+  const rows = [{ Co: "1010", Per: "202601", Amount: 5 }, { Co: "1010", Per: "202601", Amount: 7 }];
+  // a service that refuses an alias equal to an existing property, like the real one (case-insensitive)
+  const fake = FakeODataService.createFetch({ "mock://cds/G": { entitySet: "G", properties: { Co: "Edm.String", Per: "Edm.String", Amount: "Edm.Decimal" }, rows: () => rows } });
+  const strict = async (url, init) => {
+    const apply = decodeURIComponent(String(url).split("$apply=")[1] || "");
+    const m = /as (\w+)\)/.exec(apply);
+    if (m && ["co", "per", "amount"].indexOf(m[1].toLowerCase()) >= 0) { return { ok: false, status: 500, json: async () => ({ error: { message: "Property '" + m[1] + "' already exists" } }) }; }
+    return fake(url, init);
+  };
+  const model = ModelSchema.normalize({ ModelId: "G", Name: "g", PeriodFrom: "2026-01", PeriodTo: "2026-12", Dimensions: [{ DimId: "COMPANYCODE", Slot: 1, Members: ["1010"] }], Measures: [{ MeasureId: "AMOUNT", Aggregation: "SUM" }],
+    Source: { Mode: "LIVE", Service: "mock://cds/G", Entity: "G", PeriodField: "Per", PeriodFormat: "YYYYMM", Dims: { COMPANYCODE: "Co" }, Measures: { AMOUNT: "Amount" } } });
+  const facts = await LiveSource.readFacts(model, {}, LiveSource.browserFetch(strict).json);
+  assert.strictEqual(facts.length, 1);
+  assert.strictEqual(facts[0].Value, 12);
 });

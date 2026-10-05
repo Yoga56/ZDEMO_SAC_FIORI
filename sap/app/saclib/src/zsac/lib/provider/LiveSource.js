@@ -24,6 +24,8 @@ sap.ui.define([], function () {
   const FORMATS = ["YYYYMM", "YYYY-MM", "DATE"];
   const METHODS = { SUM: "sum", AVG: "average", MIN: "min", MAX: "max" };
   const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  /** Alias of an aggregated measure in $apply. A service compares property names without regard to case, so an alias like AMOUNT would clash with a field called Amount. */
+  const alias = (measureId) => "ZSAC_" + measureId;
   const q = (v) => "'" + String(v).replace(/'/g, "''") + "'";
   const pad = (n) => String(n).padStart(2, "0");
 
@@ -63,7 +65,7 @@ sap.ui.define([], function () {
     const wanted = ((filters && filters.MEASURE) || []);
     const measures = (model.Measures || []).filter((m) => src.Measures[m.MeasureId] && (!wanted.length || wanted.indexOf(m.MeasureId) >= 0));
     const group = [src.PeriodField].concat(dims.map((d) => src.Dims[d.DimId]));
-    const aggregate = measures.map((m) => src.Measures[m.MeasureId] + " with " + (METHODS[m.Aggregation] || "sum") + " as " + m.MeasureId);
+    const aggregate = measures.map((m) => src.Measures[m.MeasureId] + " with " + (METHODS[m.Aggregation] || "sum") + " as " + alias(m.MeasureId));
     const apply = (terms.length ? "filter(" + terms.join(" and ") + ")/" : "") + "groupby((" + group.join(",") + "),aggregate(" + aggregate.join(",") + "))";
     const plain = base(src) + "?$select=" + encodeURIComponent(group.concat(measures.map((m) => src.Measures[m.MeasureId])).filter((x, i, a) => a.indexOf(x) === i).join(","))
       + (terms.length ? "&$filter=" + encodeURIComponent(terms.join(" and ")) : "");
@@ -131,7 +133,7 @@ sap.ui.define([], function () {
       const dim = { Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" };
       query.dims.forEach((id) => { const v = r[src.Dims[id]]; dim["Dim" + slots.get(id)] = v === null || v === undefined ? "" : String(v); });
       query.measures.forEach((m) => {
-        const raw = applied ? r[m] : r[src.Measures[m]];
+        const raw = applied ? r[alias(m)] : r[src.Measures[m]];
         if (raw === null || raw === undefined || raw === "") { return; }
         const value = Number(raw);
         if (!Number.isFinite(value)) { return; }
