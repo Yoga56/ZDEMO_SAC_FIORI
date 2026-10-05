@@ -1,0 +1,14 @@
+{
+  "name": "zsac-lib",
+  "version": "0.1.0",
+  "description": "zsac.lib - reusable analytics and planning building blocks for Fiori (SAC-style)",
+  "private": true,
+  "scripts": {
+    "build": "ui5 build --clean-dest --dest dist",
+    "test": "node --test test/node/*.test.js",
+    "lint": "node --check src/zsac/lib/library.js"
+  },
+  "devDependencies": {
+    "@ui5/cli": "^4"
+  }
+}

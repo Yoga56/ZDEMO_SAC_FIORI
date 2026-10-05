@@ -1,0 +1,258 @@
+/**
+ * Provider over the RAP OData V4 service ZUI_SAC_O4 (sap/src). It maps the flat entities of the service to the
+ * JSON objects the library works with (see mapping helpers) and calls the RAP actions for everything that must
+ * run on the server: planning writes, version publish, data actions, multi actions.
+ *
+ * Pattern follows PlanService.js of Estate Command: a V4 ODataModel, list bindings for reads, operation
+ * bindings (bindContext("/Entity/ns.Action(...)")) for actions. Not exercised against a live system in this
+ * repository: the mock provider is the tested path.
+ *
+ * new ODataV4Provider({ model })   model = the app's default sap.ui.model.odata.v4.ODataModel
+ */
+sap.ui.define([
+  "../core/DataProvider",
+  "sap/ui/model/Filter",
+  "sap/ui/model/FilterOperator"
+], function (DataProvider, Filter, FilterOperator) {
+  "use strict";
+
+  const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
+  const PAGE = 10000;
+  const json = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch (e) { return fallback; } };
+  const str = (o) => JSON.stringify(o === undefined ? null : o);
+  const quote = (v) => "'" + String(v).replace(/'/g, "''") + "'";
+  /** Filters travel as "REGION=APAC,EMEA;PERIOD=2026-01" in the filter columns and action parameters of the backend. */
+  const encFilter = (f) => Object.keys(f || {}).filter((k) => (f[k] || []).length).map((k) => k + "=" + f[k].join(",")).join(";");
+  const decFilter = (t) => String(t || "").split(";").filter(Boolean).reduce((o, part) => { const i = part.indexOf("="); o[part.slice(0, i)] = part.slice(i + 1).split(",").filter(Boolean); return o; }, {});
+  const csv = (a) => (a || []).join(",");
+  const strip = (o) => { const c = Object.assign({}, o); Object.keys(c).forEach((k) => { if (k.startsWith("@") || k.startsWith("_")) { delete c[k]; } }); return c; };
+
+  class ODataV4Provider extends DataProvider {
+    constructor(options) {
+      super();
+      if (!options || !options.model) { throw new Error("ODataV4Provider needs the app's OData V4 model"); }
+      this._m = options.model;
+    }
+
+    get id() { return "odata"; }
+
+    // ---- plumbing ---------------------------------------------------------------------------
+    async _list(path, filters, params) {
+      const binding = this._m.bindList(path, null, null, filters || [], params);
+      const contexts = await binding.requestContexts(0, PAGE);
+      return contexts.map((c) => c.getObject());
+    }
+
+    async _one(path, key, params) {
+      const rows = await this._list(path, [new Filter(key[0], FilterOperator.EQ, key[1])], params);
+      if (!rows.length) { throw new Error("Not found: " + path + " " + key[1]); }
+      return rows[0];
+    }
+
+    /** Create or update by key: delete-and-create keeps the mapping simple and cascades children (compositions). */
+    async _replace(path, keyPath, entity) {
+      try { await this._invokeDelete(keyPath); } catch (e) { /* not there yet */ }
+      const binding = this._m.bindList(path);
+      const context = binding.create(entity, true);
+      await context.created();
+      return context.getObject();
+    }
+
+    async _invokeDelete(keyPath) {
+      const binding = this._m.bindContext(keyPath);
+      const context = binding.getBoundContext();
+      await context.requestObject();
+      await context.delete();
+    }
+
+    async _action(path, params) {
+      const op = this._m.bindContext(path);
+      Object.keys(params || {}).forEach((k) => op.setParameter(k, params[k]));
+      await op.execute();
+      return op.getBoundContext().getObject();
+    }
+
+    // ---- models -----------------------------------------------------------------------------
+    _toModel(e) {
+      return {
+        ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency,
+        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo,
+        Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: json(d.Members, []) }))
+          .sort((a, b) => a.Slot - b.Slot),
+        Measures: (e._Measure || []).map((m) => ({ MeasureId: m.MeasureId, Label: m.Label, Unit: m.Unit, Aggregation: m.Aggregation }))
+      };
+    }
+    async listModels() {
+      return (await this._list("/Model", [], { $expand: "_Dimension,_Measure" })).map((e) => this._toModel(e));
+    }
+    async getModel(id) { return this._toModel(await this._one("/Model", ["ModelId", id], { $expand: "_Dimension,_Measure" })); }
+    async _putModel(m) {
+      const key = "/Model(ModelId=" + quote(m.ModelId) + ")";
+      await this._replace("/Model", key, {
+        ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
+        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || ""
+      });
+      for (const d of m.Dimensions || []) {
+        await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: str(d.Members || []) }, true).created();
+      }
+      for (const x of m.Measures || []) {
+        await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, Label: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM" }, true).created();
+      }
+      return m;
+    }
+    deleteModel(id) { return this._invokeDelete("/Model(ModelId=" + quote(id) + ")"); }
+
+    // ---- facts ------------------------------------------------------------------------------
+    async readFacts(modelId, filters) {
+      const model = await this.getModel(modelId);
+      const list = [new Filter("ModelId", FilterOperator.EQ, modelId)];
+      const slot = { VERSION: "VersionId", PERIOD: "Period", MEASURE: "Measure" };
+      Object.keys(filters || {}).forEach((dim) => {
+        const members = filters[dim] || [];
+        if (!members.length) { return; }
+        const d = (model.Dimensions || []).find((x) => x.DimId === dim);
+        const field = slot[dim] || (d ? "Dim" + d.Slot : null);
+        if (!field) { return; }
+        list.push(new Filter({ filters: members.map((v) => new Filter(field, FilterOperator.EQ, v)), and: false }));
+      });
+      const rows = await this._list("/Fact", list, { $select: "ModelId,VersionId,Period,Measure,Dim1,Dim2,Dim3,Dim4,Dim5,Value" });
+      return rows.map((r) => Object.assign(strip(r), { Value: Number(r.Value) }));
+    }
+    async writeFacts(modelId, rows) {
+      rows = rows.map((r) => Object.assign({}, r, { ModelId: modelId }));
+      await this._action("/Fact/" + NS + "WriteFacts(...)", { Payload: this._payload(rows) });
+      return rows.length;
+    }
+    async deleteFacts(modelId, rows) {
+      rows = rows.map((r) => Object.assign({}, r, { ModelId: modelId }));
+      await this._action("/Fact/" + NS + "DeleteFacts(...)", { Payload: this._payload(rows) });
+      return rows.length;
+    }
+    /** One tab separated line per fact: version, period, measure, dim1..dim5, value. The model comes from ModelId of the rows. */
+    _payload(rows) {
+      return rows.map((r) => [r.ModelId, r.VersionId, r.Period, r.Measure, r.Dim1 || "", r.Dim2 || "", r.Dim3 || "", r.Dim4 || "", r.Dim5 || "", r.Value].join("\t")).join("\n");
+    }
+
+    // ---- versions ---------------------------------------------------------------------------
+    _toVersion(e) { return { ModelId: e.ModelId, VersionId: e.VersionId, Name: e.VersionName, Category: e.Category, Locked: !!e.Locked, Owner: e.OwnerId, SourceVersion: e.SourceVersion, Status: e.Status }; }
+    async listVersions(modelId) {
+      const filters = modelId ? [new Filter("ModelId", FilterOperator.EQ, modelId)] : [];
+      return (await this._list("/Version", filters)).map((e) => this._toVersion(e));
+    }
+    async saveVersion(v) {
+      await this._replace("/Version", "/Version(ModelId=" + quote(v.ModelId) + ",VersionId=" + quote(v.VersionId) + ")", { ModelId: v.ModelId, VersionId: v.VersionId,
+        VersionName: v.Name, Category: v.Category, Locked: !!v.Locked, OwnerId: v.Owner || "", SourceVersion: v.SourceVersion || "", Status: v.Status || "P" });
+      return v;
+    }
+    async createPrivateVersion(modelId, fromVersionId, name) {
+      const r = await this._action("/Version/" + NS + "CreatePrivate(...)", { ModelId: modelId, SourceVersion: fromVersionId, VersionName: name || "" });
+      return this._toVersion(r);
+    }
+    publishVersion(modelId, privateId, targetId) {
+      return this._action("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(privateId) + ")/" + NS + "Publish(...)", { TargetVersion: targetId })
+        .then((r) => ({ Published: r && r.Published }));
+    }
+    revertVersion(modelId, privateId) {
+      return this._action("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(privateId) + ")/" + NS + "Revert(...)", {});
+    }
+    deleteVersion(modelId, versionId) { return this._invokeDelete("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(versionId) + ")"); }
+
+    // ---- stories ----------------------------------------------------------------------------
+    _toStory(e, withWidgets) {
+      return {
+        Id: e.StoryId, Name: e.StoryName, Description: e.Description, ModelId: e.ModelId, Status: e.Status,
+        Pages: json(e.Pages, [{ Id: 1, Title: "Page 1" }]), Filters: json(e.Filters, {}),
+        Widgets: withWidgets ? (e._Widget || []).map((w) => ({
+          Id: w.WidgetId, Page: w.PageNo, Type: w.WidgetType, Title: w.Title, X: w.GridX, Y: w.GridY, W: w.GridW, H: w.GridH,
+          Binding: json(w.Binding, {}), Props: json(w.Props, {})
+        })) : undefined
+      };
+    }
+    async listStories() { return (await this._list("/Story")).map((e) => this._toStory(e, false)); }
+    async getStory(id) { return this._toStory(await this._one("/Story", ["StoryId", id], { $expand: "_Widget" }), true); }
+    async _putStory(s) {
+      const key = "/Story(StoryId=" + quote(s.Id) + ")";
+      await this._replace("/Story", key, { StoryId: s.Id, StoryName: s.Name, Description: s.Description || "", ModelId: s.ModelId || "",
+        Status: s.Status || "D", Pages: str(s.Pages), Filters: str(s.Filters || {}) });
+      for (const w of s.Widgets || []) {
+        await this._m.bindList(key + "/_Widget").create({ StoryId: s.Id, WidgetId: w.Id, PageNo: w.Page, WidgetType: w.Type, Title: w.Title || "",
+          GridX: w.X, GridY: w.Y, GridW: w.W, GridH: w.H, Binding: str(w.Binding || {}), Props: str(w.Props || {}) }, true).created();
+      }
+      return s;
+    }
+    deleteStory(id) { return this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); }
+
+    // ---- data actions -----------------------------------------------------------------------
+    _toDataAction(e) {
+      return {
+        Id: e.ActionId, ModelId: e.ModelId, Name: e.ActionName, Description: e.Description,
+        Steps: (e._Step || []).map((s) => ({ StepNo: s.StepNo, StepType: s.StepType, SrcVersion: s.SrcVersion, TgtVersion: s.TgtVersion,
+          Filter: decFilter(s.FilterText), Factor: s.Factor === null ? 1 : Number(s.Factor), TargetDim: s.TargetDim,
+          TargetMembers: String(s.TargetMembers || "").split(",").filter(Boolean) })).sort((a, b) => a.StepNo - b.StepNo)
+      };
+    }
+    async listDataActions() { return (await this._list("/DataAction", [], { $expand: "_Step" })).map((e) => this._toDataAction(e)); }
+    async getDataAction(id) { return this._toDataAction(await this._one("/DataAction", ["ActionId", id], { $expand: "_Step" })); }
+    async _putDataAction(a) {
+      const key = "/DataAction(ActionId=" + quote(a.Id) + ")";
+      await this._replace("/DataAction", key, { ActionId: a.Id, ModelId: a.ModelId, ActionName: a.Name, Description: a.Description || "" });
+      for (const s of a.Steps || []) {
+        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, SrcVersion: s.SrcVersion || "",
+          TgtVersion: s.TgtVersion || "", FilterText: encFilter(s.Filter), Factor: String(s.Factor === undefined ? 1 : s.Factor),
+          TargetDim: s.TargetDim || "", TargetMembers: csv(s.TargetMembers) }, true).created();
+      }
+      return a;
+    }
+    deleteDataAction(id) { return this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); }
+    async executeDataAction(id, params) {
+      const r = await this._action("/DataAction(ActionId=" + quote(id) + ")/" + NS + "Execute(...)", { FilterText: encFilter(params && params.Filter) });
+      return { Changed: r.Changed, Log: String(r.LogText || "").split("\n").filter(Boolean) };
+    }
+
+    // ---- multi actions ----------------------------------------------------------------------
+    _toMulti(e) {
+      return {
+        Id: e.ActionId, Name: e.ActionName, Description: e.Description,
+        Steps: (e._Step || []).map((s) => ({ StepNo: s.StepNo, StepType: s.StepType, ActionId: s.DataActionId, ModelId: s.ModelId,
+          SourceVersion: s.SourceVersion, TargetVersion: s.TargetVersion })).sort((a, b) => a.StepNo - b.StepNo)
+      };
+    }
+    async listMultiActions() { return (await this._list("/MultiAction", [], { $expand: "_Step" })).map((e) => this._toMulti(e)); }
+    async getMultiAction(id) { return this._toMulti(await this._one("/MultiAction", ["ActionId", id], { $expand: "_Step" })); }
+    async _putMultiAction(a) {
+      const key = "/MultiAction(ActionId=" + quote(a.Id) + ")";
+      await this._replace("/MultiAction", key, { ActionId: a.Id, ActionName: a.Name, Description: a.Description || "" });
+      for (const s of a.Steps || []) {
+        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, DataActionId: s.ActionId || "",
+          ModelId: s.ModelId || "", SourceVersion: s.SourceVersion || "", TargetVersion: s.TargetVersion || "" }, true).created();
+      }
+      return a;
+    }
+    deleteMultiAction(id) { return this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); }
+    async runMultiAction(id, params) {
+      const r = await this._action("/MultiAction(ActionId=" + quote(id) + ")/" + NS + "Run(...)", { FilterText: encFilter(params && params.Filter) });
+      return { Status: r.Status, Log: String(r.LogText || "").split("\n").filter(Boolean) };
+    }
+
+    // ---- files and calendar -----------------------------------------------------------------
+    _toFile(e) { return { Id: e.FileId, ParentId: e.ParentId, Type: e.FileType, ObjectId: e.ObjectId, Name: e.FileName, Description: e.Description,
+      Owner: e.OwnerId, Favourite: !!e.Favourite, Shared: !!e.Shared, ChangedAt: e.LastChangedAt }; }
+    async listFiles() { return (await this._list("/File")).map((e) => this._toFile(e)); }
+    async saveFile(f) {
+      await this._replace("/File", "/File(FileId=" + quote(f.Id) + ")", { FileId: f.Id, ParentId: f.ParentId || "", FileType: f.Type, ObjectId: f.ObjectId || "",
+        FileName: f.Name, Description: f.Description || "", OwnerId: f.Owner || "", Favourite: !!f.Favourite, Shared: !!f.Shared });
+      return f;
+    }
+    deleteFile(id) { return this._invokeDelete("/File(FileId=" + quote(id) + ")"); }
+    _toTask(e) { return { Id: e.TaskId, Title: e.Title, ModelId: e.ModelId, VersionId: e.VersionId, Assignee: e.Assignee, DueDate: e.DueDate, Status: e.Status, Approver: e.Approver, Notes: e.Notes }; }
+    async listTasks() { return (await this._list("/CalendarTask")).map((e) => this._toTask(e)); }
+    async saveTask(t) {
+      await this._replace("/CalendarTask", "/CalendarTask(TaskId=" + quote(t.Id) + ")", { TaskId: t.Id, Title: t.Title, ModelId: t.ModelId || "", VersionId: t.VersionId || "",
+        Assignee: t.Assignee || "", DueDate: t.DueDate || null, Status: t.Status || "OPEN", Approver: t.Approver || "", Notes: t.Notes || "" });
+      return t;
+    }
+    deleteTask(id) { return this._invokeDelete("/CalendarTask(TaskId=" + quote(id) + ")"); }
+  }
+
+  return ODataV4Provider;
+});

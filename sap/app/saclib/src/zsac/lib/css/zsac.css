@@ -1,0 +1,85 @@
+/* zsac.lib - theme-aware styles. Colors come from the active SAP theme (Horizon) with fallbacks. */
+.zsacCanvas { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; position: relative; padding: 0.25rem 0; }
+.zsacCanvas.zsacEditable { background-image: linear-gradient(var(--sapList_BorderColor, #e5e5e5) 1px, transparent 1px); background-size: 100% calc(var(--zsac-row, 80px) + 12px); }
+.zsacCanvasEmpty { grid-column: 1 / -1; padding: 3rem; text-align: center; color: var(--sapContent_LabelColor, #6a6d70); border: 1px dashed var(--sapList_BorderColor, #c4c6c8); border-radius: 0.75rem; }
+.zsacCell { position: relative; min-width: 0; min-height: 0; }
+.zsacCell > .zsacCard { height: 100%; }
+.zsacEditable .zsacCell { outline: 1px dashed transparent; border-radius: 0.75rem; }
+.zsacEditable .zsacCell:hover { outline-color: var(--sapContent_FocusColor, #0070f2); }
+.zsacCell.zsacSelected { outline: 2px solid var(--sapContent_FocusColor, #0070f2); z-index: 2; }
+.zsacCell.zsacMoving { opacity: 0.85; z-index: 3; }
+.zsacShield { position: absolute; inset: 0; z-index: 1; cursor: move; }
+.zsacCellBar { position: absolute; top: 0; left: 0; right: 0; height: 1.5rem; z-index: 2; cursor: move; display: none; padding: 0 0.5rem; font-size: 0.6875rem; line-height: 1.5rem; color: #fff; background: var(--sapContent_FocusColor, #0070f2); border-radius: 0.75rem 0.75rem 0 0; }
+.zsacSelected .zsacCellBar { display: block; }
+.zsacResize { position: absolute; right: 0; bottom: 0; width: 1.25rem; height: 1.25rem; z-index: 3; cursor: nwse-resize; display: none; background: linear-gradient(135deg, transparent 50%, var(--sapContent_FocusColor, #0070f2) 50%); border-bottom-right-radius: 0.75rem; }
+.zsacSelected .zsacResize { display: block; }
+
+.zsacCard { box-sizing: border-box; display: flex; flex-direction: column; background: var(--sapTile_Background, #fff); border: 1px solid var(--sapTile_BorderColor, #e5e5e5); border-radius: 0.75rem; box-shadow: var(--sapContent_Shadow0, 0 0 0 1px rgba(85, 107, 129, .1)); overflow: hidden; }
+.zsacCardBare { background: transparent; border-color: transparent; box-shadow: none; }
+.zsacCardHead { padding: 0.75rem 1rem 0; font-size: var(--sapFontHeader5Size, 1rem); font-weight: 600; color: var(--sapTile_TitleTextColor, #1d2d3e); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zsacCardBody { flex: 1; min-height: 0; padding: 0.5rem 1rem 0.75rem; display: flex; flex-direction: column; overflow: auto; }
+.zsacCardBody > .zsacChart, .zsacCardBody > .zsacKpi, .zsacCardBody > .zsacPivot { flex: 1; min-height: 0; }
+.zsacCardMsg { margin: auto; text-align: center; color: var(--sapContent_LabelColor, #6a6d70); padding: 1rem; }
+.zsacTextWidget .zsacCardBody { padding: 0; }
+.zsacTextWidget .sapMText { font-size: var(--sapFontHeader4Size, 1.25rem); color: var(--sapTitleColor, #1d2d3e); }
+
+.zsacChart { position: relative; min-height: 120px; }
+.zsacSvg { display: block; width: 100%; height: 100%; }
+.zsacSvgText { font-size: 11px; fill: var(--sapTextColor, #1d2d3e); }
+.zsacSvgMuted { font-size: 11px; fill: var(--sapContent_LabelColor, #556b82); }
+.zsacSvgBig { font-size: 22px; font-weight: 600; fill: var(--sapTextColor, #1d2d3e); }
+.zsacSvgOnColor { font-size: 11px; fill: #fff; font-weight: 600; }
+.zsacGrid { stroke: var(--sapList_BorderColor, #e5e5e5); stroke-width: 1; }
+.zsacLine { stroke-width: 2.5; }
+.zsacLink { opacity: 0.35; }
+.zsacLink:hover { opacity: 0.6; }
+.zsacNode { fill: var(--sapContent_LabelColor, #556b82); }
+.zsacGaugeBg { fill: var(--sapList_BorderColor, #e5e5e5); }
+.zsac-good { fill: var(--sapPositiveColor, #256f3a); } .zsac-warn { fill: var(--sapCriticalColor, #e26b0a); } .zsac-bad { fill: var(--sapNegativeColor, #aa0808); }
+.zsac-good-text { color: var(--sapPositiveTextColor, #256f3a); } .zsac-bad-text { color: var(--sapNegativeTextColor, #aa0808); }
+.zsac-fill-0 { fill: var(--sapChart_OrderedColor_1, #0070f2); } .zsac-fill-1 { fill: var(--sapChart_OrderedColor_2, #e9730c); }
+.zsac-fill-2 { fill: var(--sapChart_OrderedColor_3, #c35500); } .zsac-fill-3 { fill: var(--sapChart_OrderedColor_4, #58b8e8); }
+.zsac-fill-4 { fill: var(--sapChart_OrderedColor_5, #07838f); } .zsac-fill-5 { fill: var(--sapChart_OrderedColor_6, #a9705f); }
+.zsac-fill-6 { fill: var(--sapChart_OrderedColor_7, #5d36ff); } .zsac-fill-7 { fill: var(--sapChart_OrderedColor_8, #bf399e); }
+.zsac-fill-8 { fill: var(--sapChart_OrderedColor_9, #1b7e4c); } .zsac-fill-9 { fill: var(--sapChart_OrderedColor_10, #7858ff); }
+.zsac-stroke-0 { stroke: var(--sapChart_OrderedColor_1, #0070f2); } .zsac-stroke-1 { stroke: var(--sapChart_OrderedColor_2, #e9730c); }
+.zsac-stroke-2 { stroke: var(--sapChart_OrderedColor_3, #c35500); } .zsac-stroke-3 { stroke: var(--sapChart_OrderedColor_4, #58b8e8); }
+.zsac-stroke-4 { stroke: var(--sapChart_OrderedColor_5, #07838f); } .zsac-stroke-5 { stroke: var(--sapChart_OrderedColor_6, #a9705f); }
+.zsac-stroke-6 { stroke: var(--sapChart_OrderedColor_7, #5d36ff); } .zsac-stroke-7 { stroke: var(--sapChart_OrderedColor_8, #bf399e); }
+.zsac-stroke-8 { stroke: var(--sapChart_OrderedColor_9, #1b7e4c); } .zsac-stroke-9 { stroke: var(--sapChart_OrderedColor_10, #7858ff); }
+
+.zsacKpi { display: flex; flex-direction: column; justify-content: center; }
+.zsacKpiValue { font-size: 2rem; line-height: 2.5rem; font-weight: 300; color: var(--sapTile_TextColor, #1d2d3e); }
+.zsacKpiUnit { font-size: 0.875rem; margin-left: 0.4rem; color: var(--sapContent_LabelColor, #556b82); }
+.zsacKpiDelta { font-size: 0.875rem; font-weight: 600; }
+.zsacKpiRef { font-weight: 400; color: var(--sapContent_LabelColor, #556b82); }
+
+.zsacPivot { overflow: auto; }
+.zsacGrid2 { border-collapse: collapse; width: 100%; font-size: var(--sapFontSize, 0.875rem); }
+.zsacGrid2 th, .zsacGrid2 td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5); text-align: left; white-space: nowrap; }
+.zsacGrid2 th { position: sticky; top: 0; background: var(--sapList_HeaderBackground, #f5f6f7); color: var(--sapList_HeaderTextColor, #1d2d3e); font-weight: 600; z-index: 1; }
+.zsacGrid2 .num { text-align: right; font-variant-numeric: tabular-nums; }
+.zsacGrid2 .total { font-weight: 600; background: var(--sapList_AlternatingBackground, #fafafa); }
+.zsacGrid2 tr.grand td { font-weight: 700; border-top: 2px solid var(--sapList_BorderColor, #c4c6c8); background: var(--sapList_HeaderBackground, #f5f6f7); }
+.zsacGrid2 tbody tr:hover td { background: var(--sapList_Hover_Background, #eaecee); }
+
+.zsacPlan { overflow: auto; border: 1px solid var(--sapList_BorderColor, #e5e5e5); border-radius: 0.5rem; background: var(--sapBaseColor, #fff); }
+.zsacPlanGrid input.zsacCell2 { width: 5.2rem; box-sizing: border-box; text-align: right; font: inherit; padding: 0.2rem 0.3rem; border: 1px solid transparent; border-radius: 0.25rem; background: transparent; color: inherit; }
+.zsacPlanGrid input.zsacCell2:hover:not(:disabled) { border-color: var(--sapField_BorderColor, #89919a); }
+.zsacPlanGrid input.zsacCell2:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); background: var(--sapField_Background, #fff); }
+.zsacPlanGrid input.zsacCell2:disabled { color: var(--sapContent_DisabledTextColor, #6a6d70); }
+.zsacPlanGrid input.zsacMissing { color: var(--sapContent_LabelColor, #6a6d70); font-style: italic; }
+.zsacPlanGrid td.num { padding: 0.1rem 0.2rem; }
+
+.zsacBuilder { padding: 0.75rem 1rem 2rem; }
+.zsacSmall { font-size: 0.75rem; color: var(--sapContent_LabelColor, #556b82); margin-top: 0.4rem; }
+.zsacReplace .sapMInputBase, .zsacReplace .sapMSlt { margin-right: 0.25rem; margin-bottom: 0.25rem; }
+
+/* phone and narrow panes: the viewer stacks the widgets in one column, in reading order */
+@media (max-width: 700px) {
+  .zsacCanvas:not(.zsacEditable) { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto !important; }
+  .zsacCanvas:not(.zsacEditable) .zsacCell { grid-column: 1 / -1 !important; grid-row: auto !important;
+    min-height: calc(var(--zsac-h, 3) * var(--zsac-row, 80px) + (var(--zsac-h, 3) - 1) * 12px); }
+  .zsacCanvas:not(.zsacEditable) .zsacCell > .zsacCard { height: auto; min-height: 100%; }
+  .zsacCanvas:not(.zsacEditable) .zsacCardBody > .zsacChart { min-height: 220px; }
+}

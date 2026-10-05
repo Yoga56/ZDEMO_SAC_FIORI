@@ -1,0 +1,1 @@
+[{"Id":"MA_FORECAST_CYCLE","Name":"Forecast cycle","Description":"Run the forecast action, then publish a private version to Forecast","Steps":[{"StepNo":10,"StepType":"DATAACTION","ActionId":"DA_FORECAST_FROM_ACT"},{"StepNo":20,"StepType":"PUBLISH","ModelId":"SALES_PLAN","SourceVersion":"FCT","TargetVersion":"BUD"}]}]
