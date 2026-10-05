@@ -109,8 +109,8 @@ test("variance: versions that cover different months are compared on the months 
 
 test("variance: a total that nets to zero still explains the parts that differ", () => {
   const net = [
-    f("BUD", "2026-01", "REVENUE", "EMEA", "Cloud ERP", "Direct", 100), f("BUD", "2026-01", "REVENUE", "EMEA", "Services", "Direct", -100),
-    f("ACT", "2026-01", "REVENUE", "EMEA", "Cloud ERP", "Direct", 150), f("ACT", "2026-01", "REVENUE", "EMEA", "Services", "Direct", -150)];
+    f("BUD", "2026-01", "REVENUE", "EMEA", "Cloud ERP", "Direct", 100), f("BUD", "2026-01", "REVENUE", "EMEA", "Services", "Direct", -60), f("BUD", "2026-01", "REVENUE", "EMEA", "Licences", "Direct", -40),
+    f("ACT", "2026-01", "REVENUE", "EMEA", "Cloud ERP", "Direct", 160), f("ACT", "2026-01", "REVENUE", "EMEA", "Services", "Direct", -100), f("ACT", "2026-01", "REVENUE", "EMEA", "Licences", "Direct", -60)];
   const r = VarianceEngine.explain(model, net, { measure: "REVENUE", base: { VERSION: ["BUD"] }, compare: { VERSION: ["ACT"] }, labels: { base: "Budget", compare: "Actual" } });
   assert.strictEqual(r.delta, 0);
   assert.match(r.narrative.text, /Revenue adds up to the same in Actual and Budget, but its parts differ\./);
