@@ -3,7 +3,8 @@
  * Widgets that read plan data apply `overlay()` so they show the unpublished numbers; undo and redo work on whole edits
  * (a spread over many facts is one step).
  *
- *   buffer.apply(changes, baseLookup)   changes = facts with their new Value; baseLookup(fact) -> stored value or null (new fact)
+ *   buffer.apply(changes, baseLookup, label)   changes = facts with their new Value; baseLookup(fact) -> stored value or null (new fact);
+ *                                              label = what the planner did, shown in Version History
  */
 sap.ui.define(["./DataActionEngine"], function (DataActionEngine) {
   "use strict";
@@ -43,7 +44,7 @@ sap.ui.define(["./DataActionEngine"], function (DataActionEngine) {
     }
 
     /** One undoable edit. */
-    apply(changes, baseLookup) {
+    apply(changes, baseLookup, label) {
       const items = [];
       changes.forEach((f) => {
         const k = keyOf(f);
@@ -55,25 +56,37 @@ sap.ui.define(["./DataActionEngine"], function (DataActionEngine) {
         items.push({ k, fact: Object.assign({}, f), prev });
         this._set(k, f);
       });
-      if (items.length) { this._undo.push(items); this._redo = []; this._fire(); }
+      if (items.length) { this._undo.push({ items, at: Date.now(), label: label || "" }); this._redo = []; this._fire(); }
     }
 
+    /** The steps of this session, newest first: { at, label, count, versions[] }. `redo` lists undone steps, next to redo first. */
+    history() {
+      const view = (e) => ({ at: e.at, label: e.label || (e.items.length + " values changed"), count: e.items.length,
+        versions: Array.from(new Set(e.items.map((i) => i.fact.VersionId))), models: Array.from(new Set(e.items.map((i) => i.fact.ModelId))) });
+      return { undo: this._undo.slice().reverse().map(view), redo: this._redo.slice().reverse().map(view) };
+    }
+
+    /** Undo the newest n+1 steps (index 0 of history().undo is the newest). */
+    undoTo(index) { let done = 0; for (let i = 0; i <= index; i++) { if (this.undo()) { done++; } } return done; }
+    redoTo(index) { let done = 0; for (let i = 0; i <= index; i++) { if (this.redo()) { done++; } } return done; }
+
     undo() {
-      const items = this._undo.pop();
-      if (!items) { return false; }
+      const entry = this._undo.pop();
+      if (!entry) { return false; }
+      const items = entry.items;
       items.slice().reverse().forEach(({ k, fact, prev }) => {
         if (prev === undefined) { this._pending.delete(k); } else { this._set(k, Object.assign({}, fact, { Value: prev })); }
       });
-      this._redo.push(items);
+      this._redo.push(entry);
       this._fire();
       return true;
     }
 
     redo() {
-      const items = this._redo.pop();
-      if (!items) { return false; }
-      items.forEach(({ k, fact }) => this._set(k, fact));
-      this._undo.push(items);
+      const entry = this._redo.pop();
+      if (!entry) { return false; }
+      entry.items.forEach(({ k, fact }) => this._set(k, fact));
+      this._undo.push(entry);
       this._fire();
       return true;
     }

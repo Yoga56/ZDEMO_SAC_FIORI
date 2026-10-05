@@ -123,3 +123,20 @@ test("grid text: copy format and paste parsing as spreadsheets exchange it", () 
   assert.deepStrictEqual(GridText.parse("5\r\n6"), [[5], [6]]);
   assert.deepStrictEqual(GridText.parse(GridText.format([[10, 20], [30, 40]])), [[10, 20], [30, 40]]);
 });
+
+test("plan history: labelled steps with times, undo and redo up to a step", () => {
+  const b = new PlanBuffer();
+  const none = () => null;
+  b.apply([fact("A", "2026-01", 1)], none, "first");
+  b.apply([fact("A", "2026-02", 2), fact("A", "2026-03", 3)], none, "second");
+  b.apply([fact("B", "2026-01", 4)], none);
+  let h = b.history();
+  assert.deepStrictEqual(h.undo.map((s) => [s.label, s.count]), [["1 values changed", 1], ["second", 2], ["first", 1]]);
+  assert.ok(h.undo[0].at <= Date.now() && h.undo[0].versions[0] === "BUD");
+  assert.strictEqual(b.undoTo(1), 2);                      // the newest two steps are gone
+  assert.strictEqual(b.count, 1);
+  h = b.history();
+  assert.deepStrictEqual([h.undo.length, h.redo.length], [1, 2]);
+  assert.strictEqual(b.redoTo(0), 1);
+  assert.strictEqual(b.count, 3);
+});

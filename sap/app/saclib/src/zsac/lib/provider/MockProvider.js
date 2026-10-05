@@ -159,7 +159,7 @@ sap.ui.define([
     }
     async deleteVersion(modelId, versionId) {
       const v = this._db.versions.find((x) => x.ModelId === modelId && x.VersionId === versionId);
-      if (v && v.Category !== "PRIVATE") { throw new Error("Only private versions can be deleted"); }
+      if (v && v.Locked) { throw new Error("Version " + versionId + " is locked. Unlock it before deleting it."); }
       this._remove("facts", (f) => f.ModelId === modelId && f.VersionId === versionId);
       this._remove("versions", (x) => x.ModelId === modelId && x.VersionId === versionId);
     }

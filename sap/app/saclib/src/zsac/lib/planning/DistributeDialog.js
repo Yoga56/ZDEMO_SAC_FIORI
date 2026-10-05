@@ -46,7 +46,7 @@ sap.ui.define([
           const shares = Distributor.distribute(editable.map((c, i) => ({ value: c.value, weight: weights[i] })), value, { method: kind, onlyEmpty: onlyEmpty.getSelected(), decimals: grid.getDecimals() });
           const items = editable.map((c, i) => ({ ri: c.ri, ci: c.ci, value: shares[i] })).filter((x) => x.value !== null);
           if (!items.length) { throw new Error("No cell to fill: every selected cell already has a value"); }
-          const out = grid.applyCellValues(items);
+          const out = grid.applyCellValues(items, "Distribute " + Math.round(value * 100) / 100 + " over " + items.length + " cells");
           dlg.close();
           MessageToast.show(out.cells + " cells changed" + (out.skipped ? ", " + out.skipped + " skipped" : ""));
         } catch (e) {

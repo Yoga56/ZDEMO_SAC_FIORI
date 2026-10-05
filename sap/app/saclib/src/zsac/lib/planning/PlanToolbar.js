@@ -1,14 +1,19 @@
 /**
  * Toolbar of the planning session of a page: Publish Data, Discard, Undo, Redo and the number of unpublished changes.
- *   toolbar.attach({ plan, provider, onChange })   onChange runs after a publish or discard so the page can reload its widgets
+ *   toolbar.attach({ plan, provider, onChange, modelId, onVersions, onSelect })
+ *     onChange runs after a publish or discard so the page can reload its widgets; modelId() names the model for Version Management and
+ *     History (default: the model of the grid the planner last used); onVersions runs after versions changed (default onChange);
+ *     onSelect(versionId) when a version is clicked in Version Management
  * While there are unpublished changes the browser warns before the page is left.
  */
 sap.ui.define([
   "sap/ui/core/Control",
   "sap/m/OverflowToolbar", "sap/m/Button", "sap/m/Text", "sap/m/ToolbarSpacer", "sap/m/MessageBox", "sap/m/MessageToast",
   "./PlanPublisher",
-  "./DistributeDialog"
-], function (Control, OverflowToolbar, Button, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog) {
+  "./DistributeDialog",
+  "./VersionManager",
+  "./VersionHistory"
+], function (Control, OverflowToolbar, Button, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory) {
   "use strict";
 
   return Control.extend("zsac.lib.planning.PlanToolbar", {
@@ -33,7 +38,10 @@ sap.ui.define([
       this._distribute = new Button({ text: "Distribute Values", icon: "sap-icon://calculator", enabled: false, press: () => { if (this._grid()) { DistributeDialog.open(this._grid()); } } });
       this._copy = new Button({ icon: "sap-icon://copy", tooltip: "Copy the selected cells (Ctrl+C)", type: "Transparent", enabled: false, press: () => this._doCopy() });
       this._paste = new Button({ icon: "sap-icon://paste", tooltip: "Paste at the selected cell (Ctrl+V)", type: "Transparent", enabled: false, press: () => this._doPaste() });
-      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, new ToolbarSpacer(), this._status] }));
+      this._versions = new Button({ text: "Versions", icon: "sap-icon://documents", tooltip: "Version Management", type: "Transparent", press: () => this._openVersions() });
+      this._historyBtn = new Button({ icon: "sap-icon://history", tooltip: "Version History", type: "Transparent", press: () => this._openHistory() });
+      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste,
+        this._versions, this._historyBtn, new ToolbarSpacer(), this._status] }));
       this._guard = (e) => { if (this._plan && this._plan.dirty) { e.preventDefault(); e.returnValue = ""; } };
       window.addEventListener("beforeunload", this._guard);
     },
@@ -48,11 +56,26 @@ sap.ui.define([
       this._plan = opts.plan;
       this._provider = opts.provider;
       this._onChange = opts.onChange || (() => {});
+      this._opts = opts;
       this._sync = () => this._update();
       this._plan.attachChange(this._sync);
       this._plan.attachSelection(this._sync);
       this._update();
       return this;
+    },
+
+    _modelId() {
+      const g = this._grid();
+      return (this._opts && this._opts.modelId && this._opts.modelId()) || (g && g.getModelId()) || "";
+    },
+
+    _openVersions() {
+      VersionManager.open({ provider: this._provider, plan: this._plan, modelId: this._modelId(),
+        onChange: () => (this._opts.onVersions || this._onChange)(), onSelect: this._opts.onSelect });
+    },
+
+    _openHistory() {
+      VersionHistory.open({ provider: this._provider, plan: this._plan, modelId: this._modelId() });
     },
 
     /** The grid the planner last worked in, if it is still on screen. */

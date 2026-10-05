@@ -109,6 +109,13 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
   zero facts for every month.
 * **Data action trigger widget.** A button with parameter inputs (members of chosen dimensions become the data filter parameter). A data action runs on
   published data, so unpublished changes are published first after a confirmation; the page reloads afterwards.
+* **Version Management** (`VersionManager`, toolbar button *Versions*). Public and private versions of the model in two lists with category filter, search and a
+  "hold data" switch. Per version: Details (values, periods, owner, source), Rename, Lock or Unlock (when the model has Data Locking), Copy as private version, Delete
+  (a locked version must be unlocked first; deleting removes its numbers); for private versions Publish to a public version and Revert to source. A blank public
+  version is created with a name, an id and a category. Everything that reads published data asks to publish unpublished changes first.
+* **Version History** (`VersionHistory`, toolbar button *History*). *This session* lists the unpublished steps with time, what was done ("Typed 1,234 into APAC /
+  Cloud ERP / Direct · Q3 2026", "Paste into 6 cells", "Distribute 90000 over 3 cells") and the number of values, with Undo to here and Redo to here;
+  *Published* shows the model's Data Audit log where the data source keeps one. Both can be filtered by version.
 * **Planning page.** Model, version and measure pickers around the same planning table widget; version work (private copy, publish a version, revert, lock,
   data actions) asks to publish the buffer first.
 
@@ -138,5 +145,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Authorization is open to every user (`get_global_authorizations` is empty, no DCL). Add owner and sharing rules per customer.
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
-* Planning: no formula bar yet; no select by header; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); Version Management and Version History are toolbar buttons and the Data Audit dialog, not SAC's dialogs; the unpublished buffer is per browser page (not shared, not saved).
+* Planning: no formula bar yet; no select by header; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); the version panels are dialogs, not SAC's side panel, and "hold data" means the version has facts, not that a table uses it; the unpublished buffer is per browser page (not shared, not saved).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

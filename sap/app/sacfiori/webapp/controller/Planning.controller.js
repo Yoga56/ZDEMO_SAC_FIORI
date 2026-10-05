@@ -30,18 +30,13 @@ sap.ui.define([
       this.onRoute("planning", (args) => this._open(args["?query"] || {}));
     },
 
-    /** Version work (private copy, publish, revert, data actions) reads published data: unpublished typing is published first or the action stops. */
-    async _settle(why) {
-      if (!this._plan.dirty) { return true; }
-      const ok = await this.confirm(why + " works on published data. Publish your " + this._plan.count + " unpublished changes first?", "Publish Data");
-      if (!ok) { return false; }
-      await PlanPublisher.publish(this._plan, this._p);
-      return true;
-    },
+    /** Data actions read published data: unpublished typing is published first or the action stops. */
+    _settle(why) { return PlanPublisher.settle(this._plan, this._p, why); },
 
     async _open(query) {
       const p = (this._p = await this.provider());
-      this.byId("planBar").attach({ plan: this._plan, provider: p, onChange: () => this._reload() });
+      this.byId("planBar").attach({ plan: this._plan, provider: p, onChange: () => this._reload(), modelId: () => (this._model ? this._model.ModelId : ""),
+        onVersions: () => this._versions(), onSelect: (id) => { this.byId("version").setSelectedKey(id); this._reload(); } });
       this._models = await p.listModels();
       const sel = this.byId("model");
       sel.destroyItems();
@@ -121,15 +116,8 @@ sap.ui.define([
         : v.Locked ? "This version is locked. Actuals are loaded by import or data actions, not typed in."
         : "Private version: only you see these numbers until you publish them to a public version.");
       strip.setType(off || v.Locked ? "Warning" : "Information");
-      const priv = v.Category === "PRIVATE";
-      this.byId("publish").setEnabled(priv && !off); this.byId("revert").setEnabled(priv && !off); this.byId("discard").setEnabled(priv);
-      this.byId("newPriv").setEnabled(!off);
       this.byId("addRow").setEnabled(!v.Locked && !off);
       this.byId("actions").setEnabled(!off);
-      const lock = this.byId("lock");
-      lock.setVisible(!!m.DataLocking && !priv && !off);
-      lock.setIcon(v.Locked ? "sap-icon://unlocked" : "sap-icon://locked");
-      this.byId("history").setVisible(!!m.DataAudit && !!this._p.capabilities.audit);
       await this._summary();
       this._actionsMenu();
     },
@@ -164,31 +152,6 @@ sap.ui.define([
     onMeasure() { this._reload().catch((x) => this.fail(x)); },
     onCompare() { this._summary().catch((x) => this.fail(x)); },
 
-    // ---- data locking and audit -----------------------------------------------------------
-    onLock: function () {
-      this.guard(async () => {
-        const v = this._cur();
-        if (!(await this._settle("Locking a version"))) { return; }
-        await this._p.saveVersion(Object.assign({}, v, { Locked: !v.Locked }));
-        this.toast(v.Locked ? "Version unlocked" : "Version locked");
-        await this._versions(v.VersionId);
-      })();
-    },
-
-    onHistory: function () {
-      this.guard(async () => {
-        const v = this._cur();
-        const rows = (await this._p.listAudit(this._model.ModelId, 200)).filter((a) => a.VersionId === v.VersionId);
-        const table = new Table({ noDataText: "No changes recorded yet", sticky: ["ColumnHeaders"] });
-        ["When", "User", "Period", "Measure", "Members", "Old", "New"].forEach((h) => table.addColumn(new Column({ header: new Text({ text: h }), hAlign: /Old|New/.test(h) ? "End" : "Begin" })));
-        rows.forEach((a) => table.addItem(new ColumnListItem({ cells: [new Text({ text: new Date(a.At).toLocaleString() }), new Text({ text: a.User }), new Text({ text: a.Period }),
-          new Text({ text: a.Measure }), new Text({ text: a.Dims }), new Text({ text: a.Old === null ? "(new)" : String(a.Old) }), new Text({ text: String(a.New) })] })));
-        const dlg = new Dialog({ title: "Change history: " + v.Name, contentWidth: "52rem", contentHeight: "26rem", content: [new ScrollContainer({ height: "100%", vertical: true, content: [table] })],
-          endButton: new Button({ text: "Close", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
-        dlg.open();
-      })();
-    },
-
     // ---- versions ------------------------------------------------------------------------
     _dialog(title, content, okText, onOk) {
       const dlg = new Dialog({
@@ -198,67 +161,6 @@ sap.ui.define([
       });
       dlg.open();
       return dlg;
-    },
-
-    onNewPrivate() {
-      const from = this._cur().VersionId;
-      const name = new Input({ value: "My what-if", width: "100%" });
-      this._dialog("New private version", [new Text({ text: "Copy of " + from + " (published numbers)" }), new Label({ text: "Name" }), name], "Create", async () => {
-        if (!(await this._settle("A private version"))) { return; }
-        const v = await this._p.createPrivateVersion(this._model.ModelId, from, name.getValue());
-        await this._versions(v.VersionId);
-        this.toast("Private version " + v.VersionId + " created");
-      });
-    },
-
-    onNewPublic() {
-      const id = new Input({ placeholder: "BUD2027", width: "100%", maxLength: 12 });
-      const name = new Input({ placeholder: "Budget 2027", width: "100%" });
-      const cat = new Select({ width: "100%", items: [new Item({ key: "BUDGET", text: "Budget" }), new Item({ key: "FORECAST", text: "Forecast" }), new Item({ key: "ACTUAL", text: "Actual" })] });
-      this._dialog("New public version", [new Label({ text: "ID", required: true }), id, new Label({ text: "Name", required: true }), name, new Label({ text: "Category" }), cat], "Create", async () => {
-        const vid = id.getValue().trim().toUpperCase();
-        if (!/^[A-Z][A-Z0-9_]*$/.test(vid) || !name.getValue().trim()) { throw new Error("Enter an ID (capital letters, digits) and a name"); }
-        if (this._versionList.some((v) => v.VersionId === vid)) { throw new Error("Version " + vid + " exists"); }
-        await this._p.saveVersion({ ModelId: this._model.ModelId, VersionId: vid, Name: name.getValue().trim(), Category: cat.getSelectedKey(),
-          Locked: cat.getSelectedKey() === "ACTUAL", Owner: "ME", SourceVersion: "", Status: "P" });
-        await this._versions(vid);
-      });
-    },
-
-    onPublish() {
-      const v = this._cur();
-      const targets = this._versionList.filter((x) => x.Category !== "PRIVATE" && !x.Locked);
-      if (!targets.length) { this.toast("There is no unlocked public version to publish to"); return; }
-      const sel = new Select({ width: "100%" });
-      targets.forEach((t) => sel.addItem(new Item({ key: t.VersionId, text: t.Name + " (" + t.VersionId + ")" })));
-      sel.setSelectedKey((targets.find((t) => t.VersionId === v.SourceVersion) || targets[0]).VersionId);
-      this._dialog("Publish " + v.Name, [new Text({ text: "The target version's numbers are replaced by this version." }), new Label({ text: "Publish to" }), sel], "Publish", async () => {
-        if (!(await this._settle("Publishing a version"))) { return; }
-        const r = await this._p.publishVersion(this._model.ModelId, v.VersionId, sel.getSelectedKey());
-        this.toast("Published to " + sel.getSelectedKey() + (r && r.Published ? " (" + r.Published + " values)" : ""));
-        await this._versions(sel.getSelectedKey());
-      });
-    },
-
-    onRevert: function () {
-      this.guard(async () => {
-        const v = this._cur();
-        if (!(await this.confirm("Throw away your edits and copy " + v.SourceVersion + " again?", "Revert"))) { return; }
-        this._plan.clear();
-        await this._p.revertVersion(this._model.ModelId, v.VersionId);
-        await this._reload();
-      })();
-    },
-
-    onDiscard: function () {
-      this.guard(async () => {
-        const v = this._cur();
-        if (!(await this.confirm("Delete private version " + v.Name + "?", "Delete"))) { return; }
-        if (this._plan.pending(this._model.ModelId).some((f) => f.VersionId === v.VersionId)) { this._plan.clear(); }
-        await this._p.deleteVersion(this._model.ModelId, v.VersionId);
-        this.byId("version").setSelectedKey("");
-        await this._versions(v.SourceVersion);
-      })();
     },
 
     // ---- rows ----------------------------------------------------------------------------
@@ -283,7 +185,7 @@ sap.ui.define([
         const existing = this._plan.overlay(this._facts);
         const rows = PlanEditor.newRows(m, v.VersionId, measure, members, HierarchyEngine.monthRange(m.PeriodFrom, m.PeriodTo), existing);
         if (!rows.length) { throw new Error("That row exists"); }
-        this._plan.apply(rows, () => null);
+        this._plan.apply(rows, () => null, "Add row " + Object.values(members).join(" / "));
         await this._reload();
       });
     },

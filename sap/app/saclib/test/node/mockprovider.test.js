@@ -55,3 +55,13 @@ test("data action writes to forecast; locked target is refused; multi action run
   assert.strictEqual(m.Status, "S");
   assert.strictEqual(m.Log.length, 2);
 });
+
+test("a public version can be deleted with its numbers unless it is locked", async () => {
+  const p = make();
+  await p.saveVersion({ ModelId: "SALES_PLAN", VersionId: "BUD2", Name: "Budget 2027", Category: "BUDGET", Locked: false, Owner: "ME", SourceVersion: "", Status: "P" });
+  await p.writeFacts("SALES_PLAN", [{ VersionId: "BUD2", Period: "2026-01", Measure: "REVENUE", Dim1: "APAC", Dim2: "Analytics", Dim3: "Direct", Value: 5 }]);
+  await p.deleteVersion("SALES_PLAN", "BUD2");
+  assert.strictEqual((await p.listVersions("SALES_PLAN")).some((v) => v.VersionId === "BUD2"), false);
+  assert.strictEqual((await p.readFacts("SALES_PLAN", { VERSION: ["BUD2"] })).length, 0);
+  await assert.rejects(() => p.deleteVersion("SALES_PLAN", "ACT"), /locked/);
+});

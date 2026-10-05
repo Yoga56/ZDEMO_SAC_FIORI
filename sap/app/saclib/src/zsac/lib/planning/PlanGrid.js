@@ -281,6 +281,13 @@ sap.ui.define([
     },
 
     getDecimals() { return this._dec || 0; },
+    getModelId() { return this._ctx ? this._ctx.model.ModelId : ""; },
+
+    _cellLabel(rk, ck) {
+      const spec = this._ctx.spec;
+      const part = (dims, key) => key.map((m, i) => (dims[i] === "PERIOD" ? Format.period(m) : m)).join(" / ");
+      return [part(spec.rows, rk), part(spec.columns, ck)].filter(Boolean).join(" \u00B7 ");
+    },
 
     /** Versions (other than the table's) whose values can serve as the reference for Distribute Values. */
     getReferenceVersions() {
@@ -344,7 +351,7 @@ sap.ui.define([
       } else {
         matrix.forEach((row, i) => row.forEach((v, j) => place(start.ri + i, start.ci + j, v)));
       }
-      const out = this.applyCellValues(items);
+      const out = this.applyCellValues(items, "Paste into " + items.length + (items.length === 1 ? " cell" : " cells"));
       out.skipped += skipped;
       return out;
     },
@@ -354,7 +361,7 @@ sap.ui.define([
      * Cells of one block are independent; mixing a total and the numbers below it in one block gives the order of the block.
      * @returns {{cells: number, skipped: number, reason: string}}
      */
-    applyCellValues(items) {
+    applyCellValues(items, label) {
       const c = this._ctx;
       const ctx = { model: c.model, spec: c.spec, versions: c.versions, editable: true };
       const changes = new Map();
@@ -366,7 +373,8 @@ sap.ui.define([
         out.changes.forEach((f) => changes.set(PlanEditor.keyOfFact(f), f));
       });
       if (changes.size && c.plan) {
-        c.plan.apply(Array.from(changes.values()), (f) => { const v = this._base.get([f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|")); return v === undefined ? null : v; });
+        c.plan.apply(Array.from(changes.values()), (f) => { const v = this._base.get([f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|")); return v === undefined ? null : v; },
+          label || "Edit " + cells + " cells");
       }
       return { cells, skipped, reason };
     },
@@ -390,7 +398,7 @@ sap.ui.define([
       }
       if (!out.changes.length) { this.invalidate(); return; }
       const lookup = (f) => { const v = this._base.get([f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|")); return v === undefined ? null : v; };
-      if (c.plan) { c.plan.apply(out.changes, lookup); }
+      if (c.plan) { c.plan.apply(out.changes, lookup, "Typed " + Format.full(value, this._dec) + " into " + this._cellLabel(rk, ck)); }
     }
   });
 });
