@@ -8,7 +8,7 @@ define root view entity ZC_SAC_FILE
 {
   key FileId,
   ParentId,
-  FileType,
+  FileKind,
   ObjectId,
   FileName,
   Description,

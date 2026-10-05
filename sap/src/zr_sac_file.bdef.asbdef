@@ -28,7 +28,7 @@ etag master LocalLastChangedAt
   {
     FileId = file_id;
     ParentId = parent_id;
-    FileType = file_type;
+    FileKind = file_kind;
     ObjectId = object_id;
     FileName = file_name;
     Description = description;

@@ -8,7 +8,7 @@ define view entity ZR_SAC_WIDGET
   key story_id as StoryId,
   key widget_id as WidgetId,
   page_no as PageNo,
-  widget_type as WidgetType,
+  widget_kind as WidgetKind,
   title as Title,
   grid_x as GridX,
   grid_y as GridY,

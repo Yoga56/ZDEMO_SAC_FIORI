@@ -198,7 +198,7 @@ sap.ui.define([
         Id: e.StoryId, Name: e.StoryName, Description: e.Description, ModelId: e.ModelId, Status: e.Status,
         Pages: json(e.PagesJson, [{ Id: 1, Title: "Page 1" }]), Filters: json(e.Filters, {}),
         Widgets: withWidgets ? (e._Widget || []).map((w) => ({
-          Id: w.WidgetId, Page: w.PageNo, Type: w.WidgetType, Title: w.Title, X: w.GridX, Y: w.GridY, W: w.GridW, H: w.GridH,
+          Id: w.WidgetId, Page: w.PageNo, Type: w.WidgetKind, Title: w.Title, X: w.GridX, Y: w.GridY, W: w.GridW, H: w.GridH,
           Binding: json(w.Binding, {}), Props: json(w.Props, {})
         })) : undefined
       };
@@ -210,7 +210,7 @@ sap.ui.define([
       await this._replace("/Story", key, { StoryId: s.Id, StoryName: s.Name, Description: s.Description || "", ModelId: s.ModelId || "",
         Status: s.Status || "D", PagesJson: str(s.Pages), Filters: str(s.Filters || {}) });
       for (const w of s.Widgets || []) {
-        await this._m.bindList(key + "/_Widget").create({ StoryId: s.Id, WidgetId: w.Id, PageNo: w.Page, WidgetType: w.Type, Title: w.Title || "",
+        await this._m.bindList(key + "/_Widget").create({ StoryId: s.Id, WidgetId: w.Id, PageNo: w.Page, WidgetKind: w.Type, Title: w.Title || "",
           GridX: w.X, GridY: w.Y, GridW: w.W, GridH: w.H, Binding: str(w.Binding || {}), Props: str(w.Props || {}) }, true).created();
       }
       return s;
@@ -297,11 +297,11 @@ sap.ui.define([
     deleteMultiAction(id) { return this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); }
 
     // ---- files and calendar -----------------------------------------------------------------
-    _toFile(e) { return { Id: e.FileId, ParentId: e.ParentId, Type: e.FileType, ObjectId: e.ObjectId, Name: e.FileName, Description: e.Description,
+    _toFile(e) { return { Id: e.FileId, ParentId: e.ParentId, Type: e.FileKind, ObjectId: e.ObjectId, Name: e.FileName, Description: e.Description,
       Owner: e.OwnerId, Favourite: !!e.Favourite, Shared: !!e.Shared, ChangedAt: e.LastChangedAt }; }
     async listFiles() { return (await this._list("/File")).map((e) => this._toFile(e)); }
     async saveFile(f) {
-      await this._replace("/File", "/File(FileId=" + quote(f.Id) + ")", { FileId: f.Id, ParentId: f.ParentId || "", FileType: f.Type, ObjectId: f.ObjectId || "",
+      await this._replace("/File", "/File(FileId=" + quote(f.Id) + ")", { FileId: f.Id, ParentId: f.ParentId || "", FileKind: f.Type, ObjectId: f.ObjectId || "",
         FileName: f.Name, Description: f.Description || "", OwnerId: f.Owner || "", Favourite: !!f.Favourite, Shared: !!f.Shared });
       return f;
     }

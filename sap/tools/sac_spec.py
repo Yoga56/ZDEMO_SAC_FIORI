@@ -22,7 +22,7 @@ BOOL = "@ABAP_BOOLEAN"
 # bdef: extra behavior lines; uses: lines for the projection; internal: no create/update through the service
 ENTITIES = [
     dict(id="FILE", table="ZSAC_FILE", label="File", set="File", admin=ADMIN, fields=[
-        ("*FILE_ID", "CHAR 32"), ("PARENT_ID", "CHAR 32"), ("FILE_TYPE", "CHAR 12"), ("OBJECT_ID", "CHAR 32"),
+        ("*FILE_ID", "CHAR 32"), ("PARENT_ID", "CHAR 32"), ("FILE_KIND", "CHAR 12"), ("OBJECT_ID", "CHAR 32"),
         ("FILE_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("OWNER_ID", "CHAR 12"),
         ("FAVOURITE", BOOL), ("SHARED", BOOL)]),
 
@@ -31,7 +31,7 @@ ENTITIES = [
         ("STATUS", "CHAR 1"), ("PAGES_JSON", "STRG"), ("FILTERS", "STRG")],
         validations=[("CheckName", "StoryName")]),
     dict(id="WIDGET", table="ZSAC_WIDGET", label="Story Widget", set="Widget", admin=LOCAL_ONLY, parent=("STORY", "_Story"), fields=[
-        ("*STORY_ID", "CHAR 32"), ("*WIDGET_ID", "CHAR 32"), ("PAGE_NO", "INT4"), ("WIDGET_TYPE", "CHAR 24"), ("TITLE", "CHAR 80"),
+        ("*STORY_ID", "CHAR 32"), ("*WIDGET_ID", "CHAR 32"), ("PAGE_NO", "INT4"), ("WIDGET_KIND", "CHAR 24"), ("TITLE", "CHAR 80"),
         ("GRID_X", "INT4"), ("GRID_Y", "INT4"), ("GRID_W", "INT4"), ("GRID_H", "INT4"), ("BINDING", "STRG"), ("PROPS", "STRG")]),
 
     dict(id="MODEL", table="ZSAC_MODEL", label="Planning Model", set="Model", admin=ADMIN,

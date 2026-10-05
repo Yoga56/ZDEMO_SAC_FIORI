@@ -69,7 +69,7 @@ etag dependent by _Story
     StoryId = story_id;
     WidgetId = widget_id;
     PageNo = page_no;
-    WidgetType = widget_type;
+    WidgetKind = widget_kind;
     Title = title;
     GridX = grid_x;
     GridY = grid_y;

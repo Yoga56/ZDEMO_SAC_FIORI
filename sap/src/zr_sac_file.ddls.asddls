@@ -6,7 +6,7 @@ define root view entity ZR_SAC_FILE
 {
   key file_id as FileId,
   parent_id as ParentId,
-  file_type as FileType,
+  file_kind as FileKind,
   object_id as ObjectId,
   file_name as FileName,
   description as Description,

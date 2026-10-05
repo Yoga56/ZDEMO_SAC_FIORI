@@ -8,7 +8,7 @@ define view entity ZC_SAC_WIDGET
   key StoryId,
   key WidgetId,
   PageNo,
-  WidgetType,
+  WidgetKind,
   Title,
   GridX,
   GridY,

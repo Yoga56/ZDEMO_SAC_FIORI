@@ -216,16 +216,16 @@ CLASS zcl_sac_seed IMPLEMENTATION.
       created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
 
     INSERT zsac_widget FROM TABLE @( VALUE #(
-      ( story_id = 'STORY_SALES' widget_id = 'W1' page_no = 1 widget_type = 'kpi' title = 'Revenue (Actual)' grid_x = 0 grid_y = 0 grid_w = 3 grid_h = 2
+      ( story_id = 'STORY_SALES' widget_id = 'W1' page_no = 1 widget_kind = 'kpi' title = 'Revenue (Actual)' grid_x = 0 grid_y = 0 grid_w = 3 grid_h = 2
         binding = `{"ModelId":"SALES_PLAN","Rows":[],"Columns":[],"Measure":"REVENUE","Filters":{"VERSION":["ACT"],"PERIOD":` && ytd && `}}`
         props = `{"CompareVersion":"BUD","Format":"compact"}` local_last_changed_at = now )
-      ( story_id = 'STORY_SALES' widget_id = 'W2' page_no = 1 widget_type = 'chart.bar' title = 'Revenue by region, actual vs budget' grid_x = 0 grid_y = 2 grid_w = 6 grid_h = 4
+      ( story_id = 'STORY_SALES' widget_id = 'W2' page_no = 1 widget_kind = 'chart.bar' title = 'Revenue by region, actual vs budget' grid_x = 0 grid_y = 2 grid_w = 6 grid_h = 4
         binding = `{"ModelId":"SALES_PLAN","Rows":["REGION"],"Columns":["VERSION"],"Measure":"REVENUE","Filters":{"VERSION":["ACT","BUD"],"PERIOD":` && ytd && `}}`
         props = `{}` local_last_changed_at = now )
-      ( story_id = 'STORY_SALES' widget_id = 'W3' page_no = 1 widget_type = 'chart.line' title = 'Revenue trend' grid_x = 6 grid_y = 2 grid_w = 6 grid_h = 4
+      ( story_id = 'STORY_SALES' widget_id = 'W3' page_no = 1 widget_kind = 'chart.line' title = 'Revenue trend' grid_x = 6 grid_y = 2 grid_w = 6 grid_h = 4
         binding = `{"ModelId":"SALES_PLAN","Rows":["PERIOD"],"Columns":["VERSION"],"Measure":"REVENUE","Filters":{"VERSION":["ACT","BUD","FCT"]}}`
         props = `{}` local_last_changed_at = now )
-      ( story_id = 'STORY_SALES' widget_id = 'W4' page_no = 1 widget_type = 'table' title = 'Revenue by region and product' grid_x = 0 grid_y = 6 grid_w = 12 grid_h = 5
+      ( story_id = 'STORY_SALES' widget_id = 'W4' page_no = 1 widget_kind = 'table' title = 'Revenue by region and product' grid_x = 0 grid_y = 6 grid_w = 12 grid_h = 5
         binding = `{"ModelId":"SALES_PLAN","Rows":["REGION","PRODUCT"],"Columns":["VERSION"],"Measure":"REVENUE","Filters":{"VERSION":["ACT","BUD"]}}`
         props = `{"ShowTotals":true,"Decimals":0}` local_last_changed_at = now ) ) ).
 
@@ -306,22 +306,22 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         local_last_changed_at = now ) ) ).
 
     INSERT zsac_file FROM TABLE @( VALUE #(
-      ( file_id = 'F_FOLDER_FIN' file_type = 'FOLDER' file_name = 'Finance' description = 'Finance content' owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_STORY_STORY_SALES' parent_id = 'F_FOLDER_FIN' file_type = 'STORY' object_id = 'STORY_SALES' file_name = 'Sales Performance'
+      ( file_id = 'F_FOLDER_FIN' file_kind = 'FOLDER' file_name = 'Finance' description = 'Finance content' owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
+      ( file_id = 'F_STORY_STORY_SALES' parent_id = 'F_FOLDER_FIN' file_kind = 'STORY' object_id = 'STORY_SALES' file_name = 'Sales Performance'
         description = 'Actual vs budget revenue' owner_id = 'SEED' favourite = abap_true shared = abap_true created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_MODEL_SALES_PLAN' file_type = 'MODEL' object_id = 'SALES_PLAN' file_name = 'Sales Plan' description = 'Revenue and cost by region, product and channel'
+      ( file_id = 'F_MODEL_SALES_PLAN' file_kind = 'MODEL' object_id = 'SALES_PLAN' file_name = 'Sales Plan' description = 'Revenue and cost by region, product and channel'
         owner_id = 'SEED' favourite = abap_true created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_MODEL_OPEX_PLAN' file_type = 'MODEL' object_id = 'OPEX_PLAN' file_name = 'Opex Plan' description = 'Operating expense by department and account'
+      ( file_id = 'F_MODEL_OPEX_PLAN' file_kind = 'MODEL' object_id = 'OPEX_PLAN' file_name = 'Opex Plan' description = 'Operating expense by department and account'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_DATAACTION_DA_FORECAST_CYCLE' file_type = 'DATAACTION' object_id = 'DA_FORECAST_CYCLE' file_name = 'Forecast refresh (aggressive)'
+      ( file_id = 'F_DATAACTION_DA_FORECAST_CYCLE' file_kind = 'DATAACTION' object_id = 'DA_FORECAST_CYCLE' file_name = 'Forecast refresh (aggressive)'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_DATAACTION_DA_FORECAST_FROM_ACT' file_type = 'DATAACTION' object_id = 'DA_FORECAST_FROM_ACT' file_name = 'Forecast Q4 from run-rate'
+      ( file_id = 'F_DATAACTION_DA_FORECAST_FROM_ACT' file_kind = 'DATAACTION' object_id = 'DA_FORECAST_FROM_ACT' file_name = 'Forecast Q4 from run-rate'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_MULTIACTION_MA_STAT_FORECAST' file_type = 'MULTIACTION' object_id = 'MA_STAT_FORECAST' file_name = 'Statistical forecast'
+      ( file_id = 'F_MULTIACTION_MA_STAT_FORECAST' file_kind = 'MULTIACTION' object_id = 'MA_STAT_FORECAST' file_name = 'Statistical forecast'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_MULTIACTION_MA_CLOSE_VERSION' file_type = 'MULTIACTION' object_id = 'MA_CLOSE_VERSION' file_name = 'Snapshot and lock a version'
+      ( file_id = 'F_MULTIACTION_MA_CLOSE_VERSION' file_kind = 'MULTIACTION' object_id = 'MA_CLOSE_VERSION' file_name = 'Snapshot and lock a version'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
-      ( file_id = 'F_MULTIACTION_MA_FORECAST_CYCLE' file_type = 'MULTIACTION' object_id = 'MA_FORECAST_CYCLE' file_name = 'Forecast cycle'
+      ( file_id = 'F_MULTIACTION_MA_FORECAST_CYCLE' file_kind = 'MULTIACTION' object_id = 'MA_FORECAST_CYCLE' file_name = 'Forecast cycle'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
 
     INSERT zsac_caltask FROM TABLE @( VALUE #(
