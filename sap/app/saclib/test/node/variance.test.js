@@ -106,3 +106,14 @@ test("variance: versions that cover different months are compared on the months 
   assert.deepStrictEqual(VarianceEngine.commonPeriods(model, rows, spec).periods, [], "the same months on both sides: nothing to align");
   assert.deepStrictEqual(VarianceEngine.commonPeriods(model, partial, { measure: "REVENUE", base: { PERIOD: ["2026-01"] }, compare: { PERIOD: ["2026-02"] } }).periods, []);
 });
+
+test("variance: a total that nets to zero still explains the parts that differ", () => {
+  const net = [
+    f("BUD", "2026-01", "REVENUE", "EMEA", "Cloud ERP", "Direct", 100), f("BUD", "2026-01", "REVENUE", "EMEA", "Services", "Direct", -100),
+    f("ACT", "2026-01", "REVENUE", "EMEA", "Cloud ERP", "Direct", 150), f("ACT", "2026-01", "REVENUE", "EMEA", "Services", "Direct", -150)];
+  const r = VarianceEngine.explain(model, net, { measure: "REVENUE", base: { VERSION: ["BUD"] }, compare: { VERSION: ["ACT"] }, labels: { base: "Budget", compare: "Actual" } });
+  assert.strictEqual(r.delta, 0);
+  assert.match(r.narrative.text, /Revenue adds up to the same in Actual and Budget, but its parts differ\./);
+  assert.match(r.narrative.text, /The biggest driver is /);
+  assert.doesNotMatch(r.narrative.text, /There is no/);
+});

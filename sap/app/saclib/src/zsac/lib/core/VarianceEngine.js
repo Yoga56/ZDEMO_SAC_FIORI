@@ -95,7 +95,7 @@ sap.ui.define(["./QueryEngine", "./Format"], function (QueryEngine, Format) {
       .sort((a, b) => b.topShare - a.topShare);
     const result = {
       measure: spec.measure, base, compare, delta, pct: base ? Math.round((delta / Math.abs(base)) * 1e6) / 1e4 : null,
-      favorable: delta === 0 ? null : (delta > 0) !== lower, dims
+      favorable: delta === 0 ? null : (delta > 0) !== lower, dims, facts: { base: baseFacts.length, compare: compareFacts.length }
     };
     result.narrative = spec.noNarrative ? { text: "", path: [] } : narrative(model, facts, spec, measure, result);
     return result;
@@ -110,12 +110,15 @@ sap.ui.define(["./QueryEngine", "./Format"], function (QueryEngine, Format) {
   function narrative(model, facts, spec, measure, top) {
     const labels = Object.assign({ base: "the reference", compare: "the comparison" }, spec.labels);
     const name = measure.Label || measure.MeasureId;
-    if (!top.base && !top.compare) { return { text: "There is no " + name + " in either slice.", path: [] }; }
-    if (!top.delta) { return { text: name + " is the same in " + labels.compare + " and " + labels.base + ".", path: [] }; }
+    if (!top.facts.base && !top.facts.compare) { return { text: "There is no " + name + " in either slice.", path: [] }; }
+    const moved = top.dims.length && top.dims[0].sumAbs > 0;
+    if (!top.delta && !moved) { return { text: name + " is the same in " + labels.compare + " and " + labels.base + ".", path: [] }; }
     const pct = top.pct === null ? "" : " (" + (top.pct >= 0 ? "+" : "-") + Math.abs(top.pct).toFixed(1) + "%)";
-    const parts = [name + " in " + labels.compare + " is " + Format.compact(Math.abs(top.delta)) + pct + (top.delta > 0 ? " above " : " below ") + labels.base + "."];
+    const parts = [top.delta
+      ? name + " in " + labels.compare + " is " + Format.compact(Math.abs(top.delta)) + pct + (top.delta > 0 ? " above " : " below ") + labels.base + "."
+      : name + " adds up to the same in " + labels.compare + " and " + labels.base + ", but its parts differ."];
     const gross = top.dims.length ? top.dims[0] : null;
-    if (gross && gross.sumAbs > 3 * Math.abs(top.delta)) { parts.push("The net change is small because movements cancel out: " + signed(gross.up) + " up and " + signed(gross.down) + " down."); }
+    if (top.delta && gross && gross.sumAbs > 3 * Math.abs(top.delta)) { parts.push("The net change is small because movements cancel out: " + signed(gross.up) + " up and " + signed(gross.down) + " down."); }
     const path = [];
     let current = top;
     let filters = Object.assign({}, spec.filters || {});
