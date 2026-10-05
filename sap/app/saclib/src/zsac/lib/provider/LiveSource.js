@@ -10,6 +10,7 @@
  *   Dims: { REGION: "Region", ... },                                      model dimension -> field of the entity
  *   Texts: { REGION: "RegionName" },                                      optional text field of a dimension (only used to name members)
  *   Measures: { REVENUE: "NetAmount", ... },                              model measure -> field of the entity
+ *   CurrencyField: "Currency",                                            optional: the currency (or unit) field of the amounts; a service refuses to add up an amount without it in the result
  *   Client: "100",                                                        optional: the client of the backend to read from (sent as sap-client), when it is not the one of the destination
  *   MaxRows: 100000 }
  *
@@ -31,7 +32,7 @@ sap.ui.define([], function () {
   const pad = (n) => String(n).padStart(2, "0");
 
   function defaults(src) {
-    return Object.assign({ Type: "CDS", Mode: "LIVE", Service: "", Entity: "", Version: "ACT", PeriodField: "", PeriodFormat: "YYYYMM", Dims: {}, Texts: {}, Measures: {}, Client: "", MaxRows: 100000 }, src || {});
+    return Object.assign({ Type: "CDS", Mode: "LIVE", Service: "", Entity: "", Version: "ACT", PeriodField: "", PeriodFormat: "YYYYMM", Dims: {}, Texts: {}, Measures: {}, CurrencyField: "", Client: "", MaxRows: 100000 }, src || {});
   }
 
   /** "202603" / "2026-03" / "2026-03-15" -> "2026-03"; null when it is not a period. */
@@ -65,7 +66,8 @@ sap.ui.define([], function () {
     const terms = filterTerms(model, src, filters);
     const wanted = ((filters && filters.MEASURE) || []);
     const measures = (model.Measures || []).filter((m) => src.Measures[m.MeasureId] && (!wanted.length || wanted.indexOf(m.MeasureId) >= 0));
-    const group = [src.PeriodField].concat(dims.map((d) => src.Dims[d.DimId]));
+    // the currency goes into the grouping so the service can add the amounts up; the facts ignore it (amounts of different currencies in one cell add up as they are)
+    const group = [src.PeriodField].concat(dims.map((d) => src.Dims[d.DimId]), src.CurrencyField ? [src.CurrencyField] : []);
     const aggregate = measures.map((m) => src.Measures[m.MeasureId] + " with " + (METHODS[m.Aggregation] || "sum") + " as " + alias(m.MeasureId));
     const apply = (terms.length ? "filter(" + terms.join(" and ") + ")/" : "") + "groupby((" + group.join(",") + "),aggregate(" + aggregate.join(",") + "))";
     const plain = link(src, base(src), ["$select=" + encodeURIComponent(group.concat(measures.map((m) => src.Measures[m.MeasureId])).filter((x, i, a) => a.indexOf(x) === i).join(","))]
@@ -107,6 +109,14 @@ sap.ui.define([], function () {
 
   /** A service that cannot do $apply says so with 501, 405 or a 400 that mentions it; the plain read is used instead (and remembered). */
   const noApply = new Set();
+
+  /** A service that cannot add up an amount without its currency says "Context element X for element Y not in result": tell the planner what to set. */
+  function withHint(e, src) {
+    const m = /Context element (\w+) for element (\w+) not in result/i.exec((e && e.message) || "");
+    return m && !src.CurrencyField
+      ? Object.assign(new Error(e.message + ". The amount " + m[2] + " needs its currency or unit field " + m[1] + " in the result: set it as the Currency field of the data source."), { status: e.status })
+      : e;
+  }
   const applyUnsupported = (e) => !!e && (e.status === 501 || e.status === 405 || (e.status === 400 && /apply|aggregat/i.test(e.message || "")));
 
   /**
@@ -125,7 +135,7 @@ sap.ui.define([], function () {
     if (noApply.has(key)) { rows = await pages(query.plainUrl, fetchJson, src.MaxRows || 100000); applied = false; }
     else {
       try { rows = await pages(query.url, fetchJson, src.MaxRows || 100000); } catch (e) {
-        if (!applyUnsupported(e)) { throw e; }
+        if (!applyUnsupported(e)) { throw withHint(e, src); }
         noApply.add(key);
         rows = await pages(query.plainUrl, fetchJson, src.MaxRows || 100000);
         applied = false;
@@ -236,6 +246,7 @@ sap.ui.define([], function () {
     if (src.Client && !/^\d{3}$/.test(src.Client)) { p.push("Data source: the client is three digits, for example 100"); }
     if (!IDENT.test(src.Entity || "")) { p.push("Data source: choose the entity set"); }
     if (["LIVE", "IMPORT"].indexOf(src.Mode) < 0) { p.push("Data source: unknown mode " + src.Mode); }
+    if (src.CurrencyField && !IDENT.test(src.CurrencyField)) { p.push("Data source: the currency field is a field name"); }
     if (!IDENT.test(src.PeriodField || "")) { p.push("Data source: choose the field with the period"); }
     if (FORMATS.indexOf(src.PeriodFormat) < 0) { p.push("Data source: unknown period format " + src.PeriodFormat); }
     if (src.Mode === "LIVE" && !/^[A-Z][A-Z0-9_]*$/.test(src.Version || "")) { p.push("Data source: the version of live data is capital letters, digits and underscore"); }
@@ -261,7 +272,12 @@ sap.ui.define([], function () {
     const f = fetchFn || ((u, i) => window.fetch(u, i));
     const fail = async (res) => {
       let detail = "";
-      try { const b = await res.json(); const m = b && b.error && b.error.message; detail = typeof m === "string" ? m : (m && m.value) || ""; } catch (e) { /* not json */ }
+      try {
+        const b = await res.json();
+        const m = b && b.error && b.error.message;
+        const more = ((b && b.error && b.error.details) || []).map((d) => d.message).filter(Boolean);
+        detail = [typeof m === "string" ? m : (m && m.value) || ""].concat(more).filter(Boolean).join(": ");
+      } catch (e) { /* not json */ }
       throw Object.assign(new Error("The data source answered " + res.status + (detail ? ": " + detail : "")), { status: res.status });
     };
     return {

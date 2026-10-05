@@ -203,3 +203,29 @@ test("a client of the source is sent as sap-client with every request", async ()
   assert.deepStrictEqual(LiveSource.validate(Object.assign({}, model, { Source: Object.assign({}, model.Source, { Client: "1" }) })).filter((x) => /client/.test(x)).length, 1);
   assert.deepStrictEqual(LiveSource.validate(model), []);
 });
+
+test("an amount with a currency needs the currency in the grouping; the app says what to set", async () => {
+  LiveSource.resetCapabilities();
+  const rows = [{ Co: "1010", Per: "202601", Cur: "EUR", Amount: 5 }, { Co: "1010", Per: "202601", Cur: "EUR", Amount: 7 }];
+  const fake = FakeODataService.createFetch({ "mock://cds/C": { entitySet: "C", properties: { Co: "Edm.String", Per: "Edm.String", Cur: "Edm.String", Amount: "Edm.Decimal" }, rows: () => rows } });
+  // like the real one: an amount cannot be aggregated unless its currency field is among the grouped fields
+  const strict = async (url, init) => {
+    const apply = decodeURIComponent(String(url).split("$apply=")[1] || "");
+    if (apply && /Amount with sum/.test(apply) && !/groupby\(\([^)]*\bCur\b/.test(apply)) {
+      return { ok: false, status: 400, json: async () => ({ error: { message: "$apply processing failed", details: [{ message: "Context element CUR for element AMOUNT not in result" }] } }) };
+    }
+    return fake(url, init);
+  };
+  const model = ModelSchema.normalize({ ModelId: "C", Name: "c", PeriodFrom: "2026-01", PeriodTo: "2026-12", Dimensions: [{ DimId: "COMPANYCODE", Slot: 1, Members: ["1010"] }], Measures: [{ MeasureId: "AMOUNT", Aggregation: "SUM" }],
+    Source: { Mode: "LIVE", Service: "mock://cds/C", Entity: "C", PeriodField: "Per", PeriodFormat: "YYYYMM", Dims: { COMPANYCODE: "Co" }, Measures: { AMOUNT: "Amount" } } });
+  const io = LiveSource.browserFetch(strict).json;
+  // the real message names the element in the details; the top message is what browserFetch reports, so check the hint path with the message text
+  await assert.rejects(() => LiveSource.readFacts(model, {}, io), /\$apply processing failed: Context element CUR for element AMOUNT not in result\. The amount AMOUNT needs its currency or unit field CUR in the result: set it as the Currency field/);
+  LiveSource.resetCapabilities();
+  model.Source = Object.assign({}, model.Source, { CurrencyField: "Cur" });
+  const facts = await LiveSource.readFacts(model, {}, io);
+  assert.strictEqual(facts.length, 1);
+  assert.strictEqual(facts[0].Value, 12);
+  assert.match(decodeURIComponent(LiveSource.buildQuery(model, {}).url), /groupby\(\(Per,Co,Cur\)/);
+  LiveSource.resetCapabilities();
+});

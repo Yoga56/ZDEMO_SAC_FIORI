@@ -31,6 +31,7 @@ sap.ui.define([
         if (!src.PeriodField) { src.PeriodField = find("FiscalPeriod", "Period", "PostingDate", "CalendarMonth", "YearMonth", "Month"); }
         (model.Dimensions || []).forEach((d) => { if (!src.Dims[d.DimId]) { src.Dims[d.DimId] = find(d.DimId, d.Label); } });
         (model.Measures || []).forEach((m) => { if (!src.Measures[m.MeasureId]) { src.Measures[m.MeasureId] = find(m.MeasureId, m.Label); } });
+        if (!src.CurrencyField) { const c = fields.find((x) => /currency/i.test(x.name)); if (c) { src.CurrencyField = c.name; } }
       };
 
       const status = new VBox();
@@ -70,6 +71,9 @@ sap.ui.define([
           items: [new Item({ key: "YYYYMM", text: "202603" }), new Item({ key: "YYYY-MM", text: "2026-03" }), new Item({ key: "DATE", text: "2026-03-15 (a date)" })] });
         body.addItem(new HBox({ width: "100%", items: [fieldBox(() => src.PeriodField, (v) => { src.PeriodField = v; }, "Period field"), fmt] }));
         body.addItem(new Text({ text: "A date field is summed up by month here; it cannot give an average by month." }).addStyleClass("zsacSmall"));
+        body.addItem(new Title({ text: "Measures need a currency?", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+        body.addItem(fieldBox(() => src.CurrencyField, (v) => { src.CurrencyField = v; }, "Currency or unit field (optional)"));
+        body.addItem(new Text({ text: "Amounts that carry a currency cannot be added up by the service without it: choose the field. Amounts in different currencies in one cell are added as they are." }).addStyleClass("zsacSmall"));
         body.addItem(new Title({ text: "Dimensions", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
         (model.Dimensions || []).forEach((d) => body.addItem(new HBox({ alignItems: "Center", width: "100%", items: [
           new Text({ text: d.Label || d.DimId, width: "8rem" }), fieldBox(() => src.Dims[d.DimId], (v) => { src.Dims[d.DimId] = v; }),
