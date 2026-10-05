@@ -1,0 +1,28 @@
+# Client 80 from a local machine (not BAS): signs in through the browser (reentrance ticket), no destination needed.
+specVersion: "3.1"
+metadata:
+  name: zsac.fiori
+type: application
+server:
+  customMiddleware:
+    - name: ui5-middleware-servestatic
+      afterMiddleware: compression
+      mountPath: /zsac/lib
+      configuration:
+        rootPath: ../saclib/src/zsac/lib
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertErrors: false
+        ui5:
+          path:
+            - /resources
+            - /test-resources
+          url: https://ui5.sap.com
+          version: 1.136.0
+        backend:
+          - path: /sap
+            url: https://my402244.s4hana.cloud.sap
+            authenticationType: reentranceTicket
+    - name: fiori-tools-appreload
+      afterMiddleware: compression

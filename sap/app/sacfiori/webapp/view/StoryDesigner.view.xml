@@ -1,0 +1,40 @@
+<mvc:View controllerName="zsac.fiori.controller.StoryDesigner" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:zd="zsac.lib.designer" height="100%">
+  <Page showHeader="false" enableScrolling="false" class="sapUiNoContentPadding">
+    <subHeader>
+      <OverflowToolbar>
+        <Button icon="sap-icon://nav-back" type="Transparent" press=".onNavBack"/>
+        <Input id="name" width="16rem" change=".onName" visible="false"/>
+        <Title id="title" level="H3"/>
+        <Text id="dirty" class="zsacDirty"/>
+        <ToolbarSeparator/>
+        <SegmentedButton id="mode" selectedKey="view" selectionChange=".onMode">
+          <items>
+            <SegmentedButtonItem key="view" icon="sap-icon://show" text="View"/>
+            <SegmentedButtonItem key="edit" icon="sap-icon://edit" text="Edit"/>
+          </items>
+        </SegmentedButton>
+        <ToolbarSeparator/>
+        <SegmentedButton id="pages" selectionChange=".onPage"/>
+        <Button id="addPage" icon="sap-icon://add" tooltip="Add page" press=".onAddPage" visible="false"/>
+        <Button id="renamePage" icon="sap-icon://edit" tooltip="Rename page" press=".onRenamePage" visible="false"/>
+        <Button id="deletePage" icon="sap-icon://delete" tooltip="Delete page" press=".onDeletePage" visible="false"/>
+        <ToolbarSpacer/>
+        <Button id="dup" icon="sap-icon://duplicate" text="Duplicate widget" press=".onDuplicateWidget" enabled="false" visible="false"/>
+        <Button id="del" icon="sap-icon://delete" text="Remove widget" press=".onRemoveWidget" enabled="false" visible="false"/>
+        <Button id="publish" text="Publish" press=".onPublish" visible="false"/>
+        <Button id="save" text="Save" type="Emphasized" press=".onSave"/>
+      </OverflowToolbar>
+    </subHeader>
+    <content>
+      <HBox class="zsacDesigner" renderType="Bare">
+        <VBox id="palette" class="zsacPalette" renderType="Bare" visible="false"/>
+        <ScrollContainer class="zsacStage" vertical="true" horizontal="false">
+          <zd:StoryCanvas id="canvas" selectionChange=".onSelect" storyChange=".onStoryChange"/>
+        </ScrollContainer>
+        <ScrollContainer id="right" class="zsacRight" vertical="true" visible="false">
+          <zd:BuilderPanel id="builder" change=".onBuilderChange"/>
+        </ScrollContainer>
+      </HBox>
+    </content>
+  </Page>
+</mvc:View>

@@ -1,0 +1,92 @@
+{
+  "_version": "1.60.0",
+  "sap.app": {
+    "id": "zsac.fiori",
+    "type": "application",
+    "title": "Analytics and Planning",
+    "description": "SAC-style stories, planning and analysis on Fiori",
+    "applicationVersion": { "version": "0.1.0" },
+    "i18n": "i18n/i18n.properties",
+    "dataSources": {
+      "mainService": {
+        "uri": "/sap/opu/odata4/sap/zui_sac_o4/srvd/sap/zui_sac_o4/0001/",
+        "type": "OData",
+        "settings": { "odataVersion": "4.0" }
+      }
+    },
+    "crossNavigation": {
+      "inbounds": {
+        "SacAnalytics-display": {
+          "semanticObject": "SacAnalytics",
+          "action": "display",
+          "title": "Analytics and Planning",
+          "signature": { "parameters": {}, "additionalParameters": "allowed" }
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "fullWidth": true,
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
+  },
+  "sap.ui5": {
+    "resourceRoots": { "zsac.lib": "./zsac/lib/" },
+    "config": { "provider": "mock" },
+    "dependencies": {
+      "minUI5Version": "1.136.0",
+      "libs": {
+        "sap.m": {},
+        "sap.f": {},
+        "sap.tnt": {},
+        "sap.ui.core": {},
+        "sap.ui.layout": {},
+        "sap.ui.unified": {},
+        "zsac.lib": {}
+      }
+    },
+    "rootView": { "viewName": "zsac.fiori.view.App", "type": "XML", "id": "app", "async": true },
+    "models": {
+      "i18n": { "type": "sap.ui.model.resource.ResourceModel", "settings": { "bundleName": "zsac.fiori.i18n.i18n", "supportedLocales": [""], "fallbackLocale": "" } }
+    },
+    "resources": { "css": [{ "uri": "css/style.css" }] },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "type": "View",
+        "viewType": "XML",
+        "path": "zsac.fiori.view",
+        "controlId": "pages",
+        "controlAggregation": "pages",
+        "async": true
+      },
+      "routes": [
+        { "name": "home", "pattern": "", "target": "home" },
+        { "name": "files", "pattern": "files", "target": "files" },
+        { "name": "stories", "pattern": "stories", "target": "stories" },
+        { "name": "story", "pattern": "stories/{id}", "target": "story" },
+        { "name": "analyser", "pattern": "analyser", "target": "analyser" },
+        { "name": "datasets", "pattern": "datasets", "target": "datasets" },
+        { "name": "modeller", "pattern": "modeller/{id}", "target": "modeller" },
+        { "name": "planning", "pattern": "planning:?query:", "target": "planning" },
+        { "name": "dataactions", "pattern": "dataactions:?query:", "target": "dataactions" },
+        { "name": "multiactions", "pattern": "multiactions:?query:", "target": "multiactions" },
+        { "name": "calendar", "pattern": "calendar", "target": "calendar" }
+      ],
+      "targets": {
+        "home": { "viewName": "Home", "viewId": "home" },
+        "files": { "viewName": "Files", "viewId": "files" },
+        "stories": { "viewName": "Stories", "viewId": "stories" },
+        "story": { "viewName": "StoryDesigner", "viewId": "story" },
+        "analyser": { "viewName": "Analyser", "viewId": "analyser" },
+        "datasets": { "viewName": "Datasets", "viewId": "datasets" },
+        "modeller": { "viewName": "Modeller", "viewId": "modeller" },
+        "planning": { "viewName": "Planning", "viewId": "planning" },
+        "dataactions": { "viewName": "DataActions", "viewId": "dataactions" },
+        "multiactions": { "viewName": "MultiActions", "viewId": "multiactions" },
+        "calendar": { "viewName": "Calendar", "viewId": "calendar" }
+      }
+    },
+    "contentDensities": { "compact": true, "cozy": true }
+  }
+}

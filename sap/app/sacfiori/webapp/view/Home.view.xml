@@ -1,0 +1,25 @@
+<mvc:View controllerName="zsac.fiori.controller.Home" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
+  <ScrollContainer height="100%" vertical="true">
+    <VBox class="zsacPage">
+      <Text id="hello" class="zsacHello"/>
+      <Text id="date" class="zsacSub"/>
+      <HBox wrap="Wrap" class="sapUiSmallMarginBottom">
+        <Button text="Create story" icon="sap-icon://add" type="Emphasized" press=".onCreateStory" class="sapUiTinyMarginEnd"/>
+        <Button text="Open planning" icon="sap-icon://projector" press=".onPlanning" class="sapUiTinyMarginEnd"/>
+        <Button text="Analyse data" icon="sap-icon://pie-chart" press=".onAnalyser" class="sapUiTinyMarginEnd"/>
+        <Button text="Create dataset" icon="sap-icon://database" press=".onCreateDataset"/>
+      </HBox>
+      <Title text="My Metrics" level="H4" class="sapUiSmallMarginTop"/>
+      <HBox id="metrics" wrap="Wrap"/>
+      <IconTabHeader id="tabs" selectedKey="today" select=".onTab" mode="Inline">
+        <items>
+          <IconTabFilter key="today" text="Today"/>
+          <IconTabFilter key="catalogue" text="Catalogue"/>
+          <IconTabFilter key="favourites" text="Favourites"/>
+          <IconTabFilter key="shared" text="Shared With Me"/>
+        </items>
+      </IconTabHeader>
+      <VBox id="content" class="sapUiSmallMarginTop"/>
+    </VBox>
+  </ScrollContainer>
+</mvc:View>

@@ -1,0 +1,51 @@
+<mvc:View controllerName="zsac.fiori.controller.Files" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" height="100%">
+  <ScrollContainer height="100%" vertical="true">
+    <VBox class="zsacPage">
+      <Table id="table" items="{view>/items}" noDataText="This folder is empty" sticky="ColumnHeaders,HeaderToolbar">
+        <headerToolbar>
+          <OverflowToolbar>
+            <Button icon="sap-icon://nav-back" press=".onUp" visible="{view>/inFolder}" tooltip="Up"/>
+            <Title text="{view>/path}" level="H3"/>
+            <ToolbarSpacer/>
+            <SearchField width="14rem" liveChange=".onSearch" placeholder="Search files"/>
+            <SegmentedButton selectedKey="ALL" selectionChange=".onFilter">
+              <items>
+                <SegmentedButtonItem key="ALL" text="All"/>
+                <SegmentedButtonItem key="STORY" text="Stories"/>
+                <SegmentedButtonItem key="MODEL" text="Datasets"/>
+                <SegmentedButtonItem key="ACTION" text="Actions"/>
+              </items>
+            </SegmentedButton>
+            <Button text="New folder" icon="sap-icon://add-folder" press=".onNewFolder"/>
+          </OverflowToolbar>
+        </headerToolbar>
+        <columns>
+          <Column><Text text="Name"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Type"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Owner"/></Column>
+          <Column minScreenWidth="Desktop" demandPopin="true"><Text text="Changed"/></Column>
+          <Column hAlign="End" width="11rem"><Text text=""/></Column>
+        </columns>
+        <items>
+          <ColumnListItem type="Navigation" press=".onOpen">
+            <cells>
+              <HBox alignItems="Center">
+                <core:Icon src="{path: 'view>Type', formatter: '.icon'}" class="sapUiSmallMarginEnd"/>
+                <ObjectIdentifier title="{view>Name}" text="{view>Description}"/>
+              </HBox>
+              <Text text="{path: 'view>Type', formatter: '.typeLabel'}"/>
+              <Text text="{view>Owner}"/>
+              <Text text="{path: 'view>ChangedAt', formatter: '.date'}"/>
+              <HBox justifyContent="End">
+                <Button icon="{= ${view>Favourite} ? 'sap-icon://favorite' : 'sap-icon://unfavorite'}" type="Transparent" press=".onFavourite" tooltip="Favourite"/>
+                <Button icon="{= ${view>Shared} ? 'sap-icon://share-2' : 'sap-icon://share'}" type="Transparent" press=".onShare" tooltip="Share"/>
+                <Button icon="sap-icon://move" type="Transparent" press=".onMove" tooltip="Move to folder"/>
+                <Button icon="sap-icon://delete" type="Transparent" press=".onDelete" tooltip="Delete"/>
+              </HBox>
+            </cells>
+          </ColumnListItem>
+        </items>
+      </Table>
+    </VBox>
+  </ScrollContainer>
+</mvc:View>

@@ -1,0 +1,81 @@
+<mvc:View controllerName="zsac.fiori.controller.Modeller" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:f="sap.ui.layout.form" height="100%">
+  <Page showHeader="false" enableScrolling="true">
+    <subHeader>
+      <OverflowToolbar>
+        <Button icon="sap-icon://nav-back" type="Transparent" press=".onNavBack"/>
+        <Title text="{= ${m>/isNew} ? 'Create dataset' : 'Modeller: ' + ${m>/Name}}" level="H3"/>
+        <ToolbarSpacer/>
+        <Button text="Save" type="Emphasized" press=".onSave"/>
+      </OverflowToolbar>
+    </subHeader>
+    <content>
+      <VBox class="zsacPage">
+        <f:SimpleForm editable="true" layout="ResponsiveGridLayout" labelSpanXL="3" labelSpanL="3" labelSpanM="3" emptySpanXL="4" emptySpanL="4" emptySpanM="0">
+          <Label text="Model ID" required="true"/>
+          <Input value="{m>/ModelId}" enabled="{m>/isNew}" maxLength="20" placeholder="SALES_PLAN"/>
+          <Label text="Name" required="true"/>
+          <Input value="{m>/Name}"/>
+          <Label text="Description"/>
+          <Input value="{m>/Description}"/>
+          <Label text="Currency"/>
+          <Input value="{m>/Currency}" maxLength="5"/>
+          <Label text="Periods (YYYY-MM)"/>
+          <Input value="{m>/PeriodFrom}" placeholder="2026-01"/>
+          <Input value="{m>/PeriodTo}" placeholder="2026-12"/>
+        </f:SimpleForm>
+
+        <Table items="{m>/Dimensions}" class="sapUiSmallMarginBottom">
+          <headerToolbar>
+            <OverflowToolbar>
+              <Title text="Dimensions (up to 5)" level="H4"/>
+              <ToolbarSpacer/>
+              <Button text="Add dimension" icon="sap-icon://add" press=".onAddDim" enabled="{= ${m>/Dimensions}.length &lt; 5}"/>
+            </OverflowToolbar>
+          </headerToolbar>
+          <columns>
+            <Column width="11rem"><Text text="ID"/></Column>
+            <Column width="12rem"><Text text="Label"/></Column>
+            <Column><Text text="Members (one per line: ID or ID | Text)"/></Column>
+            <Column width="4rem"/>
+          </columns>
+          <items>
+            <ColumnListItem vAlign="Top">
+              <cells>
+                <Input value="{m>DimId}" enabled="{= !${m>existing}}" maxLength="20"/>
+                <Input value="{m>Label}"/>
+                <TextArea value="{m>MembersText}" rows="4" width="100%"/>
+                <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveDim" enabled="{= !${m>existing}}"/>
+              </cells>
+            </ColumnListItem>
+          </items>
+        </Table>
+
+        <Table items="{m>/Measures}">
+          <headerToolbar>
+            <OverflowToolbar>
+              <Title text="Measures" level="H4"/>
+              <ToolbarSpacer/>
+              <Button text="Add measure" icon="sap-icon://add" press=".onAddMeasure"/>
+            </OverflowToolbar>
+          </headerToolbar>
+          <columns>
+            <Column width="11rem"><Text text="ID"/></Column>
+            <Column width="12rem"><Text text="Label"/></Column>
+            <Column width="8rem"><Text text="Unit"/></Column>
+            <Column width="4rem"/>
+          </columns>
+          <items>
+            <ColumnListItem>
+              <cells>
+                <Input value="{m>MeasureId}" enabled="{= !${m>existing}}" maxLength="20"/>
+                <Input value="{m>Label}"/>
+                <Input value="{m>Unit}"/>
+                <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveMeasure" enabled="{= !${m>existing}}"/>
+              </cells>
+            </ColumnListItem>
+          </items>
+        </Table>
+      </VBox>
+    </content>
+  </Page>
+</mvc:View>

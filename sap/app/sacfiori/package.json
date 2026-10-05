@@ -1,0 +1,21 @@
+{
+  "name": "sacfiori",
+  "version": "0.1.0",
+  "description": "SAC-style analytics and planning on Fiori: Home, Files, Stories, Data Analyser, Datasets, Modeller, Planning",
+  "private": true,
+  "scripts": {
+    "start": "ui5 serve --config ./ui5.yaml --open index.html",
+    "start-local": "ui5 serve --config ./ui5-local.yaml --open index.html",
+    "start-mock": "ui5 serve --config ./ui5-mock.yaml --open index.html",
+    "build": "ui5 build --config ./ui5.yaml --clean-dest --dest dist --include-dependency zsac.lib",
+    "deploy": "npm run build && fiori deploy --config ./ui5-deploy.yaml"
+  },
+  "dependencies": {
+    "zsac-lib": "file:../saclib"
+  },
+  "devDependencies": {
+    "@sap/ux-ui5-tooling": "1",
+    "@ui5/cli": "^4",
+    "ui5-middleware-servestatic": "^3.5.1"
+  }
+}

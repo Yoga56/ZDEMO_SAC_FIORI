@@ -1,0 +1,39 @@
+<mvc:View controllerName="zsac.fiori.controller.Datasets" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
+  <ScrollContainer height="100%" vertical="true">
+    <VBox class="zsacPage">
+      <Table id="table" items="{view>/items}" noDataText="No datasets yet" sticky="ColumnHeaders,HeaderToolbar">
+        <headerToolbar>
+          <OverflowToolbar>
+            <Title text="Datasets" level="H3"/>
+            <ToolbarSpacer/>
+            <Button text="Create dataset" icon="sap-icon://add" type="Emphasized" press=".onCreate"/>
+          </OverflowToolbar>
+        </headerToolbar>
+        <columns>
+          <Column><Text text="Name"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Dimensions"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Measures"/></Column>
+          <Column minScreenWidth="Desktop" demandPopin="true"><Text text="Versions"/></Column>
+          <Column hAlign="End" width="14rem"><Text text=""/></Column>
+        </columns>
+        <items>
+          <ColumnListItem type="Navigation" press=".onEdit">
+            <cells>
+              <ObjectIdentifier title="{view>Name}" text="{view>ModelId} - {view>Description}"/>
+              <Text text="{view>dims}"/>
+              <Text text="{view>measures}"/>
+              <Text text="{view>versions}"/>
+              <HBox justifyContent="End">
+                <Button icon="sap-icon://table-view" type="Transparent" press=".onPreview" tooltip="Preview data"/>
+                <Button icon="sap-icon://upload" type="Transparent" press=".onImport" tooltip="Import facts from CSV"/>
+                <Button icon="sap-icon://download" type="Transparent" press=".onExport" tooltip="Export facts to CSV"/>
+                <Button icon="sap-icon://edit" type="Transparent" press=".onEdit" tooltip="Edit model"/>
+                <Button icon="sap-icon://delete" type="Transparent" press=".onDelete" tooltip="Delete"/>
+              </HBox>
+            </cells>
+          </ColumnListItem>
+        </items>
+      </Table>
+    </VBox>
+  </ScrollContainer>
+</mvc:View>

@@ -1,0 +1,32 @@
+<mvc:View controllerName="zsac.fiori.controller.Analyser" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:zd="zsac.lib.designer" height="100%">
+  <Page showHeader="false" enableScrolling="false" class="sapUiNoContentPadding">
+    <subHeader>
+      <OverflowToolbar>
+        <Title text="Data Analyser" level="H3"/>
+        <ToolbarSeparator/>
+        <SegmentedButton id="type" selectedKey="table" selectionChange=".onType">
+          <items>
+            <SegmentedButtonItem key="table" icon="sap-icon://table-view" tooltip="Table"/>
+            <SegmentedButtonItem key="chart.bar" icon="sap-icon://vertical-bar-chart" tooltip="Bar"/>
+            <SegmentedButtonItem key="chart.line" icon="sap-icon://line-chart" tooltip="Line"/>
+            <SegmentedButtonItem key="chart.donut" icon="sap-icon://donut-chart" tooltip="Donut"/>
+            <SegmentedButtonItem key="chart.sankey" icon="sap-icon://process" tooltip="Sankey"/>
+          </items>
+        </SegmentedButton>
+        <ToolbarSpacer/>
+        <Button text="Export CSV" icon="sap-icon://download" press=".onExport"/>
+        <Button text="Add to story" icon="sap-icon://add-document" type="Emphasized" press=".onAddToStory"/>
+      </OverflowToolbar>
+    </subHeader>
+    <content>
+      <HBox class="zsacDesigner" renderType="Bare">
+        <ScrollContainer id="left" class="zsacPalette" vertical="true" width="22rem">
+          <zd:BuilderPanel id="builder" change=".onChange"/>
+        </ScrollContainer>
+        <ScrollContainer class="zsacStage" vertical="true">
+          <VBox id="result" class="zsacAnalysis"/>
+        </ScrollContainer>
+      </HBox>
+    </content>
+  </Page>
+</mvc:View>

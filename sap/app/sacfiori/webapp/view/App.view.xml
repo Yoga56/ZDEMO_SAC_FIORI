@@ -1,0 +1,43 @@
+<mvc:View controllerName="zsac.fiori.controller.App"
+  xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:tnt="sap.tnt" xmlns:core="sap.ui.core" displayBlock="true" height="100%">
+  <tnt:ToolPage id="toolPage" class="zsacShell">
+    <tnt:header>
+      <tnt:ToolHeader>
+        <Button icon="sap-icon://menu2" type="Transparent" press=".onToggleSide" tooltip="Navigation"/>
+        <Image src="https://upload.wikimedia.org/wikipedia/commons/5/59/SAP_2011_logo.svg" height="1.5rem" visible="false"/>
+        <Title text="Analytics and Planning" level="H2" wrapping="false"/>
+        <ToolbarSpacer/>
+        <Text id="providerBadge" class="zsacProvider"/>
+        <Button icon="sap-icon://refresh" type="Transparent" press=".onResetMock" tooltip="Reset sample data" id="resetBtn" visible="false"/>
+        <Button icon="sap-icon://action-settings" type="Transparent" press=".onTheme" tooltip="Toggle light / dark"/>
+        <Avatar initials="WA" displaySize="XS" tooltip="Planner"/>
+      </tnt:ToolHeader>
+    </tnt:header>
+    <tnt:sideContent>
+      <tnt:SideNavigation id="side" selectedKey="home" itemSelect=".onNavSelect">
+        <tnt:NavigationList>
+          <tnt:NavigationListItem text="Home" icon="sap-icon://home" key="home"/>
+          <tnt:NavigationListItem text="Files" icon="sap-icon://folder-full" key="files"/>
+          <tnt:NavigationListItem text="Apps" icon="sap-icon://grid" expanded="true" selectable="false">
+            <tnt:NavigationListItem text="Stories" icon="sap-icon://business-objects-experience" key="stories"/>
+            <tnt:NavigationListItem text="Data Analyser" icon="sap-icon://pie-chart" key="analyser"/>
+            <tnt:NavigationListItem text="Datasets" icon="sap-icon://database" key="datasets"/>
+            <tnt:NavigationListItem text="Planning" icon="sap-icon://projector" key="planning"/>
+            <tnt:NavigationListItem text="Data Actions" icon="sap-icon://workflow-tasks" key="dataactions"/>
+            <tnt:NavigationListItem text="Multi Actions" icon="sap-icon://process" key="multiactions"/>
+            <tnt:NavigationListItem text="Calendar" icon="sap-icon://calendar" key="calendar"/>
+          </tnt:NavigationListItem>
+        </tnt:NavigationList>
+        <tnt:fixedItem>
+          <tnt:NavigationList>
+            <tnt:NavigationListItem text="Predictive Scenarios" icon="sap-icon://lightbulb" key="soon1" enabled="false"/>
+            <tnt:NavigationListItem text="Compass" icon="sap-icon://compass" key="soon2" enabled="false"/>
+          </tnt:NavigationList>
+        </tnt:fixedItem>
+      </tnt:SideNavigation>
+    </tnt:sideContent>
+    <tnt:mainContents>
+      <NavContainer id="pages" defaultTransitionName="show"/>
+    </tnt:mainContents>
+  </tnt:ToolPage>
+</mvc:View>

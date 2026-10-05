@@ -1,0 +1,75 @@
+<mvc:View controllerName="zsac.fiori.controller.DataActions" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" height="100%">
+  <ScrollContainer height="100%" vertical="true">
+    <VBox class="zsacPage">
+      <HBox class="zsacTwoPane">
+        <VBox class="zsacMaster">
+          <List id="list" items="{list>/items}" mode="SingleSelectMaster" selectionChange=".onSelect" noDataText="No data actions">
+            <headerToolbar>
+              <OverflowToolbar>
+                <Title text="Data Actions" level="H4"/>
+                <ToolbarSpacer/>
+                <Button icon="sap-icon://add" text="New" press=".onNew"/>
+              </OverflowToolbar>
+            </headerToolbar>
+            <StandardListItem title="{list>Name}" description="{list>ModelId}" icon="sap-icon://workflow-tasks"/>
+          </List>
+        </VBox>
+        <VBox class="zsacDetail" id="detail" visible="false">
+          <OverflowToolbar style="Clear">
+            <Title text="{a>/Name}" level="H3"/>
+            <ToolbarSpacer/>
+            <Button text="Run" icon="sap-icon://play" press=".onRun" type="Emphasized"/>
+            <Button text="Save" icon="sap-icon://save" press=".onSave"/>
+            <Button icon="sap-icon://delete" press=".onDelete" tooltip="Delete"/>
+          </OverflowToolbar>
+          <HBox wrap="Wrap" class="sapUiSmallMarginBottom">
+            <VBox class="sapUiSmallMarginEnd"><Label text="Name" required="true"/><Input value="{a>/Name}" width="16rem"/></VBox>
+            <VBox class="sapUiSmallMarginEnd"><Label text="Model" required="true"/>
+              <Select id="model" selectedKey="{a>/ModelId}" change=".onModel" width="12rem" items="{path: 'ver>/models', templateShareable: false}"><core:Item key="{ver>ModelId}" text="{ver>Name}"/></Select></VBox>
+            <VBox><Label text="Description"/><Input value="{a>/Description}" width="24rem"/></VBox>
+          </HBox>
+          <Table items="{a>/Steps}" noDataText="Add a step">
+            <headerToolbar>
+              <OverflowToolbar>
+                <Title text="Steps (run in order)" level="H5"/>
+                <ToolbarSpacer/>
+                <Button text="Add step" icon="sap-icon://add" press=".onAddStep"/>
+              </OverflowToolbar>
+            </headerToolbar>
+            <columns>
+              <Column width="4rem"><Text text="No."/></Column>
+              <Column width="9rem"><Text text="Type"/></Column>
+              <Column width="10rem"><Text text="From version"/></Column>
+              <Column width="10rem"><Text text="To version"/></Column>
+              <Column width="6rem"><Text text="Factor"/></Column>
+              <Column width="11rem"><Text text="Filter"/></Column>
+              <Column width="13rem"><Text text="Allocate over"/></Column>
+              <Column width="3rem"/>
+            </columns>
+            <items>
+              <ColumnListItem vAlign="Middle">
+                <cells>
+                  <Input value="{a>StepNo}" type="Number"/>
+                  <Select selectedKey="{a>StepType}">
+                    <core:Item key="COPY" text="Copy"/><core:Item key="SCALE" text="Scale"/><core:Item key="DELETE" text="Delete"/><core:Item key="ALLOCATE" text="Allocate"/>
+                  </Select>
+                  <Select selectedKey="{a>SrcVersion}" items="{path: 'ver>/versions', templateShareable: false}" enabled="{= ['COPY','ALLOCATE'].indexOf(${a>StepType}) >= 0}" forceSelection="false">
+                    <core:Item key="{ver>VersionId}" text="{ver>VersionId}"/></Select>
+                  <Select selectedKey="{a>TgtVersion}" items="{path: 'ver>/versions', templateShareable: false}" forceSelection="false">
+                    <core:Item key="{ver>VersionId}" text="{ver>VersionId}"/></Select>
+                  <Input value="{a>Factor}" type="Number" enabled="{= ['COPY','SCALE'].indexOf(${a>StepType}) >= 0}"/>
+                  <Button text="{= ${a>FilterText} || 'All data'}" press=".onFilter" type="Transparent" tooltip="Edit filter"/>
+                  <VBox visible="{= ${a>StepType} === 'ALLOCATE'}">
+                    <Select selectedKey="{a>TargetDim}" items="{path: 'ver>/dims', templateShareable: false}" forceSelection="false"><core:Item key="{ver>DimId}" text="{ver>Label}"/></Select>
+                    <Input value="{a>TargetMembersText}" placeholder="A, B, C"/>
+                  </VBox>
+                  <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveStep"/>
+                </cells>
+              </ColumnListItem>
+            </items>
+          </Table>
+        </VBox>
+      </HBox>
+    </VBox>
+  </ScrollContainer>
+</mvc:View>

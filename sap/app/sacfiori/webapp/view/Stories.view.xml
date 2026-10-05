@@ -1,0 +1,34 @@
+<mvc:View controllerName="zsac.fiori.controller.Stories" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
+  <ScrollContainer height="100%" vertical="true">
+    <VBox class="zsacPage">
+      <Table id="table" items="{view>/items}" noDataText="No stories yet. Create one." sticky="ColumnHeaders,HeaderToolbar">
+        <headerToolbar>
+          <OverflowToolbar>
+            <Title text="Stories" level="H3"/>
+            <ToolbarSpacer/>
+            <Button text="Create story" icon="sap-icon://add" type="Emphasized" press=".onCreate"/>
+          </OverflowToolbar>
+        </headerToolbar>
+        <columns>
+          <Column><Text text="Name"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Model"/></Column>
+          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Status"/></Column>
+          <Column hAlign="End" width="9rem"><Text text=""/></Column>
+        </columns>
+        <items>
+          <ColumnListItem type="Navigation" press=".onOpen">
+            <cells>
+              <ObjectIdentifier title="{view>Name}" text="{view>Description}"/>
+              <Text text="{view>ModelId}"/>
+              <ObjectStatus text="{= ${view>Status} === 'P' ? 'Published' : 'Draft'}" state="{= ${view>Status} === 'P' ? 'Success' : 'None'}"/>
+              <HBox justifyContent="End">
+                <Button icon="sap-icon://duplicate" type="Transparent" press=".onDuplicate" tooltip="Duplicate"/>
+                <Button icon="sap-icon://delete" type="Transparent" press=".onDelete" tooltip="Delete"/>
+              </HBox>
+            </cells>
+          </ColumnListItem>
+        </items>
+      </Table>
+    </VBox>
+  </ScrollContainer>
+</mvc:View>

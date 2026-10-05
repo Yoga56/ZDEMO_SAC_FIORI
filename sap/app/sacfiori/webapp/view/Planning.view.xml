@@ -1,0 +1,40 @@
+<mvc:View controllerName="zsac.fiori.controller.Planning" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:zp="zsac.lib.planning" xmlns:zw="zsac.lib.widget" height="100%">
+  <Page showHeader="false" enableScrolling="true" class="sapUiNoContentPadding">
+    <subHeader>
+      <OverflowToolbar>
+        <Title text="Planning" level="H3"/>
+        <ToolbarSeparator/>
+        <Select id="model" change=".onModel" width="11rem" tooltip="Model"/>
+        <Select id="version" change=".onVersion" width="13rem" tooltip="Version"/>
+        <Select id="measure" change=".onMeasure" width="9rem" tooltip="Measure"/>
+        <Button icon="sap-icon://add-document" tooltip="New public version" press=".onNewPublic" type="Transparent"/>
+        <ToolbarSeparator/>
+        <Button id="newPriv" text="Private version" icon="sap-icon://create-session" press=".onNewPrivate"/>
+        <Button id="publish" text="Publish" icon="sap-icon://upload-to-cloud" press=".onPublish" enabled="false"/>
+        <Button id="revert" icon="sap-icon://undo" tooltip="Revert to source" press=".onRevert" enabled="false"/>
+        <Button id="discard" icon="sap-icon://delete" tooltip="Discard private version" press=".onDiscard" enabled="false"/>
+        <ToolbarSpacer/>
+        <Button id="addRow" text="Add row" icon="sap-icon://add" press=".onAddRow"/>
+        <MenuButton id="actions" text="Run data action" icon="sap-icon://workflow-tasks" type="Emphasized"/>
+      </OverflowToolbar>
+    </subHeader>
+    <content>
+      <VBox class="zsacPage">
+        <MessageStrip id="lockStrip" type="Information" showIcon="true" visible="false" class="sapUiSmallMarginBottom"/>
+        <HBox alignItems="Stretch" wrap="Wrap" class="sapUiSmallMarginBottom">
+          <zw:WidgetCard id="kpiCard" title="Total" class="zsacTile">
+            <zw:KpiTile id="kpi" format="full"/>
+          </zw:WidgetCard>
+          <VBox class="zsacTile" width="14rem">
+            <Label text="Compare with"/>
+            <Select id="compare" change=".onCompare" width="100%"/>
+          </VBox>
+          <zw:WidgetCard id="chartCard" title="By period" class="zsacTile zsacPlanChart">
+            <zw:SvgChart id="chart" type="chart.line"/>
+          </zw:WidgetCard>
+        </HBox>
+        <zp:PlanningTable id="table" cellChange=".onCell"/>
+      </VBox>
+    </content>
+  </Page>
+</mvc:View>
