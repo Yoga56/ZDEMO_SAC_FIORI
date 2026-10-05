@@ -310,7 +310,7 @@ sap.ui.define([
         const isNew = this._m.getProperty("/isNew");
         if (isNew && (await p.listModels()).some((m) => m.ModelId === model.ModelId)) { throw new Error("A model with ID " + model.ModelId + " already exists"); }
         await p.saveModel(model);
-        if (isNew) {
+        if (isNew && !(model.Source && model.Source.Mode === "LIVE")) {   // a live model has its one version from the source
           for (const v of [["ACT", "Actual", "ACTUAL", true], ["BUD", "Budget", "BUDGET", false], ["FCT", "Forecast", "FORECAST", false]]) {
             await p.saveVersion({ ModelId: model.ModelId, VersionId: v[0], Name: v[1], Category: v[2], Locked: v[3], Owner: "SYSTEM", SourceVersion: "", Status: "P" });
           }

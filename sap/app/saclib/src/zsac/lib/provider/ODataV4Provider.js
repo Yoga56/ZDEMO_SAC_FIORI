@@ -207,14 +207,8 @@ sap.ui.define([
     async saveVersion(v) {
       const key = "/Version(ModelId=" + quote(v.ModelId) + ",VersionId=" + quote(v.VersionId) + ")";
       const fields = { VersionName: v.Name, Category: v.Category, Locked: !!v.Locked, OwnerId: v.Owner || "", SourceVersion: v.SourceVersion || "", Status: v.Status || "P" };
-      let missing = false;
-      try { await this._patch(key, fields); } catch (e) {
-        if (!(e && (e.status === 404 || /not found|404/i.test(e.message || "")))) { throw e; }
-        missing = true;
-      }
-      if (missing) {
-        await this._post("/Version", Object.assign({ ModelId: v.ModelId, VersionId: v.VersionId }, fields));
-      }
+      const exists = (await this._list("/Version", [new Filter("ModelId", FilterOperator.EQ, v.ModelId), new Filter("VersionId", FilterOperator.EQ, v.VersionId)])).length > 0;
+      if (exists) { await this._patch(key, fields); } else { await this._post("/Version", Object.assign({ ModelId: v.ModelId, VersionId: v.VersionId }, fields)); }
       return v;
     }
     async createPrivateVersion(modelId, fromVersionId, name) {
