@@ -1,4 +1,4 @@
-# Same as ui5.yaml, but the /sap backend is the destination my402225 (the system where the CDS data and the app backend live).
+# Same as ui5.yaml, but the /sap backend is the destination S4_402225_DEV (the system where the CDS data and the app backend live).
 specVersion: "3.1"
 metadata:
   name: zsac.fiori
@@ -22,6 +22,6 @@ server:
           version: 1.136.0
         backend:
           - path: /sap
-            destination: my402225
+            destination: S4_402225_DEV
     - name: fiori-tools-appreload
       afterMiddleware: compression

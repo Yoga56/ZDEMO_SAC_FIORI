@@ -8,7 +8,7 @@ builder:
       afterTask: generateCachebusterInfo
       configuration:
         target:
-          destination: my402225
+          destination: S4_402225_DEV
         app:
           name: ZSAC_FIORI
           description: Analytics and Planning (SAC style)
