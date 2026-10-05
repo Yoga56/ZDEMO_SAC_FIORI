@@ -40,7 +40,8 @@ CLASS lhc_version IMPLEMENTATION.
       DATA(new_id) = zcl_sac_version_engine=>next_private_id( model_id ).
       MODIFY ENTITIES OF zr_sac_version IN LOCAL MODE
         ENTITY version
-          CREATE SET FIELDS WITH VALUE #( ( %cid = 'PRIVATE' ModelId = model_id VersionId = new_id
+          CREATE FIELDS ( ModelId VersionId VersionName Category Locked OwnerId SourceVersion Status )
+          WITH VALUE #( ( %cid = 'PRIVATE' ModelId = model_id VersionId = new_id
                                             VersionName = COND #( WHEN key-%param-VersionName IS NOT INITIAL THEN key-%param-VersionName ELSE new_id )
                                             Category = 'PRIVATE' Locked = abap_false OwnerId = sy-uname
                                             SourceVersion = source Status = 'D' ) )

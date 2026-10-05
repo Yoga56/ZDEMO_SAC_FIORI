@@ -171,7 +171,7 @@ CLASS zcl_sac_fact_writer IMPLEMENTATION.
     IF local_mode = abap_true.
       MODIFY ENTITIES OF zr_sac_fact IN LOCAL MODE
         ENTITY Fact
-          CREATE SET FIELDS WITH creates
+          CREATE FIELDS ( ModelId VersionId Period Measure Dim1 Dim2 Dim3 Dim4 Dim5 Value ) WITH creates
           UPDATE FIELDS ( Value ) WITH updates
           DELETE FROM removes
         FAILED DATA(failed_local)
@@ -179,7 +179,7 @@ CLASS zcl_sac_fact_writer IMPLEMENTATION.
     ELSE.
       MODIFY ENTITIES OF zr_sac_fact
         ENTITY Fact
-          CREATE SET FIELDS WITH creates
+          CREATE FIELDS ( ModelId VersionId Period Measure Dim1 Dim2 Dim3 Dim4 Dim5 Value ) WITH creates
           UPDATE FIELDS ( Value ) WITH updates
           DELETE FROM removes
         FAILED DATA(failed_global)
