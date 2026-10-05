@@ -17,6 +17,7 @@
     <item>/sap/src/*.sia7.xml</item>
     <item>/sap/src/*.sush.xml</item>
     <item>/sap/src/*.uiad.xml</item>
+    <item>/sap/src/*.uiad.json</item>
     <item>/sap/src/*.wapa.xml</item>
     <item>/sap/src/*.wapa.*.xml</item>
    </IGNORE>
