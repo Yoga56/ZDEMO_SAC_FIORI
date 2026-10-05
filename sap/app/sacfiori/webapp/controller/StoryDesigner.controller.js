@@ -27,6 +27,8 @@ sap.ui.define([
       const canvas = this.byId("canvas");
       canvas.setPage(story.Pages[0].Id);
       canvas.setContext({ provider: p, story });
+      this.byId("plan").attach({ plan: canvas.getPlan(), provider: p, onChange: () => canvas.refreshAll() });
+      this.byId("plan").setVisible(canvas.hasPlanning());
       this.byId("title").setText(story.Name);
       this.byId("name").setValue(story.Name);
       this._pages();
@@ -133,7 +135,7 @@ sap.ui.define([
     onDuplicateWidget() { const w = this.byId("canvas").getSelected(); if (w) { this.byId("canvas").duplicateWidget(w.Id); } },
 
     // ---- story ---------------------------------------------------------------------------
-    onStoryChange() { this._dirty = true; this._status(); },
+    onStoryChange() { this._dirty = true; this._status(); this.byId("plan").setVisible(this.byId("canvas").hasPlanning()); },
 
     onName(e) { this._story.Name = e.getParameter("value"); this.byId("title").setText(this._story.Name); this.onStoryChange(); },
 

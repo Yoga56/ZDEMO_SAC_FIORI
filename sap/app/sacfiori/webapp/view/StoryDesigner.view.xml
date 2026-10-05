@@ -1,4 +1,4 @@
-<mvc:View controllerName="zsac.fiori.controller.StoryDesigner" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:zd="zsac.lib.designer" height="100%">
+<mvc:View controllerName="zsac.fiori.controller.StoryDesigner" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:zd="zsac.lib.designer" xmlns:zp="zsac.lib.planning" height="100%">
   <Page showHeader="false" enableScrolling="false" class="sapUiNoContentPadding">
     <subHeader>
       <OverflowToolbar>
@@ -29,7 +29,10 @@
       <HBox class="zsacDesigner" renderType="Bare">
         <VBox id="palette" class="zsacPalette" renderType="Bare" visible="false"/>
         <ScrollContainer class="zsacStage" vertical="true" horizontal="false">
-          <zd:StoryCanvas id="canvas" selectionChange=".onSelect" storyChange=".onStoryChange"/>
+          <VBox>
+            <zp:PlanToolbar id="plan" visible="false"/>
+            <zd:StoryCanvas id="canvas" selectionChange=".onSelect" storyChange=".onStoryChange"/>
+          </VBox>
         </ScrollContainer>
         <ScrollContainer id="right" class="zsacRight" vertical="true" visible="false">
           <zd:BuilderPanel id="builder" change=".onBuilderChange"/>

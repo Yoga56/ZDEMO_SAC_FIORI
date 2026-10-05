@@ -39,5 +39,17 @@ sap.ui.define([], function () {
     return { max: step * Math.ceil(max / step), step };
   }
 
-  return { esc, compact, full, percent, truncate, niceScale };
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  /** Member of the Date dimension for display: "2026" > "Q1 2026" > "Mar 2026"; anything else unchanged. */
+  function period(id) {
+    const s = String(id);
+    let m = /^(\d{4})-Q([1-4])$/.exec(s);
+    if (m) { return "Q" + m[2] + " " + m[1]; }
+    m = /^(\d{4})-(\d{2})$/.exec(s);
+    if (m && +m[2] >= 1 && +m[2] <= 12) { return MONTHS[+m[2] - 1] + " " + m[1]; }
+    return s;
+  }
+
+  return { esc, compact, full, percent, truncate, niceScale, period };
 });

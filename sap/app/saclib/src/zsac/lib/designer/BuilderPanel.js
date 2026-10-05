@@ -72,16 +72,17 @@ sap.ui.define([
         return;
       }
       const def = WidgetRegistry.get(widget.Type);
-      const [models, model, versions] = await Promise.all([
+      const [models, model, versions, actions] = await Promise.all([
         provider.listModels(),
         widget.Binding && widget.Binding.ModelId ? provider.getModel(widget.Binding.ModelId).catch(() => null) : Promise.resolve(null),
-        widget.Binding && widget.Binding.ModelId ? provider.listVersions(widget.Binding.ModelId).catch(() => []) : Promise.resolve([])
+        widget.Binding && widget.Binding.ModelId ? provider.listVersions(widget.Binding.ModelId).catch(() => []) : Promise.resolve([]),
+        provider.listDataActions().catch(() => [])
       ]);
       if (token !== this._token) { return; }
       const form = new VBox({ width: "100%" }).addStyleClass("zsacBuilderForm");
       form.addItem(new Title({ text: def ? def.name : widget.Type, level: "H5" }));
       (def ? def.builder : []).forEach((f) => {
-        const field = this._field(f, widget, { models, model, versions });
+        const field = this._field(f, widget, { models, model, versions, actions: actions.filter((a) => widget.Binding && a.ModelId === widget.Binding.ModelId) });
         if (field) {
           form.addItem(new Label({ text: f.label, design: "Bold" }).addStyleClass("sapUiSmallMarginTop"));
           form.addItem(field);
@@ -102,6 +103,20 @@ sap.ui.define([
         case "textarea": return new TextArea({ value: val || "", width: "100%", rows: 3, change: (e) => this._set(f.key, e.getParameter("value")) });
         case "number": return new StepInput({ value: val === undefined ? Number(f.default) || 0 : Number(val) || 0, min: f.min || 0, width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
         case "hierarchies": return this._hierarchies(f, widget, env);
+        case "dataaction": {
+          const sel = new Select({ width: "100%", selectedKey: val || "", forceSelection: false });
+          sel.addItem(new Item({ key: "", text: "(none)" }));
+          env.actions.forEach((a) => sel.addItem(new Item({ key: a.Id, text: a.Name })));
+          sel.attachChange((e) => this._set(f.key, e.getParameter("selectedItem").getKey()));
+          return sel;
+        }
+        case "attributes": {
+          const box = new MultiComboBox({ width: "100%", selectedKeys: val || [], placeholder: "None" });
+          const seen = new Set();
+          dims.forEach((d) => (d.Attributes || []).forEach((a) => { if (!seen.has(a.Id)) { seen.add(a.Id); box.addItem(new Item({ key: a.Id, text: a.Label || a.Id })); } }));
+          box.attachSelectionFinish((e) => this._set(f.key, e.getParameter("selectedItems").map((i) => i.getKey())));
+          return box;
+        }
         case "bool": return new CheckBox({ selected: val === undefined ? !!f.default : !!val, select: (e) => this._set(f.key, e.getParameter("selected")) });
         case "select": {
           const sel = new Select({ width: "100%", selectedKey: val || f.options[0][0], change: (e) => this._set(f.key, e.getParameter("selectedItem").getKey()) });
@@ -165,7 +180,9 @@ sap.ui.define([
     _hierarchies(f, widget, env) {
       const box = new VBox({ width: "100%" });
       const dims = ((env.model && env.model.Dimensions) || []).filter((d) => (d.Hierarchies || []).length);
-      if (!dims.length) { box.addItem(new Text({ text: "This model has no hierarchies (define them in the Modeller)." }).addStyleClass("zsacSmall")); return box; }
+      // the Date dimension has a built-in hierarchy
+      dims.unshift({ DimId: "PERIOD", Label: "Date", Hierarchies: [{ Id: "TIME", Label: "Year > Quarter > Month" }] });
+      if (!env.model) { box.addItem(new Text({ text: "Choose a model first." }).addStyleClass("zsacSmall")); return box; }
       const current = getPath(widget, f.key) || {};
       dims.forEach((d) => {
         box.addItem(new Text({ text: d.Label }).addStyleClass("zsacSmall"));

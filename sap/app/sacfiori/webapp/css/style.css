@@ -26,3 +26,7 @@
 .zsacMetric { width: 16rem; height: 8rem; }
 .zsacRightWide { width: 26rem; }
 .zsacCalcNote { align-items: center; text-align: center; padding: 4rem 2rem; color: var(--sapContent_LabelColor, #556b82); }
+
+.zsacPlanCard { width: 100%; max-height: calc(100vh - 22rem); min-height: 14rem; }
+
+.zsacPlanCard { width: 100%; max-height: calc(100vh - 22rem); min-height: 14rem; }

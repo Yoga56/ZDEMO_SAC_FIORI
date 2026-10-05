@@ -79,7 +79,7 @@ sap.ui.define(["./QueryEngine"], function (QueryEngine) {
      */
     async query(spec) {
       const model = await this.getModel(spec.ModelId);
-      const facts = await this.readFacts(spec.ModelId, spec.Filters || {});
+      const facts = await this.readFacts(spec.ModelId, QueryEngine.expandFilters(model, spec.Filters || {}));
       const result = QueryEngine.aggregate(model, facts, {
         rows: spec.Rows || [], columns: spec.Columns || [], filters: spec.Filters || {}, hierarchies: spec.Hierarchies || {}
       });

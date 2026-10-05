@@ -15,7 +15,7 @@
 |---|---|---|
 | core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `HierarchyEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
 | provider | `MockProvider`, `ODataV4Provider`, `mockdata/*.json` | data sources |
-| planning | `DataActionEngine`, `VersionEngine`, `PlanningTable` | planning semantics and the editable grid |
+| planning | `DataActionEngine`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
 | widget | `SvgChart` + `ChartBuilders`/`ChartData`, `KpiTile`, `PivotTable`, `WidgetCard`, `Widgets` (registrations) | what a story shows |
 | designer | `StoryCanvas`, `StoryViewer`, `BuilderPanel`, `FilterEditor` | grid, drag and resize, viewer, generated forms |
 
@@ -94,6 +94,24 @@ supported in these text formats.
 Rules enforced on the server: a locked version (Actual) cannot be written by `WriteFacts` or a data action; publish needs an
 unlocked target; deleting a version deletes its facts; a story needs a name; a model has 1 to 5 dimensions with unique slots and a measure.
 
+### Planning session (stories and the Planning page)
+
+* **Unpublished buffer.** Typing goes to a `PlanBuffer` (one per story page or per Planning page), not to the provider. The buffer holds the changed facts,
+  supports undo and redo (a spread over many facts is one step) and warns before the page is left. **Publish Data** (`PlanPublisher`) writes the
+  changes model by model through the provider (and into the audit log) and empties the buffer; Discard drops it.
+* **Everything on the page shows the buffer.** Charts, KPIs and tables query with the unpublished changes applied; the planning grid marks changed cells.
+* **Planning table (`PlanGrid`).** Rows and columns are any dimensions, each optionally on a hierarchy; the Date dimension has the built-in hierarchy
+  `TIME` (year, quarter, month) with expand and collapse in the column headers. Attribute columns come from the row dimension's master data.
+* **Editing rules (`PlanEditor`).** A cell is editable when the table is editable, the model has planning enabled, exactly one version and one measure are in
+  scope, the version is not locked and the measure is not a count or an exception-aggregated measure. A value typed into a leaf cell writes that fact; into an
+  aggregated cell (parent node, year, quarter) it is **spread** over the facts below (`Spreader`: proportional for SUM, equal parts when the current sum is
+  zero, every fact takes the value for AVG/MIN/MAX). An empty cell creates a fact only when every dimension has one leaf member. The Add row action creates
+  zero facts for every month.
+* **Data action trigger widget.** A button with parameter inputs (members of chosen dimensions become the data filter parameter). A data action runs on
+  published data, so unpublished changes are published first after a confirmation; the page reloads afterwards.
+* **Planning page.** Model, version and measure pickers around the same planning table widget; version work (private copy, publish a version, revert, lock,
+  data actions) asks to publish the buffer first.
+
 ### Planning semantics (JS and ABAP twins)
 
 * Data action steps: COPY (source to target times factor), SCALE (target times factor), DELETE (target slice), ALLOCATE (sum of the
@@ -109,4 +127,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Authorization is open to every user (`get_global_authorizations` is empty, no DCL). Add owner and sharing rules per customer.
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
+* Planning: no Distribute Values dialog, formula bar or copy/paste yet; Version Management and Version History are toolbar buttons and the Data Audit dialog, not SAC's dialogs; the unpublished buffer is per browser page (not shared, not saved).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

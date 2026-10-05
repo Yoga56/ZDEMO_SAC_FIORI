@@ -82,5 +82,35 @@ sap.ui.define([], function () {
     return Array.from(new Set(problems));
   }
 
-  return { build, validate, idOf };
+  /** "2026-01" .. "2026-03" ... for an inclusive month range. */
+  function monthRange(from, to) {
+    const out = [];
+    if (!/^\d{4}-\d{2}$/.test(from || "") || !/^\d{4}-\d{2}$/.test(to || "")) { return out; }
+    let y = +from.slice(0, 4); let m = +from.slice(5);
+    const ey = +to.slice(0, 4); const em = +to.slice(5);
+    while (y < ey || (y === ey && m <= em)) { out.push(y + "-" + String(m).padStart(2, "0")); m++; if (m > 12) { m = 1; y++; } }
+    return out;
+  }
+
+  /**
+   * The built-in Date hierarchy: year ("2026") > quarter ("2026-Q1") > month ("2026-03"). Same interface as build();
+   * it is used for the PERIOD dimension with hierarchy id "TIME".
+   */
+  function buildTime(periods) {
+    const months = Array.from(new Set(periods)).filter((p) => /^\d{4}-\d{2}$/.test(p)).sort();
+    const members = [];
+    const parents = {};
+    const seen = new Set();
+    months.forEach((p) => {
+      const y = p.slice(0, 4);
+      const q = y + "-Q" + (Math.floor((+p.slice(5) - 1) / 3) + 1);
+      if (!seen.has(y)) { seen.add(y); members.push({ Id: y }); }
+      if (!seen.has(q)) { seen.add(q); members.push({ Id: q }); parents[q] = y; }
+      members.push({ Id: p });
+      parents[p] = q;
+    });
+    return build({ Members: members, Hierarchies: [{ Id: "TIME", Label: "Year > Quarter > Month", Parents: parents }] }, "TIME");
+  }
+
+  return { build, buildTime, monthRange, validate, idOf };
 });

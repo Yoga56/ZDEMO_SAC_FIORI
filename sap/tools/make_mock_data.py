@@ -181,7 +181,26 @@ def stories():
                          "Hierarchies": {"DEPARTMENT": "ORG"}}, "Props": {"ExpandLevel": 2}},
         ],
     }
-    return [sales, opex]
+    plan = {
+        "Id": "STORY_PLAN", "Name": "Sales Planning", "Description": "Plan revenue on the forecast version: edit, spread, publish",
+        "ModelId": "SALES_PLAN", "Status": "D", "Pages": [{"Id": 1, "Title": "Plan"}], "Filters": {},
+        "Widgets": [
+            {"Id": "P1", "Page": 1, "Type": "text", "Title": "Sales Planning", "X": 0, "Y": 0, "W": 12, "H": 1, "Binding": {}, "Props": {"Text": "Type into any cell. A year, a quarter or a region total is spread over the numbers below it. Changes stay unpublished until you press Publish Data."}},
+            {"Id": "P2", "Page": 1, "Type": "kpi", "Title": "Forecast revenue (incl. unpublished changes)", "X": 0, "Y": 1, "W": 4, "H": 2,
+             "Binding": {"ModelId": "SALES_PLAN", "Rows": [], "Columns": [], "Measure": "REVENUE", "Filters": {"VERSION": ["FCT"]}}, "Props": {"CompareVersion": "BUD", "Format": "compact"}},
+            {"Id": "P3", "Page": 1, "Type": "dataaction.trigger", "Title": "", "X": 4, "Y": 1, "W": 4, "H": 2,
+             "Binding": {"ModelId": "SALES_PLAN", "Rows": [], "Columns": [], "Measure": "", "Filters": {}}, "Props": {"ActionId": "DA_FORECAST_FROM_ACT", "Subtitle": "Copies actuals into the forecast, then adds 5% for Q3", "ParamDims": ["REGION"]}},
+            {"Id": "P4", "Page": 1, "Type": "filter", "Title": "Product", "X": 8, "Y": 1, "W": 4, "H": 2,
+             "Binding": {"ModelId": "SALES_PLAN", "Rows": [], "Columns": [], "Measure": "", "Filters": {}}, "Props": {"Dimension": "PRODUCT"}},
+            {"Id": "P5", "Page": 1, "Type": "planning.table", "Title": "Revenue forecast by region and month", "X": 0, "Y": 3, "W": 12, "H": 7,
+             "Binding": {"ModelId": "SALES_PLAN", "Rows": ["REGION"], "Columns": ["PERIOD"], "Measure": "REVENUE", "Filters": {"VERSION": ["FCT"]},
+                         "Hierarchies": {"PERIOD": "TIME", "REGION": "GEO"}},
+             "Props": {"Editable": True, "ExpandRows": 3, "ExpandCols": 2, "ShowTotals": True, "Attributes": []}},
+            {"Id": "P6", "Page": 1, "Type": "chart.line", "Title": "Revenue by version", "X": 0, "Y": 10, "W": 12, "H": 4,
+             "Binding": {"ModelId": "SALES_PLAN", "Rows": ["PERIOD"], "Columns": ["VERSION"], "Measure": "REVENUE", "Filters": {"VERSION": ["ACT", "BUD", "FCT"], "MEASURE": ["REVENUE"]}}, "Props": {}},
+        ],
+    }
+    return [sales, opex, plan]
 
 
 def dataactions():
@@ -212,6 +231,7 @@ def files():
         f("F_FOLDER_FIN", "FOLDER", "", "Finance", "Finance content"),
         f("F_STORY_STORY_SALES", "STORY", "STORY_SALES", "Sales Performance", "Actual vs budget revenue", True, True, "F_FOLDER_FIN"),
         f("F_STORY_STORY_OPEX", "STORY", "STORY_OPEX", "Opex Review", "Operating expense by department", False, False, "F_FOLDER_FIN"),
+        f("F_STORY_STORY_PLAN", "STORY", "STORY_PLAN", "Sales Planning", "Plan revenue on the forecast version", True, False, "F_FOLDER_FIN"),
         f("F_MODEL_SALES_PLAN", "MODEL", "SALES_PLAN", "Sales Plan", "Revenue and cost by region, product and channel", True),
         f("F_MODEL_OPEX_PLAN", "MODEL", "OPEX_PLAN", "Opex Plan", "Operating expense by department and account"),
         f("F_DATAACTION_DA_FORECAST_FROM_ACT", "DATAACTION", "DA_FORECAST_FROM_ACT", "Forecast Q4 from run-rate", "", False, True),

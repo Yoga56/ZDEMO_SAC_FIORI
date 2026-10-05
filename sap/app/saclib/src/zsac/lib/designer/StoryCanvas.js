@@ -11,8 +11,9 @@ sap.ui.define([
   "../core/StorySchema",
   "../core/EventBus",
   "../core/FilterEngine",
+  "../planning/PlanBuffer",
   "../widget/Widgets"
-], function (Control, WidgetRegistry, StorySchema, EventBus, FilterEngine, Widgets) {
+], function (Control, WidgetRegistry, StorySchema, EventBus, FilterEngine, PlanBuffer, Widgets) {
   "use strict";
 
   const GAP = 12;
@@ -38,6 +39,27 @@ sap.ui.define([
       this._story = null;
       this._provider = null;
       this._bus.on("filter", (e) => this._onFilter(e));
+      this._bus.on("refresh-all", () => this.refreshAll());
+      // the planning session of the page: unpublished changes that every widget shows
+      this._plan = new PlanBuffer();
+      this._plan.attachChange(() => {
+        clearTimeout(this._planTimer);
+        this._planTimer = setTimeout(() => this._refreshReaders(), 250);
+      });
+    },
+
+    exit() { clearTimeout(this._planTimer); },
+
+    getPlan() { return this._plan; },
+    hasPlanning() { return !!this._story && this._story.Widgets.some((w) => w.Type === "planning.table"); },
+
+    /** Widgets that only read (charts, KPIs, tables) follow the unpublished numbers; planning tables and inputs update themselves. */
+    _refreshReaders() {
+      const own = new Set(["planning.table", "filter", "text", "dataaction.trigger"]);
+      this.getCards().forEach((c) => {
+        const w = this._story && this._story.Widgets.find((x) => x.Id === c.getWidgetId());
+        if (w && !own.has(w.Type)) { c.refresh(); }
+      });
     },
 
     renderer: {
@@ -72,6 +94,7 @@ sap.ui.define([
     // ---- context ------------------------------------------------------------------------------
     setContext(ctx) {
       this._provider = ctx.provider;
+      if (!this._story || this._story.Id !== ctx.story.Id) { this._plan.clear(); }
       this._story = ctx.story;
       this._filters = JSON.parse(JSON.stringify(ctx.story.Filters || {}));
       this._selected = null;
@@ -87,7 +110,7 @@ sap.ui.define([
     _visible() { return this._story ? this._story.Widgets.filter((w) => w.Page === this.getPage()) : []; },
     _cardOf(id) { return this.getCards().find((c) => c.getWidgetId() === id); },
 
-    _ctx() { return { provider: this._provider, bus: this._bus, filters: this._filters }; },
+    _ctx() { return { provider: this._provider, bus: this._bus, filters: this._filters, plan: this._plan }; },
 
     _build(widget) {
       const def = WidgetRegistry.get(widget.Type);

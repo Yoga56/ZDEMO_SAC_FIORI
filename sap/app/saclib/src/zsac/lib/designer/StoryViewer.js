@@ -10,8 +10,9 @@ sap.ui.define([
   "sap/m/SegmentedButton",
   "sap/m/SegmentedButtonItem",
   "sap/m/MessageStrip",
-  "./StoryCanvas"
-], function (Control, VBox, SegmentedButton, SegmentedButtonItem, MessageStrip, StoryCanvas) {
+  "./StoryCanvas",
+  "../planning/PlanToolbar"
+], function (Control, VBox, SegmentedButton, SegmentedButtonItem, MessageStrip, StoryCanvas, PlanToolbar) {
   "use strict";
 
   return Control.extend("zsac.lib.designer.StoryViewer", {
@@ -62,6 +63,9 @@ sap.ui.define([
           const tabs = new SegmentedButton({ selectedKey: String(story.Pages[0].Id), selectionChange: (e) => this._canvas.setPageNumber(Number(e.getParameter("item").getKey())) });
           story.Pages.forEach((p) => tabs.addItem(new SegmentedButtonItem({ key: String(p.Id), text: p.Title })));
           layout.addItem(tabs.addStyleClass("sapUiSmallMarginBottom"));
+        }
+        if (this._canvas.hasPlanning()) {
+          layout.addItem(new PlanToolbar().attach({ plan: this._canvas.getPlan(), provider, onChange: () => this._canvas.refreshAll() }));
         }
         layout.addItem(this._canvas);
         this.setAggregation("_layout", layout);

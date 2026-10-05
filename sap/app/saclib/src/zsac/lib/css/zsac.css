@@ -90,3 +90,11 @@
 .zsacGrid2 td.zsacNode { white-space: nowrap; }
 .zsacGrid2 tr.zsacSubtotal td { font-weight: 600; background: var(--sapList_AlternatingBackground, #fafafa); }
 .zsacPivotCaption { margin-bottom: 0.25rem; }
+
+/* planning grid */
+.zsacPlanGrid th.zsacHdrLabel { text-align: right; color: var(--sapContent_LabelColor, #556b82); font-weight: 400; }
+.zsacPlanGrid th.zsacColNode { white-space: nowrap; }
+.zsacPlanGrid td.zsacAggCell, .zsacPlanGrid input.zsacAggCell { font-weight: 600; }
+.zsacPlanGrid input.zsacDirtyCell, .zsacPlanGrid td.zsacDirtyCell { background: var(--sapInformationBackground, #e1f0fc); }
+.zsacPlanBar { margin-bottom: 0.5rem; }
+.zsacTrigger { display: flex; flex-direction: column; gap: 0.5rem; }

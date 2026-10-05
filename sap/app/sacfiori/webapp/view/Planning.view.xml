@@ -23,6 +23,7 @@
     </subHeader>
     <content>
       <VBox class="zsacPage">
+        <zp:PlanToolbar id="planBar"/>
         <MessageStrip id="lockStrip" type="Information" showIcon="true" visible="false" class="sapUiSmallMarginBottom"/>
         <HBox alignItems="Stretch" wrap="Wrap" class="sapUiSmallMarginBottom">
           <zw:WidgetCard id="kpiCard" title="Total" class="zsacTile">
@@ -36,7 +37,7 @@
             <zw:SvgChart id="chart" type="chart.line"/>
           </zw:WidgetCard>
         </HBox>
-        <zp:PlanningTable id="table" cellChange=".onCell"/>
+        <VBox id="gridHost"/>
       </VBox>
     </content>
   </Page>

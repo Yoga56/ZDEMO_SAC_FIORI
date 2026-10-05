@@ -26,7 +26,8 @@ sap.ui.define([
       "zsac.lib.designer.StoryCanvas",
       "zsac.lib.designer.StoryViewer",
       "zsac.lib.designer.BuilderPanel",
-      "zsac.lib.planning.PlanningTable"
+      "zsac.lib.planning.PlanGrid",
+      "zsac.lib.planning.PlanToolbar"
     ],
     elements: [],
     noLibraryCSS: true

@@ -30,6 +30,37 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
     return dim ? (dim.Label || dim.DimId) : dimId;
   }
 
+  /** Months of the model plus any period the facts carry, so no fact falls out of the Date hierarchy. */
+  function periodList(model, facts) {
+    const set = new Set(HierarchyEngine.monthRange(model && model.PeriodFrom, model && model.PeriodTo));
+    facts.forEach((f) => set.add(f.Period));
+    return Array.from(set);
+  }
+
+  /** Filters with every hierarchy node (and year or quarter) replaced by its whole subtree, for providers that filter by plain members. */
+  function expandFilters(model, filters) {
+    const out = {};
+    Object.keys(filters || {}).forEach((dimId) => {
+      const members = (filters[dimId] || []).map(String);
+      if (!members.length) { return; }
+      const set = new Set(members);
+      if (dimId === "PERIOD") {
+        const time = HierarchyEngine.buildTime(periodList(model, []));
+        members.forEach((id) => time.descendants(id).forEach((x) => set.add(x)));
+        // a node is not a stored period: keep only months, plus ids that are not nodes at all
+        out[dimId] = Array.from(set).filter((id) => !/^\d{4}$|^\d{4}-Q[1-4]$/.test(id) || !time.children(id).length);
+        return;
+      }
+      const dim = ((model && model.Dimensions) || []).find((d) => d.DimId === dimId);
+      ((dim && dim.Hierarchies) || []).forEach((h) => {
+        const built = HierarchyEngine.build(dim, h.Id);
+        members.forEach((id) => built.descendants(id).forEach((x) => set.add(x)));
+      });
+      out[dimId] = Array.from(set);
+    });
+    return out;
+  }
+
   /** Rows that pass every filter (a dimension with an empty or missing list passes everything). */
   function applyFilters(model, facts, filters) {
     const active = Object.keys(filters || {}).filter((k) => filters[k] && filters[k].length);
@@ -37,6 +68,11 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
     // selecting a hierarchy node selects its whole subtree, in every hierarchy of the dimension
     const withSubtree = (dimId) => {
       const set = new Set(filters[dimId].map(String));
+      if (dimId === "PERIOD") {   // a year or a quarter selects its months
+        const time = HierarchyEngine.buildTime(periodList(model, facts));
+        Array.from(set).forEach((id) => time.descendants(id).forEach((x) => set.add(x)));
+        return set;
+      }
       const dim = ((model && model.Dimensions) || []).find((d) => d.DimId === dimId);
       ((dim && dim.Hierarchies) || []).forEach((h) => {
         const built = HierarchyEngine.build(dim, h.Id);
@@ -122,6 +158,10 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
 
     const hier = {};
     Object.keys(spec.hierarchies || {}).forEach((dimId) => {
+      if (dimId === "PERIOD") {
+        if (spec.hierarchies.PERIOD === "TIME") { hier.PERIOD = HierarchyEngine.buildTime(periodList(model, facts)); }
+        return;
+      }
       const dim = ((model && model.Dimensions) || []).find((d) => d.DimId === dimId);
       if (dim && spec.hierarchies[dimId]) { hier[dimId] = HierarchyEngine.build(dim, spec.hierarchies[dimId]); }
     });
@@ -212,10 +252,11 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
       rowDims, colDims, rowKeys, colKeys, flat, grand, measure: single,
       rowInfo: infoFor(rowDims), colInfo: infoFor(colDims),
       cell: (r, c) => values.get(r.join(SEP) + "|" + c.join(SEP)),
+      cellFacts: (r, c) => cells.get(r.join(SEP) + "|" + c.join(SEP)) || [],
       rowTotal: (r) => rowTotals.get(r.join(SEP)) || 0,
       colTotal: (c) => colTotals.get(c.join(SEP)) || 0
     };
   }
 
-  return { SEP, BUILTIN, fieldOf, labelOf, applyFilters, distinct, order, aggregate, reduce };
+  return { SEP, BUILTIN, fieldOf, labelOf, applyFilters, expandFilters, distinct, order, aggregate, reduce };
 });

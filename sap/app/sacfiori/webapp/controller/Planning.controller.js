@@ -5,26 +5,43 @@ sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/VBox", "sap/m/Text", "sap/m/TextArea",
   "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem", "sap/m/ScrollContainer",
   "zsac/lib/designer/FilterEditor",
-  "zsac/lib/core/QueryEngine",
-  "zsac/lib/planning/DataActionEngine",
-  "zsac/lib/core/HierarchyEngine"
-], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor, QueryEngine, DataActionEngine, HierarchyEngine) {
+  "zsac/lib/core/WidgetRegistry",
+  "zsac/lib/core/EventBus",
+  "zsac/lib/core/HierarchyEngine",
+  "zsac/lib/planning/PlanBuffer",
+  "zsac/lib/planning/PlanEditor",
+  "zsac/lib/planning/PlanPublisher",
+  "zsac/lib/widget/Widgets"
+], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor,
+  WidgetRegistry, EventBus, HierarchyEngine, PlanBuffer, PlanEditor, PlanPublisher) {
   "use strict";
 
   const CATEGORY = { ACTUAL: "Actual", BUDGET: "Budget", FORECAST: "Forecast", PRIVATE: "Private" };
 
   /**
-   * Planning workspace: pick a model, version and measure, type into the grid, work in a private version,
-   * publish it to a public version, run data actions. Edits are written to the provider in small batches.
+   * Planning workspace: the same planning table widget the stories use, with a model, version and measure picker. Typing goes to
+   * the unpublished buffer (undo, redo, Publish Data); private versions, version publishing and data actions work on published data.
    */
   return BaseController.extend("zsac.fiori.controller.Planning", {
     onInit() {
-      this._pending = new Map();
+      this._plan = new PlanBuffer();
+      this._plan.attachChange(() => { clearTimeout(this._sumTimer); this._sumTimer = setTimeout(() => { if (this._model) { this._summary().catch(() => {}); } }, 200); });
+      this._bus = new EventBus();
       this.onRoute("planning", (args) => this._open(args["?query"] || {}));
+    },
+
+    /** Version work (private copy, publish, revert, data actions) reads published data: unpublished typing is published first or the action stops. */
+    async _settle(why) {
+      if (!this._plan.dirty) { return true; }
+      const ok = await this.confirm(why + " works on published data. Publish your " + this._plan.count + " unpublished changes first?", "Publish Data");
+      if (!ok) { return false; }
+      await PlanPublisher.publish(this._plan, this._p);
+      return true;
     },
 
     async _open(query) {
       const p = (this._p = await this.provider());
+      this.byId("planBar").attach({ plan: this._plan, provider: p, onChange: () => this._reload() });
       this._models = await p.listModels();
       const sel = this.byId("model");
       sel.destroyItems();
@@ -78,19 +95,26 @@ sap.ui.define([
     _cur() { return this._versionList.find((v) => v.VersionId === this.byId("version").getSelectedKey()); },
 
     async _reload() {
-      await this._flush();
       const m = this._model;
       const v = this._cur();
       const measure = this.byId("measure").getSelectedKey();
-      const facts = await this._p.readFacts(m.ModelId, { VERSION: [v.VersionId], MEASURE: [measure] });
-      const spec = m.Measures.find((x) => x.MeasureId === measure) || {};
+      this._facts = await this._p.readFacts(m.ModelId, { VERSION: [v.VersionId], MEASURE: [measure] });
       const off = !m.PlanningEnabled;
       const [dimId, hierId] = (this.byId("hier").getSelectedKey() || "|").split("|");
       const hdim = m.Dimensions.find((d) => d.DimId === dimId);
-      this._data = { model: m, version: v.VersionId, measure, facts, locked: !!v.Locked || off,
-        hierarchy: hdim ? { slot: hdim.Slot, h: HierarchyEngine.build(hdim, hierId) } : null };
-      this.byId("table").setDecimals(spec.Decimals || 0);
-      this.byId("table").setData(this._data);
+      // the page is a planning table widget: every dimension on rows (the hierarchical one first), months on columns
+      const rows = m.Dimensions.map((d) => d.DimId).sort((a, b) => (b === dimId) - (a === dimId));
+      const widget = { Id: "PLAN_PAGE", Type: "planning.table", Title: "", Page: 1, X: 0, Y: 0, W: 12, H: 8,
+        Binding: { ModelId: m.ModelId, Rows: rows, Columns: ["PERIOD"], Measure: measure, Filters: { VERSION: [v.VersionId], MEASURE: [measure] },
+          Hierarchies: Object.assign({ PERIOD: "TIME" }, hdim ? { [dimId]: hierId } : {}) },
+        Props: { Editable: !v.Locked && !off, ExpandRows: 3, ExpandCols: 2, ShowTotals: true } };
+      this._widget = widget;
+      const host = this.byId("gridHost");
+      host.destroyItems();
+      const card = WidgetRegistry.get("planning.table").create(widget, { provider: this._p, bus: this._bus, filters: {}, plan: this._plan });
+      card.addStyleClass("zsacPlanCard");
+      host.addItem(card);
+      card.refresh();
       const strip = this.byId("lockStrip");
       strip.setVisible(!!v.Locked || off || v.Category === "PRIVATE");
       strip.setText(off ? "Planning is not enabled for this model (Modeller, Model tab, Planning Capabilities). The numbers are read only."
@@ -110,24 +134,26 @@ sap.ui.define([
       this._actionsMenu();
     },
 
+    /** KPI and chart above the grid; they include the unpublished changes. */
     async _summary() {
       const m = this._model;
+      const v = this._cur();
       const measure = this.byId("measure").getSelectedKey();
       const unit = (m.Measures.find((x) => x.MeasureId === measure) || {}).Unit || "";
-      const cur = this._data.facts;
+      const cur = this._plan.overlay(this._facts).filter((f) => f.ModelId === m.ModelId && f.VersionId === v.VersionId && f.Measure === measure);
       const total = cur.reduce((a, f) => a + f.Value, 0);
       const cmpKey = this.byId("compare").getSelectedKey();
       const kpi = this.byId("kpi");
       kpi.setValue(total); kpi.setUnit(unit);
-      this.byId("kpiCard").setTitle("Total " + this._data.version);
+      this.byId("kpiCard").setTitle("Total " + v.VersionId);
       let cmp = [];
-      if (cmpKey && cmpKey !== this._data.version) {
+      if (cmpKey && cmpKey !== v.VersionId) {
         cmp = await this._p.readFacts(m.ModelId, { VERSION: [cmpKey], MEASURE: [measure] });
         kpi.setCompare(cmp.reduce((a, f) => a + f.Value, 0)); kpi.setCompareLabel(cmpKey);
       } else { kpi.setCompare(null); }
-      const periods = this.byId("table")._periods;
+      const periods = HierarchyEngine.monthRange(m.PeriodFrom, m.PeriodTo);
       const sum = (rows) => periods.map((p) => { const r = rows.filter((f) => f.Period === p); return r.length ? r.reduce((a, f) => a + f.Value, 0) : null; });
-      const series = [{ name: this._data.version, values: sum(cur) }];
+      const series = [{ name: v.VersionId, values: sum(cur) }];
       if (cmp.length) { series.push({ name: cmpKey, values: sum(cmp) }); }
       this.byId("chart").setData({ categories: periods, series });
     },
@@ -142,6 +168,7 @@ sap.ui.define([
     onLock: function () {
       this.guard(async () => {
         const v = this._cur();
+        if (!(await this._settle("Locking a version"))) { return; }
         await this._p.saveVersion(Object.assign({}, v, { Locked: !v.Locked }));
         this.toast(v.Locked ? "Version unlocked" : "Version locked");
         await this._versions(v.VersionId);
@@ -150,7 +177,6 @@ sap.ui.define([
 
     onHistory: function () {
       this.guard(async () => {
-        await this._flush();
         const v = this._cur();
         const rows = (await this._p.listAudit(this._model.ModelId, 200)).filter((a) => a.VersionId === v.VersionId);
         const table = new Table({ noDataText: "No changes recorded yet", sticky: ["ColumnHeaders"] });
@@ -161,21 +187,6 @@ sap.ui.define([
           endButton: new Button({ text: "Close", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
         dlg.open();
       })();
-    },
-
-    // ---- cell writes ---------------------------------------------------------------------
-    onCell(e) {
-      const f = e.getParameter("fact");
-      this._pending.set(DataActionEngine.keyOf(f), f);
-      clearTimeout(this._timer);
-      this._timer = setTimeout(() => this._flush().then(() => this._summary()).catch((x) => this.fail(x)), 450);
-    },
-
-    async _flush() {
-      if (!this._pending.size) { return; }
-      const rows = Array.from(this._pending.values());
-      this._pending.clear();
-      await this._p.writeFacts(this._model.ModelId, rows);
     },
 
     // ---- versions ------------------------------------------------------------------------
@@ -190,9 +201,10 @@ sap.ui.define([
     },
 
     onNewPrivate() {
-      const from = this._data.version;
+      const from = this._cur().VersionId;
       const name = new Input({ value: "My what-if", width: "100%" });
-      this._dialog("New private version", [new Text({ text: "Copy of " + from }), new Label({ text: "Name" }), name], "Create", async () => {
+      this._dialog("New private version", [new Text({ text: "Copy of " + from + " (published numbers)" }), new Label({ text: "Name" }), name], "Create", async () => {
+        if (!(await this._settle("A private version"))) { return; }
         const v = await this._p.createPrivateVersion(this._model.ModelId, from, name.getValue());
         await this._versions(v.VersionId);
         this.toast("Private version " + v.VersionId + " created");
@@ -221,6 +233,7 @@ sap.ui.define([
       targets.forEach((t) => sel.addItem(new Item({ key: t.VersionId, text: t.Name + " (" + t.VersionId + ")" })));
       sel.setSelectedKey((targets.find((t) => t.VersionId === v.SourceVersion) || targets[0]).VersionId);
       this._dialog("Publish " + v.Name, [new Text({ text: "The target version's numbers are replaced by this version." }), new Label({ text: "Publish to" }), sel], "Publish", async () => {
+        if (!(await this._settle("Publishing a version"))) { return; }
         const r = await this._p.publishVersion(this._model.ModelId, v.VersionId, sel.getSelectedKey());
         this.toast("Published to " + sel.getSelectedKey() + (r && r.Published ? " (" + r.Published + " values)" : ""));
         await this._versions(sel.getSelectedKey());
@@ -231,6 +244,7 @@ sap.ui.define([
       this.guard(async () => {
         const v = this._cur();
         if (!(await this.confirm("Throw away your edits and copy " + v.SourceVersion + " again?", "Revert"))) { return; }
+        this._plan.clear();
         await this._p.revertVersion(this._model.ModelId, v.VersionId);
         await this._reload();
       })();
@@ -240,6 +254,7 @@ sap.ui.define([
       this.guard(async () => {
         const v = this._cur();
         if (!(await this.confirm("Delete private version " + v.Name + "?", "Delete"))) { return; }
+        if (this._plan.pending(this._model.ModelId).some((f) => f.VersionId === v.VersionId)) { this._plan.clear(); }
         await this._p.deleteVersion(this._model.ModelId, v.VersionId);
         this.byId("version").setSelectedKey("");
         await this._versions(v.SourceVersion);
@@ -260,9 +275,16 @@ sap.ui.define([
       const content = [];
       picks.forEach((x) => { content.push(new Label({ text: x.d.Label })); content.push(x.s); });
       this._dialog("Add row", content, "Add", async () => {
-        const members = picks.map((x) => x.s.getSelectedKey());
-        if (members.some((x) => !x)) { throw new Error("Pick a member for every dimension (add members in the modeller)"); }
-        if (!this.byId("table").addRow(members)) { throw new Error("That row exists"); }
+        const members = {};
+        picks.forEach((x) => { members[x.d.DimId] = x.s.getSelectedKey(); });
+        if (Object.values(members).some((x) => !x)) { throw new Error("Pick a member for every dimension (add members in the modeller)"); }
+        const v = this._cur();
+        const measure = this.byId("measure").getSelectedKey();
+        const existing = this._plan.overlay(this._facts);
+        const rows = PlanEditor.newRows(m, v.VersionId, measure, members, HierarchyEngine.monthRange(m.PeriodFrom, m.PeriodTo), existing);
+        if (!rows.length) { throw new Error("That row exists"); }
+        this._plan.apply(rows, () => null);
+        await this._reload();
       });
     },
 
@@ -285,6 +307,7 @@ sap.ui.define([
       build();
       this._dialog("Run: " + action.Name, [new Text({ text: action.Description || "" }), new Label({ text: "Data filter parameter (optional): limit the action to this slice", design: "Bold" }).addStyleClass("sapUiSmallMarginTop"), holder],
         "Run", async () => {
+          if (!(await this._settle("A data action"))) { return; }
           const r = await this._p.executeDataAction(action.Id, { Filter: filter });
           await this._reload();
           this._log("Data action finished", r.Changed + " values changed", r.Log);
