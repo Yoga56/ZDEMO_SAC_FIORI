@@ -55,7 +55,9 @@ sap.ui.define([
           : "The model keeps its own versions and plan data; an Import from Source step (or the import button) copies the rows into a version.");
         const service = new Input({ value: src.Service, width: "100%", placeholder: "/sap/opu/odata4/sap/zui_sales/srvd_a2x/sap/zsales/0001/", layoutData: new FlexItemData({ growFactor: 1 }), change: (e) => { src.Service = e.getParameter("value").trim(); } });
         row("Service URL", new HBox({ width: "100%", items: [service, new Button({ text: "Read fields", icon: "sap-icon://refresh", press: () => load(service) })] }),
-          "Starts with / for a service on this server, or https:// . The $metadata of the service lists its entities and fields.");
+          "Starts with / for a service on this server, or https:// . Use the path without host: the proxy or the destination adds host and login. The $metadata of the service lists its entities and fields.");
+        row("Client (optional)", new Input({ value: src.Client, width: "8rem", maxLength: 3, placeholder: "100", change: (e) => { src.Client = e.getParameter("value").trim(); } }),
+          "Only when the data is in another client than the one of the destination, for example 100. Sent as sap-client with every request.");
         const entity = new ComboBox({ width: "100%", value: src.Entity, placeholder: "Entity set", change: (e) => { src.Entity = e.getParameter("value").trim(); pick(); } });
         entitySets.forEach((s) => entity.addItem(new Item({ key: s.name, text: s.name })));
         entity.attachSelectionChange((e) => { const it = e.getParameter("selectedItem"); if (it) { src.Entity = it.getKey(); pick(); } });
@@ -91,7 +93,7 @@ sap.ui.define([
       async function load(input) {
         try {
           src.Service = input.getValue().trim();
-          entitySets = await provider.discoverSource(src.Service);
+          entitySets = await provider.discoverSource(src.Service, src.Client);
           if (!entitySets.length) { note("The service has no entity sets.", "Warning"); } else { note(entitySets.length + " entity sets found. Choose one.", "Success"); }
           if (entitySets.length === 1 && !src.Entity) { src.Entity = entitySets[0].name; }
           pick();
@@ -130,7 +132,7 @@ sap.ui.define([
       render();
       dlg.open();
       if (src.Service) { // fields of the current definition, so the pickers are filled
-        provider.discoverSource(src.Service).then((sets) => { entitySets = sets; const set = sets.find((s) => s.name === src.Entity); if (set) { fields = set.properties; } render(); }).catch(() => {});
+        provider.discoverSource(src.Service, src.Client).then((sets) => { entitySets = sets; const set = sets.find((s) => s.name === src.Entity); if (set) { fields = set.properties; } render(); }).catch(() => {});
       }
     });
   }

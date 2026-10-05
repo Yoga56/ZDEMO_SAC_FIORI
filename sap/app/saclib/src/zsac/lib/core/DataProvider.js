@@ -35,8 +35,8 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
     /** { json(url), text(url) }: how this provider reads a data source. The default is the browser's fetch with the session of the user. */
     sourceFetch() { return LiveSource.browserFetch(); }
 
-    /** Entity sets and their fields found in the $metadata of a service. */
-    discoverSource(service) { return LiveSource.discover(service, this.sourceFetch().text); }
+    /** Entity sets and their fields found in the $metadata of a service (of a client of the backend, when one is given). */
+    discoverSource(service, client) { return LiveSource.discover(service, this.sourceFetch().text, client); }
 
     /** Members and period range found in the source of a (not yet saved) model. */
     loadSourceMembers(model) { return LiveSource.loadMembers(model, this.sourceFetch().json); }

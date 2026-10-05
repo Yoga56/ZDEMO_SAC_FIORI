@@ -81,6 +81,7 @@ A live model has one version (the *Version of the rows*, for example `ACT`), is 
 * The dimension members seen in the filter lists are the ones read from the source when you pressed *OK* with the option set. Read them again when the master data changes.
 * A measure with the aggregation *Count* cannot be read from a CDS source; *Average* by month cannot be built from a date field when the service aggregates.
 * Hierarchies, attributes and texts of the dimension are defined in the model (Modeller), not read from the view.
+* **Another client.** The app's own data (models, stories, plan data) lives in the client the destination points to, while the CDS data can be in another client. Enter the client (for example `100`) in the data source dialog: it is sent as `sap-client` with every request to the source. The user of the destination must exist in that client.
 * Calls are made without CSRF token and cookies of other origins; use a service on the same server as the app, or one that allows this origin (CORS).
 * None of this was run against an SAP system: the generated requests follow the OData V4 aggregation specification and are tested against an in-memory
   stand-in (`FakeODataService`). Check a first request in the browser's network tab and in ADT's service test (`Service Binding > Preview`).

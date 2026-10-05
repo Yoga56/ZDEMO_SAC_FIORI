@@ -10,6 +10,7 @@
  *   Dims: { REGION: "Region", ... },                                      model dimension -> field of the entity
  *   Texts: { REGION: "RegionName" },                                      optional text field of a dimension (only used to name members)
  *   Measures: { REVENUE: "NetAmount", ... },                              model measure -> field of the entity
+ *   Client: "100",                                                        optional: the client of the backend to read from (sent as sap-client), when it is not the one of the destination
  *   MaxRows: 100000 }
  *
  * LIVE reads on demand, aggregated by the service ($apply groupby/aggregate), so the view should be a cube or an aggregating view;
@@ -30,7 +31,7 @@ sap.ui.define([], function () {
   const pad = (n) => String(n).padStart(2, "0");
 
   function defaults(src) {
-    return Object.assign({ Type: "CDS", Mode: "LIVE", Service: "", Entity: "", Version: "ACT", PeriodField: "", PeriodFormat: "YYYYMM", Dims: {}, Texts: {}, Measures: {}, MaxRows: 100000 }, src || {});
+    return Object.assign({ Type: "CDS", Mode: "LIVE", Service: "", Entity: "", Version: "ACT", PeriodField: "", PeriodFormat: "YYYYMM", Dims: {}, Texts: {}, Measures: {}, Client: "", MaxRows: 100000 }, src || {});
   }
 
   /** "202603" / "2026-03" / "2026-03-15" -> "2026-03"; null when it is not a period. */
@@ -67,9 +68,9 @@ sap.ui.define([], function () {
     const group = [src.PeriodField].concat(dims.map((d) => src.Dims[d.DimId]));
     const aggregate = measures.map((m) => src.Measures[m.MeasureId] + " with " + (METHODS[m.Aggregation] || "sum") + " as " + alias(m.MeasureId));
     const apply = (terms.length ? "filter(" + terms.join(" and ") + ")/" : "") + "groupby((" + group.join(",") + "),aggregate(" + aggregate.join(",") + "))";
-    const plain = base(src) + "?$select=" + encodeURIComponent(group.concat(measures.map((m) => src.Measures[m.MeasureId])).filter((x, i, a) => a.indexOf(x) === i).join(","))
-      + (terms.length ? "&$filter=" + encodeURIComponent(terms.join(" and ")) : "");
-    return { url: base(src) + "?$apply=" + encodeURIComponent(apply), plainUrl: plain, measures: measures.map((m) => m.MeasureId), dims: dims.map((d) => d.DimId) };
+    const plain = link(src, base(src), ["$select=" + encodeURIComponent(group.concat(measures.map((m) => src.Measures[m.MeasureId])).filter((x, i, a) => a.indexOf(x) === i).join(","))]
+      .concat(terms.length ? ["$filter=" + encodeURIComponent(terms.join(" and "))] : []));
+    return { url: link(src, base(src), ["$apply=" + encodeURIComponent(apply)]), plainUrl: plain, measures: measures.map((m) => m.MeasureId), dims: dims.map((d) => d.DimId) };
   }
 
   /** The $filter conditions of the dimension, period and (not here) measure filters. */
@@ -85,6 +86,12 @@ sap.ui.define([], function () {
   }
 
   const base = (src) => String(src.Service).replace(/\/+$/, "") + "/" + src.Entity;
+
+  /** path?sap-client=..&params : the client of the source, when it has one, goes first. */
+  function link(src, path, params) {
+    const all = (src.Client ? ["sap-client=" + encodeURIComponent(src.Client)] : []).concat(params || []);
+    return path + (all.length ? "?" + all.join("&") : "");
+  }
 
   async function pages(url, fetchJson, maxRows) {
     const rows = [];
@@ -153,9 +160,9 @@ sap.ui.define([], function () {
   /** The distinct combinations of some fields: groupby by the service, or a plain $select when it cannot. */
   async function groupedRows(src, fields, fetchJson) {
     const key = src.Service + "|" + src.Entity;
-    const plain = () => pages(base(src) + "?$select=" + encodeURIComponent(fields.join(",")), fetchJson, src.MaxRows || 100000);
+    const plain = () => pages(link(src, base(src), ["$select=" + encodeURIComponent(fields.join(","))]), fetchJson, src.MaxRows || 100000);
     if (noApply.has(key)) { return plain(); }
-    try { return await pages(base(src) + "?$apply=" + encodeURIComponent("groupby((" + fields.join(",") + "))"), fetchJson, src.MaxRows || 100000); } catch (e) {
+    try { return await pages(link(src, base(src), ["$apply=" + encodeURIComponent("groupby((" + fields.join(",") + "))")]), fetchJson, src.MaxRows || 100000); } catch (e) {
       if (!applyUnsupported(e)) { throw e; }
       noApply.add(key);
       return plain();
@@ -216,8 +223,8 @@ sap.ui.define([], function () {
     return sets;
   }
 
-  async function discover(service, fetchText) {
-    return parseMetadata(await fetchText(String(service).replace(/\/+$/, "") + "/$metadata"));
+  async function discover(service, fetchText, client) {
+    return parseMetadata(await fetchText(link({ Client: client }, String(service).replace(/\/+$/, "") + "/$metadata")));
   }
 
   /** What is wrong with a source definition against the model, empty when it can be used. */
@@ -226,6 +233,7 @@ sap.ui.define([], function () {
     const p = [];
     if (!src) { return p; }
     if (!/^(\/|https?:\/\/|mock:\/\/)/.test(src.Service || "")) { p.push("Data source: the service URL starts with / (this server), https:// or http://"); }
+    if (src.Client && !/^\d{3}$/.test(src.Client)) { p.push("Data source: the client is three digits, for example 100"); }
     if (!IDENT.test(src.Entity || "")) { p.push("Data source: choose the entity set"); }
     if (["LIVE", "IMPORT"].indexOf(src.Mode) < 0) { p.push("Data source: unknown mode " + src.Mode); }
     if (!IDENT.test(src.PeriodField || "")) { p.push("Data source: choose the field with the period"); }

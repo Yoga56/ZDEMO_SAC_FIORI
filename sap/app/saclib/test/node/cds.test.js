@@ -186,3 +186,20 @@ test("aggregate aliases cannot clash with a field of the same name in another ca
   assert.strictEqual(facts.length, 1);
   assert.strictEqual(facts[0].Value, 12);
 });
+
+test("a client of the source is sent as sap-client with every request", async () => {
+  LiveSource.resetCapabilities();
+  const urls = [];
+  const fake = FakeODataService.createFetch({ "mock://cds/ZSALES_CUBE": { entitySet: "ZSalesCube", properties: { Region: "Edm.String" }, rows: () => [] } });
+  const io = LiveSource.browserFetch((u, i) => { urls.push(decodeURIComponent(u)); return fake(u, i); });
+  const model = ModelSchema.normalize(Object.assign({}, seed.models.find((m) => m.ModelId === "SALES_LIVE")));
+  model.Source = Object.assign({}, model.Source, { Client: "100" });
+  await LiveSource.readFacts(model, {}, io.json);
+  await LiveSource.loadMembers(model, io.json);
+  await LiveSource.discover(model.Source.Service, io.text, "100");
+  assert.ok(urls.length >= 3 && urls.every((u) => /[?&]sap-client=100(&|$)/.test(u)), urls.join("\n"));
+  assert.ok(/\?sap-client=100&\$apply=/.test(urls[0]));
+  assert.ok(/\$metadata\?sap-client=100$/.test(urls[urls.length - 1]));
+  assert.deepStrictEqual(LiveSource.validate(Object.assign({}, model, { Source: Object.assign({}, model.Source, { Client: "1" }) })).filter((x) => /client/.test(x)).length, 1);
+  assert.deepStrictEqual(LiveSource.validate(model), []);
+});
