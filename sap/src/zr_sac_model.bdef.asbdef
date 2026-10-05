@@ -1,0 +1,90 @@
+managed implementation in class ZBP_R_SAC_MODEL unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_MODEL alias Model
+persistent table zsac_model
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+  association _Dimension { create; }
+  association _Measure { create; }
+  validation CheckStructure on save { field ModelName; create; update; }
+
+  mapping for zsac_model
+  {
+    ModelId = model_id;
+    ModelName = model_name;
+    Description = description;
+    Currency = currency;
+    PeriodFrom = period_from;
+    PeriodTo = period_to;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+define behavior for ZR_SAC_DIM alias Dimension
+persistent table zsac_dim
+lock dependent by _Model
+authorization dependent by _Model
+etag dependent by _Model
+{
+  field ( readonly )
+   ModelId,
+   LocalLastChangedAt;
+
+  // created through its parent
+  update;
+  delete;
+  association _Model;
+
+  mapping for zsac_dim
+  {
+    ModelId = model_id;
+    DimId = dim_id;
+    Label = label;
+    Slot = slot;
+    Members = members;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+define behavior for ZR_SAC_MEASURE alias Measure
+persistent table zsac_measure
+lock dependent by _Model
+authorization dependent by _Model
+etag dependent by _Model
+{
+  field ( readonly )
+   ModelId,
+   LocalLastChangedAt;
+
+  // created through its parent
+  update;
+  delete;
+  association _Model;
+
+  mapping for zsac_measure
+  {
+    ModelId = model_id;
+    MeasureId = measure_id;
+    Label = label;
+    Unit = unit;
+    Aggregation = aggregation;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

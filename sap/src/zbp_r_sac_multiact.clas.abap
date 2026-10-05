@@ -1,0 +1,5 @@
+CLASS zbp_r_sac_multiact DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zr_sac_multiact.
+ENDCLASS.
+
+CLASS zbp_r_sac_multiact IMPLEMENTATION.
+ENDCLASS.

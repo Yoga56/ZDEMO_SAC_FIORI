@@ -1,0 +1,19 @@
+projection;
+strict ( 2 );
+
+define behavior for ZC_SAC_STORY alias Story
+use etag
+{
+  use create;
+  use update;
+  use delete;
+  use association _Widget { create; }
+}
+
+define behavior for ZC_SAC_WIDGET alias Widget
+use etag
+{
+  use update;
+  use delete;
+  use association _Story;
+}

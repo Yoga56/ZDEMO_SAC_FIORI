@@ -1,0 +1,38 @@
+managed implementation in class ZBP_R_SAC_FILE unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_FILE alias File
+persistent table zsac_file
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+
+  mapping for zsac_file
+  {
+    FileId = file_id;
+    ParentId = parent_id;
+    FileType = file_type;
+    ObjectId = object_id;
+    FileName = file_name;
+    Description = description;
+    OwnerId = owner_id;
+    Favourite = favourite;
+    Shared = shared;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

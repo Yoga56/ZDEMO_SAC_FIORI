@@ -1,0 +1,9 @@
+projection;
+strict ( 2 );
+
+define behavior for ZC_SAC_FACT alias Fact
+use etag
+{
+  use action WriteFacts;
+  use action DeleteFacts;
+}

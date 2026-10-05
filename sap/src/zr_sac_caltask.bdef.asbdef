@@ -1,0 +1,38 @@
+managed implementation in class ZBP_R_SAC_CALTASK unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_CALTASK alias CalendarTask
+persistent table zsac_caltask
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+
+  mapping for zsac_caltask
+  {
+    TaskId = task_id;
+    Title = title;
+    ModelId = model_id;
+    VersionId = version_id;
+    Assignee = assignee;
+    DueDate = due_date;
+    Status = status;
+    Approver = approver;
+    Notes = notes;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

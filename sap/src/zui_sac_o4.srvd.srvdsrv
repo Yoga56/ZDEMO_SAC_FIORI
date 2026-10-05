@@ -1,0 +1,24 @@
+@EndUserText: {
+  label: 'SAC analytics and planning service'
+}
+@ObjectModel: {
+  leadingEntity: {
+    name: 'ZC_SAC_STORY'
+  }
+}
+define service ZUI_SAC_O4
+  provider contracts odata_v4_ui {
+  expose ZC_SAC_FILE        as File;
+  expose ZC_SAC_STORY       as Story;
+  expose ZC_SAC_WIDGET      as Widget;
+  expose ZC_SAC_MODEL       as Model;
+  expose ZC_SAC_DIM         as Dimension;
+  expose ZC_SAC_MEASURE     as Measure;
+  expose ZC_SAC_VERSION     as Version;
+  expose ZC_SAC_FACT        as Fact;
+  expose ZC_SAC_DATAACT     as DataAction;
+  expose ZC_SAC_DASTEP      as DataActionStep;
+  expose ZC_SAC_MULTIACT    as MultiAction;
+  expose ZC_SAC_MASTEP      as MultiActionStep;
+  expose ZC_SAC_CALTASK     as CalendarTask;
+}

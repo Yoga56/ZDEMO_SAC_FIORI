@@ -1,0 +1,41 @@
+managed implementation in class ZBP_R_SAC_VERSION unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_VERSION alias Version
+persistent table zsac_version
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+  static action CreatePrivate parameter ZA_SAC_NEW_PRIVATE result [1] $self;
+  action Publish parameter ZA_SAC_PUBLISH result [1] ZA_SAC_PUBRESULT;
+  action Revert result [1] $self;
+  determination DeleteFacts on modify { delete; }
+
+  mapping for zsac_version
+  {
+    ModelId = model_id;
+    VersionId = version_id;
+    VersionName = version_name;
+    Category = category;
+    Locked = locked;
+    OwnerId = owner_id;
+    SourceVersion = source_version;
+    Status = status;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

@@ -1,0 +1,20 @@
+projection;
+strict ( 2 );
+
+define behavior for ZC_SAC_MULTIACT alias MultiAction
+use etag
+{
+  use create;
+  use update;
+  use delete;
+  use action Run;
+  use association _Step { create; }
+}
+
+define behavior for ZC_SAC_MASTEP alias MultiActionStep
+use etag
+{
+  use update;
+  use delete;
+  use association _MultiAction;
+}

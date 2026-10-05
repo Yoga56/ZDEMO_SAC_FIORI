@@ -1,0 +1,62 @@
+managed implementation in class ZBP_R_SAC_MULTIACT unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_MULTIACT alias MultiAction
+persistent table zsac_multiact
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+  association _Step { create; }
+  action Run parameter ZA_SAC_DA_PARAM result [1] ZA_SAC_RUN_RESULT;
+
+  mapping for zsac_multiact
+  {
+    ActionId = action_id;
+    ActionName = action_name;
+    Description = description;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+define behavior for ZR_SAC_MASTEP alias MultiActionStep
+persistent table zsac_mastep
+lock dependent by _MultiAction
+authorization dependent by _MultiAction
+etag dependent by _MultiAction
+{
+  field ( readonly )
+   ActionId,
+   LocalLastChangedAt;
+
+  // created through its parent
+  update;
+  delete;
+  association _MultiAction;
+
+  mapping for zsac_mastep
+  {
+    ActionId = action_id;
+    StepNo = step_no;
+    StepType = step_type;
+    DataActionId = data_action_id;
+    ModelId = model_id;
+    SourceVersion = source_version;
+    TargetVersion = target_version;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

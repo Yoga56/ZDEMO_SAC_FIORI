@@ -1,0 +1,34 @@
+managed implementation in class ZBP_R_SAC_FACT unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_FACT alias Fact
+persistent table zsac_fact
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+  // bulk upsert / delete: one tab separated line per fact (version, period, measure, dim1..dim5, value)
+  static action WriteFacts parameter ZA_SAC_FACT_BATCH;
+  static action DeleteFacts parameter ZA_SAC_FACT_BATCH;
+
+  mapping for zsac_fact
+  {
+    ModelId = model_id;
+    VersionId = version_id;
+    Period = period;
+    Measure = measure;
+    Dim1 = dim1;
+    Dim2 = dim2;
+    Dim3 = dim3;
+    Dim4 = dim4;
+    Dim5 = dim5;
+    Value = fact_value;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

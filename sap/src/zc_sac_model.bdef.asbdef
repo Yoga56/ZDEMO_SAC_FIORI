@@ -1,0 +1,28 @@
+projection;
+strict ( 2 );
+
+define behavior for ZC_SAC_MODEL alias Model
+use etag
+{
+  use create;
+  use update;
+  use delete;
+  use association _Dimension { create; }
+  use association _Measure { create; }
+}
+
+define behavior for ZC_SAC_DIM alias Dimension
+use etag
+{
+  use update;
+  use delete;
+  use association _Model;
+}
+
+define behavior for ZC_SAC_MEASURE alias Measure
+use etag
+{
+  use update;
+  use delete;
+  use association _Model;
+}

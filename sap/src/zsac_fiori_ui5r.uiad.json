@@ -1,0 +1,34 @@
+{
+  "formatVersion": "2",
+  "header": {
+    "description": "SAC-style stories, analysis and planning on Fiori",
+    "originalLanguage": "en",
+    "abapLanguageVersion": "cloudDevelopment"
+  },
+  "generalInformation": {
+    "appType": "ui5",
+    "catalogId": "SAP_TC_UI5_REPO_UIAD",
+    "targetMappingTitle": "Analytics and Planning"
+  },
+  "ui5AppDetails": {
+    "appId": "zsac.fiori"
+  },
+  "navigation": {
+    "targetMappingId": "ZSAC_FIORI_UI5R_TM",
+    "semanticObject": "SacAnalytics",
+    "action": "display",
+    "desktop": true,
+    "tablet": true,
+    "phone": true
+  },
+  "tiles": [
+    {
+      "id": "ZSAC_FIORI_UI5R_AL",
+      "tileType": "static",
+      "isDefault": true,
+      "standard": {
+        "title": "Analytics and Planning"
+      }
+    }
+  ]
+}

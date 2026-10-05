@@ -1,0 +1,70 @@
+managed implementation in class ZBP_R_SAC_STORY unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_STORY alias Story
+persistent table zsac_story
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+  association _Widget { create; }
+  validation CheckName on save { field StoryName; create; update; }
+
+  mapping for zsac_story
+  {
+    StoryId = story_id;
+    StoryName = story_name;
+    Description = description;
+    ModelId = model_id;
+    Status = status;
+    Pages = pages;
+    Filters = filters;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+define behavior for ZR_SAC_WIDGET alias Widget
+persistent table zsac_widget
+lock dependent by _Story
+authorization dependent by _Story
+etag dependent by _Story
+{
+  field ( readonly )
+   StoryId,
+   LocalLastChangedAt;
+
+  // created through its parent
+  update;
+  delete;
+  association _Story;
+
+  mapping for zsac_widget
+  {
+    StoryId = story_id;
+    WidgetId = widget_id;
+    PageNo = page_no;
+    WidgetType = widget_type;
+    Title = title;
+    GridX = grid_x;
+    GridY = grid_y;
+    GridW = grid_w;
+    GridH = grid_h;
+    Binding = binding;
+    Props = props;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
