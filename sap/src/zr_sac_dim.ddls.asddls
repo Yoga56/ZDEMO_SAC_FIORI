@@ -10,6 +10,9 @@ define view entity ZR_SAC_DIM
   label as Label,
   slot as Slot,
   members as Members,
+  dim_type as DimType,
+  attributes as Attributes,
+  hierarchies as Hierarchies,
   @Semantics.systemDateTime.localInstanceLastChangedAt: true,
   local_last_changed_at as LocalLastChangedAt,
   _Model

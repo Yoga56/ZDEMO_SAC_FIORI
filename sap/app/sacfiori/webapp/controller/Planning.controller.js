@@ -6,8 +6,9 @@ sap.ui.define([
   "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem", "sap/m/ScrollContainer",
   "zsac/lib/designer/FilterEditor",
   "zsac/lib/core/QueryEngine",
-  "zsac/lib/planning/DataActionEngine"
-], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor, QueryEngine, DataActionEngine) {
+  "zsac/lib/planning/DataActionEngine",
+  "zsac/lib/core/HierarchyEngine"
+], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor, QueryEngine, DataActionEngine, HierarchyEngine) {
   "use strict";
 
   const CATEGORY = { ACTUAL: "Actual", BUDGET: "Budget", FORECAST: "Forecast", PRIVATE: "Private" };
@@ -41,6 +42,12 @@ sap.ui.define([
       measure.destroyItems();
       m.Measures.forEach((x) => measure.addItem(new Item({ key: x.MeasureId, text: x.Label })));
       measure.setSelectedKey(m.Measures[0].MeasureId);
+      const hier = this.byId("hier");
+      hier.destroyItems();
+      hier.addItem(new Item({ key: "", text: "Rows: flat" }));
+      m.Dimensions.forEach((d) => (d.Hierarchies || []).forEach((h) => hier.addItem(new Item({ key: d.DimId + "|" + h.Id, text: d.Label + ": " + (h.Label || h.Id) }))));
+      hier.setSelectedKey("");
+      hier.setVisible(hier.getItems().length > 1);
       await this._versions(versionId);
     },
 
@@ -78,7 +85,10 @@ sap.ui.define([
       const facts = await this._p.readFacts(m.ModelId, { VERSION: [v.VersionId], MEASURE: [measure] });
       const spec = m.Measures.find((x) => x.MeasureId === measure) || {};
       const off = !m.PlanningEnabled;
-      this._data = { model: m, version: v.VersionId, measure, facts, locked: !!v.Locked || off };
+      const [dimId, hierId] = (this.byId("hier").getSelectedKey() || "|").split("|");
+      const hdim = m.Dimensions.find((d) => d.DimId === dimId);
+      this._data = { model: m, version: v.VersionId, measure, facts, locked: !!v.Locked || off,
+        hierarchy: hdim ? { slot: hdim.Slot, h: HierarchyEngine.build(hdim, hierId) } : null };
       this.byId("table").setDecimals(spec.Decimals || 0);
       this.byId("table").setData(this._data);
       const strip = this.byId("lockStrip");
@@ -124,6 +134,7 @@ sap.ui.define([
 
     onModel(e) { this._setModel(e.getParameter("selectedItem").getKey()).catch((x) => this.fail(x)); },
     onVersion() { this._reload().catch((x) => this.fail(x)); },
+    onHierarchy() { this._reload().catch((x) => this.fail(x)); },
     onMeasure() { this._reload().catch((x) => this.fail(x)); },
     onCompare() { this._summary().catch((x) => this.fail(x)); },
 
@@ -240,7 +251,10 @@ sap.ui.define([
       const m = this._model;
       const picks = m.Dimensions.map((d) => {
         const s = new Select({ width: "100%" });
-        (d.Members || []).forEach((x) => s.addItem(new Item({ key: x.Id, text: x.Id + (x.Text !== x.Id ? " - " + x.Text : "") })));
+        // hierarchy nodes (members that have children) only roll up; numbers are planned on the members below them
+        const nodes = new Set();
+        (d.Hierarchies || []).forEach((h) => Object.keys(h.Parents || {}).forEach((c) => { if (h.Parents[c]) { nodes.add(h.Parents[c]); } }));
+        (d.Members || []).filter((x) => !nodes.has(x.Id)).forEach((x) => s.addItem(new Item({ key: x.Id, text: x.Id + (x.Text !== x.Id ? " - " + x.Text : "") })));
         return { d, s };
       });
       const content = [];

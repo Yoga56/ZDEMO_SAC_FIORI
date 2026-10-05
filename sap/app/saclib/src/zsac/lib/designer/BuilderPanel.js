@@ -100,7 +100,8 @@ sap.ui.define([
       switch (f.kind) {
         case "text": return new Input({ value: val || "", width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
         case "textarea": return new TextArea({ value: val || "", width: "100%", rows: 3, change: (e) => this._set(f.key, e.getParameter("value")) });
-        case "number": return new StepInput({ value: Number(val) || 0, min: 0, width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
+        case "number": return new StepInput({ value: val === undefined ? Number(f.default) || 0 : Number(val) || 0, min: f.min || 0, width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
+        case "hierarchies": return this._hierarchies(f, widget, env);
         case "bool": return new CheckBox({ selected: val === undefined ? !!f.default : !!val, select: (e) => this._set(f.key, e.getParameter("selected")) });
         case "select": {
           const sel = new Select({ width: "100%", selectedKey: val || f.options[0][0], change: (e) => this._set(f.key, e.getParameter("selectedItem").getKey()) });
@@ -158,6 +159,28 @@ sap.ui.define([
         case "filters": return this._filters(f, widget, env);
         default: return null;
       }
+    },
+
+    /** One select per dimension that has hierarchies: which one the widget uses on its axis (or none: flat members). */
+    _hierarchies(f, widget, env) {
+      const box = new VBox({ width: "100%" });
+      const dims = ((env.model && env.model.Dimensions) || []).filter((d) => (d.Hierarchies || []).length);
+      if (!dims.length) { box.addItem(new Text({ text: "This model has no hierarchies (define them in the Modeller)." }).addStyleClass("zsacSmall")); return box; }
+      const current = getPath(widget, f.key) || {};
+      dims.forEach((d) => {
+        box.addItem(new Text({ text: d.Label }).addStyleClass("zsacSmall"));
+        const sel = new Select({ width: "100%", selectedKey: current[d.DimId] || "" });
+        sel.addItem(new Item({ key: "", text: "(flat members)" }));
+        d.Hierarchies.forEach((h) => sel.addItem(new Item({ key: h.Id, text: h.Label || h.Id })));
+        sel.attachChange((e) => {
+          const next = Object.assign({}, getPath(widget, f.key));
+          const key = e.getParameter("selectedItem").getKey();
+          if (key) { next[d.DimId] = key; } else { delete next[d.DimId]; }
+          this._set(f.key, next);
+        });
+        box.addItem(sel);
+      });
+      return box;
     },
 
     _filters(f, widget, env) {

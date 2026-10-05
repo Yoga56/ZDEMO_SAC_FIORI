@@ -4,9 +4,12 @@
  * Facts are flat rows {ModelId, VersionId, Period, Measure, Dim1..Dim5, Value}. A model maps dimension
  * ids (REGION, PRODUCT ...) to the slot fields Dim1..Dim5; VERSION, PERIOD and MEASURE are built in.
  *
- * spec = { rows: [dimId], columns: [dimId], filters: { dimId: [members] } }
+ * spec = { rows: [dimId], columns: [dimId], filters: { dimId: [members] }, hierarchies: { dimId: hierarchyId } }
+ *
+ * A dimension listed in `hierarchies` is expanded to the nodes of that hierarchy: every fact counts for its own member and for each
+ * ancestor, so a parent node holds the total of its subtree. Grand and axis totals still count every fact once.
  */
-sap.ui.define([], function () {
+sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
   "use strict";
 
   const SEP = "\u0001";
@@ -31,7 +34,17 @@ sap.ui.define([], function () {
   function applyFilters(model, facts, filters) {
     const active = Object.keys(filters || {}).filter((k) => filters[k] && filters[k].length);
     if (!active.length) { return facts.slice(); }
-    const checks = active.map((dimId) => [fieldOf(model, dimId), new Set(filters[dimId].map(String))]);
+    // selecting a hierarchy node selects its whole subtree, in every hierarchy of the dimension
+    const withSubtree = (dimId) => {
+      const set = new Set(filters[dimId].map(String));
+      const dim = ((model && model.Dimensions) || []).find((d) => d.DimId === dimId);
+      ((dim && dim.Hierarchies) || []).forEach((h) => {
+        const built = HierarchyEngine.build(dim, h.Id);
+        Array.from(set).forEach((id) => built.descendants(id).forEach((x) => set.add(x)));
+      });
+      return set;
+    };
+    const checks = active.map((dimId) => [fieldOf(model, dimId), withSubtree(dimId)]);
     return facts.filter((f) => checks.every(([field, set]) => set.has(String(f[field]))));
   }
 
@@ -107,6 +120,24 @@ sap.ui.define([], function () {
     const colFields = colDims.map((d) => fieldOf(model, d));
     const kept = applyFilters(model, facts, spec.filters);
 
+    const hier = {};
+    Object.keys(spec.hierarchies || {}).forEach((dimId) => {
+      const dim = ((model && model.Dimensions) || []).find((d) => d.DimId === dimId);
+      if (dim && spec.hierarchies[dimId]) { hier[dimId] = HierarchyEngine.build(dim, spec.hierarchies[dimId]); }
+    });
+    // every key (member list) a fact contributes to on one axis: with a hierarchy, the member and all its ancestors
+    const keysFor = (f, dims, fields) => {
+      let combos = [[]];
+      dims.forEach((d, i) => {
+        const v = String(f[fields[i]]);
+        const list = hier[d] ? hier[d].path(v) : [v];
+        const next = [];
+        combos.forEach((c) => list.forEach((x) => next.push(c.concat(x))));
+        combos = next;
+      });
+      return combos;
+    };
+
     const cells = new Map();
     const rowGroups = new Map();
     const colGroups = new Map();
@@ -114,13 +145,22 @@ sap.ui.define([], function () {
     const colSet = new Map();
     const measures = new Set();
     kept.forEach((f) => {
-      const rk = keyOf(f, rowFields);
-      const ck = keyOf(f, colFields);
-      (cells.get(rk + "|" + ck) || cells.set(rk + "|" + ck, []).get(rk + "|" + ck)).push(f);
-      (rowGroups.get(rk) || rowGroups.set(rk, []).get(rk)).push(f);
-      (colGroups.get(ck) || colGroups.set(ck, []).get(ck)).push(f);
-      if (!rowSet.has(rk)) { rowSet.set(rk, rowFields.map((x) => String(f[x]))); }
-      if (!colSet.has(ck)) { colSet.set(ck, colFields.map((x) => String(f[x]))); }
+      const rowCombos = keysFor(f, rowDims, rowFields);
+      const colCombos = keysFor(f, colDims, colFields);
+      rowCombos.forEach((rc) => {
+        const rk = rc.join(SEP);
+        (rowGroups.get(rk) || rowGroups.set(rk, []).get(rk)).push(f);
+        if (!rowSet.has(rk)) { rowSet.set(rk, rc); }
+      });
+      colCombos.forEach((cc) => {
+        const ck = cc.join(SEP);
+        (colGroups.get(ck) || colGroups.set(ck, []).get(ck)).push(f);
+        if (!colSet.has(ck)) { colSet.set(ck, cc); }
+      });
+      rowCombos.forEach((rc) => colCombos.forEach((cc) => {
+        const k = rc.join(SEP) + "|" + cc.join(SEP);
+        (cells.get(k) || cells.set(k, []).get(k)).push(f);
+      }));
       measures.add(f.Measure);
     });
 
@@ -135,6 +175,7 @@ sap.ui.define([], function () {
     const cmp = (dims) => (a, b) => {
       for (let i = 0; i < dims.length; i++) {
         if (a[i] === b[i]) { continue; }
+        if (hier[dims[i]]) { return hier[dims[i]].position(a[i]) - hier[dims[i]].position(b[i]); }
         const o = order(model, dims[i], [a[i], b[i]]);
         return o[0] === a[i] ? -1 : 1;
       }
@@ -154,9 +195,22 @@ sap.ui.define([], function () {
       flat.push(row);
     }));
 
+    // for the first hierarchical dimension of an axis: depth, children and the key of the parent node
+    const infoFor = (dims) => {
+      const idx = dims.findIndex((d) => hier[d]);
+      if (idx < 0) { return null; }
+      const h = hier[dims[idx]];
+      return (key) => {
+        const id = key[idx];
+        const p = h.parent(id);
+        return { index: idx, depth: h.depth(id), hasChildren: !h.isLeaf(id), parent: p === undefined ? null : key.map((x, i) => (i === idx ? p : x)) };
+      };
+    };
+
     const single = measures.size === 1 ? ((model && model.Measures) || []).find((m) => m.MeasureId === Array.from(measures)[0]) || null : null;
     return {
       rowDims, colDims, rowKeys, colKeys, flat, grand, measure: single,
+      rowInfo: infoFor(rowDims), colInfo: infoFor(colDims),
       cell: (r, c) => values.get(r.join(SEP) + "|" + c.join(SEP)),
       rowTotal: (r) => rowTotals.get(r.join(SEP)) || 0,
       colTotal: (c) => colTotals.get(c.join(SEP)) || 0

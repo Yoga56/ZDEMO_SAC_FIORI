@@ -3,10 +3,11 @@
  * provider, and the validation the Modeller runs before saving.
  *
  * model   = { ModelId, Name, Description, Currency, PeriodFrom, PeriodTo, PlanningEnabled, DataLocking, DataAudit, DataSource,
- *             Dimensions: [{ DimId, Label, Slot, Members: [{Id, Text}] }],
+ *             Dimensions: [{ DimId, Label, Slot, Type, Attributes: [{Id, Label}], Members: [{Id, Text, Props}],
+ *                            Hierarchies: [{Id, Label, Parents: {childId: parentId}}] }],
  *             Measures:   [{ MeasureId, Label, DataType, Aggregation, ExceptionAggregation, ExceptionDims, UnitType, Unit, Scale, Decimals }] }
  */
-sap.ui.define([], function () {
+sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
   "use strict";
 
   const AGGREGATIONS = ["SUM", "AVG", "MIN", "MAX", "COUNT"];
@@ -16,6 +17,13 @@ sap.ui.define([], function () {
   const ID = /^[A-Z][A-Z0-9_]*$/;
   const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
   const BUILTIN = ["VERSION", "PERIOD", "MEASURE"];
+  /** Dimension types: they start with a set of member attributes (master data columns) and can be changed freely. */
+  const DIM_TYPES = {
+    GENERIC: { label: "Generic", attributes: [] },
+    ORGANIZATION: { label: "Organization", attributes: [{ Id: "OWNER", Label: "Owner" }, { Id: "CURRENCY", Label: "Currency" }] },
+    ACCOUNT: { label: "Account", attributes: [{ Id: "ACCOUNT_TYPE", Label: "Account type" }, { Id: "UNIT", Label: "Unit" }] }
+  };
+  const MEMBER_ID = /^[^\n|]+$/;
 
   function normalizeMeasure(m) {
     return Object.assign({
@@ -28,10 +36,20 @@ sap.ui.define([], function () {
     });
   }
 
+  function normalizeDimension(d) {
+    const type = DIM_TYPES[d.Type] ? d.Type : "GENERIC";
+    return Object.assign({ Label: d.DimId }, d, {
+      Type: type,
+      Attributes: Array.isArray(d.Attributes) ? d.Attributes : DIM_TYPES[type].attributes.map((a) => Object.assign({}, a)),
+      Hierarchies: Array.isArray(d.Hierarchies) ? d.Hierarchies : [],
+      Members: (d.Members || []).map((m) => (typeof m === "string" ? { Id: m, Text: m, Props: {} } : Object.assign({ Text: m.Id, Props: {} }, m)))
+    });
+  }
+
   /** Fills every missing property so engines and widgets never test for undefined. */
   function normalize(model) {
     return Object.assign({ Description: "", Currency: "", PlanningEnabled: true, DataLocking: false, DataAudit: false, DataSource: "" }, model, {
-      Dimensions: (model.Dimensions || []).map((d) => Object.assign({ Label: d.DimId, Members: [] }, d)),
+      Dimensions: (model.Dimensions || []).map(normalizeDimension),
       Measures: (model.Measures || []).map(normalizeMeasure)
     });
   }
@@ -62,6 +80,17 @@ sap.ui.define([], function () {
       p.push("Dimension IDs must be unique and not VERSION, PERIOD or MEASURE");
     }
     if (new Set(measures.map((x) => x.MeasureId)).size !== measures.length) { p.push("Measure IDs must be unique"); }
+    dims.forEach((d) => {
+      if (d.Type && !DIM_TYPES[d.Type]) { p.push("Dimension " + d.DimId + ": unknown type " + d.Type); }
+      const attrs = d.Attributes || [];
+      if (attrs.some((a) => !ID.test(a.Id || "")) || new Set(attrs.map((a) => a.Id)).size !== attrs.length) {
+        p.push("Dimension " + d.DimId + ": attribute ids are capital letters, digits and underscore, and unique");
+      }
+      const ids = (d.Members || []).map((m) => m.Id);
+      if (ids.some((x) => !x || !MEMBER_ID.test(x))) { p.push("Dimension " + d.DimId + ": every member needs an id (no | or line break)"); }
+      if (new Set(ids).size !== ids.length) { p.push("Dimension " + d.DimId + ": member ids must be unique"); }
+      HierarchyEngine.validate(d).forEach((x) => p.push(x));
+    });
     const known = dims.map((d) => d.DimId).concat(["PERIOD", "VERSION"]);
     measures.forEach((x) => {
       if (AGGREGATIONS.indexOf(x.Aggregation) < 0) { p.push("Measure " + x.MeasureId + ": unknown aggregation " + x.Aggregation); }
@@ -81,5 +110,5 @@ sap.ui.define([], function () {
     return [measure.UnitType === "None" ? "" : measure.Unit || "", scaleSuffix(measure.Scale)].filter(Boolean).join(" ");
   }
 
-  return { AGGREGATIONS, DATA_TYPES, UNIT_TYPES, SCALES, BUILTIN, normalize, normalizeMeasure, newModel, validate, unitLabel, scaleSuffix };
+  return { AGGREGATIONS, DATA_TYPES, UNIT_TYPES, SCALES, BUILTIN, DIM_TYPES, normalize, normalizeDimension, normalizeMeasure, newModel, validate, unitLabel, scaleSuffix };
 });

@@ -1,17 +1,18 @@
 sap.ui.define([
   "./BaseController",
   "../model/DataTools",
+  "../model/MasterDataDialog",
   "sap/ui/model/json/JSONModel",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
   "zsac/lib/core/ModelSchema",
   "zsac/lib/planning/DataActionEngine"
-], function (BaseController, DataTools, JSONModel, Filter, FilterOperator, ModelSchema) {
+], function (BaseController, DataTools, MasterDataDialog, JSONModel, Filter, FilterOperator, ModelSchema) {
   "use strict";
 
   const BUILTIN_ROWS = (versions, periods) => [
-    { DimId: "VERSION", Label: "Version", Type: "Version", builtin: true, existing: true, CountText: String(versions), MembersText: "" },
-    { DimId: "PERIOD", Label: "Date", Type: "Date", builtin: true, existing: true, CountText: String(periods), MembersText: "" }
+    { DimId: "VERSION", Label: "Version", Type: "VERSION", builtin: true, existing: true, CountText: String(versions), MembersText: "" },
+    { DimId: "PERIOD", Label: "Date", Type: "DATE", builtin: true, existing: true, CountText: String(periods), MembersText: "" }
   ];
 
   /**
@@ -26,6 +27,7 @@ sap.ui.define([
       this._rel = new JSONModel({ items: [] });
       this._data = new JSONModel({ items: [] });
       const v = this.getView();
+      v.setModel(new JSONModel({ dimTypes: Object.keys(ModelSchema.DIM_TYPES).map((k) => ({ key: k, text: ModelSchema.DIM_TYPES[k].label })) }), "view");
       v.setModel(this._m, "m"); v.setModel(this._sel, "sel"); v.setModel(this._rel, "rel"); v.setModel(this._data, "data");
       this.onRoute("modeller", (args) => this._load(args.id));
     },
@@ -39,8 +41,16 @@ sap.ui.define([
       return parts.join(" · ");
     },
 
-    memberCount(builtin, countText, membersText) {
-      return builtin ? countText : String(String(membersText || "").split("\n").filter((l) => l.trim()).length);
+    memberCount(builtin, countText, members) {
+      return builtin ? countText : String((members || []).length);
+    },
+
+    hierarchyCount(builtin, hierarchies) {
+      return builtin ? "-" : String((hierarchies || []).length || "-");
+    },
+
+    typeLabel(type) {
+      return { VERSION: "Version", DATE: "Date" }[type] || (ModelSchema.DIM_TYPES[type] || { label: type }).label;
     },
 
     // ---- load ------------------------------------------------------------------------------
@@ -63,8 +73,9 @@ sap.ui.define([
       const months = this._months(model.PeriodFrom, model.PeriodTo);
       this._m.setData(Object.assign({}, model, {
         Dimensions: BUILTIN_ROWS(versions.length || 3, months).concat(model.Dimensions.map((d) => ({
-          DimId: d.DimId, Label: d.Label, Type: "Generic", existing: !model.isNew, builtin: false, CountText: "",
-          MembersText: (d.Members || []).map((x) => (x.Text && x.Text !== x.Id ? x.Id + " | " + x.Text : x.Id)).join("\n") }))),
+          DimId: d.DimId, Label: d.Label, Type: d.Type, existing: !model.isNew, builtin: false, CountText: "",
+          Attributes: JSON.parse(JSON.stringify(d.Attributes)), Hierarchies: JSON.parse(JSON.stringify(d.Hierarchies)),
+          Members: JSON.parse(JSON.stringify(d.Members)), lockedIds: model.isNew ? [] : d.Members.map((x) => x.Id) }))),
         Measures: model.Measures.map((x) => Object.assign({}, x, { existing: !model.isNew, ScaleKey: String(x.Scale || 1) }))
       }));
       this.byId("tabs").setSelectedKey("model");
@@ -148,7 +159,7 @@ sap.ui.define([
     onAddDim() {
       const list = this._m.getProperty("/Dimensions");
       if (list.length >= 7) { this.toast("A model has at most five dimensions besides Version and Date"); return; }
-      list.push({ DimId: "", Label: "", Type: "Generic", existing: false, builtin: false, CountText: "", MembersText: "" });
+      list.push(ModelSchema.normalizeDimension({ DimId: "", Label: "", Type: "GENERIC", existing: false, builtin: false, CountText: "", lockedIds: [] }));
       this._m.setProperty("/Dimensions", list);
       this._pick("dims", list.length - 1, "dimension");
     },
@@ -172,6 +183,52 @@ sap.ui.define([
       this._clearSelection();
     },
 
+    // ---- dimension master data -------------------------------------------------------------
+    _dimPath() { return (this.byId("dims").getSelectedItem() || { getBindingContextPath: () => "" }).getBindingContextPath("m"); },
+
+    /** Changing the type swaps the default attributes, unless the user has made their own. */
+    onDimType(e) {
+      const path = this._dimPath();
+      if (!path) { return; }
+      const dim = this._m.getProperty(path);
+      const next = e.getParameter("selectedItem").getKey();
+      const same = (a, b) => JSON.stringify((a || []).map((x) => x.Id)) === JSON.stringify(b.map((x) => x.Id));
+      const previous = Object.keys(ModelSchema.DIM_TYPES).some((k) => same(dim.Attributes, ModelSchema.DIM_TYPES[k].attributes));
+      if (!(dim.Attributes || []).length || previous) {
+        this._m.setProperty(path + "/Attributes", ModelSchema.DIM_TYPES[next].attributes.map((a) => Object.assign({}, a)));
+        const props = new Set(ModelSchema.DIM_TYPES[next].attributes.map((a) => a.Id));
+        this._m.setProperty(path + "/Members", (dim.Members || []).map((m) => Object.assign({}, m, { Props: Object.keys(m.Props || {}).reduce((o, k) => { if (props.has(k)) { o[k] = m.Props[k]; } return o; }, {}) })));
+      }
+    },
+
+    onAddAttribute() {
+      const path = this._dimPath();
+      const list = this._m.getProperty(path + "/Attributes") || [];
+      list.push({ Id: "", Label: "" });
+      this._m.setProperty(path + "/Attributes", list);
+    },
+
+    onRemoveAttribute(e) {
+      const ctx = e.getSource().getBindingContext("m");
+      const idx = Number(ctx.getPath().split("/").pop());
+      const base = ctx.getPath().replace(/\/\d+$/, "");
+      const list = this._m.getProperty(base);
+      list.splice(idx, 1);
+      this._m.setProperty(base, list);
+    },
+
+    onMasterData: function () {
+      this.guard(async () => {
+        const path = this._dimPath();
+        if (!path) { this.toast("Select a dimension first"); return; }
+        const dim = this._m.getProperty(path);
+        const result = await MasterDataDialog.open({ dimension: dim, lockedIds: dim.lockedIds || [] });
+        if (!result) { return; }
+        this._m.setProperty(path + "/Members", result.Members);
+        this._m.setProperty(path + "/Hierarchies", result.Hierarchies);
+      })();
+    },
+
     // ---- save ------------------------------------------------------------------------------
     _collect() {
       const d = this._m.getData();
@@ -179,8 +236,10 @@ sap.ui.define([
       return {
         ModelId: d.ModelId, Name: (d.Name || "").trim(), Description: d.Description || "", Currency: d.Currency || "", PeriodFrom: d.PeriodFrom, PeriodTo: d.PeriodTo,
         PlanningEnabled: !!d.PlanningEnabled, DataLocking: !!d.DataLocking, DataAudit: !!d.DataAudit, DataSource: d.DataSource || "",
-        Dimensions: dims.map((x, i) => ({ DimId: x.DimId, Label: x.Label || x.DimId, Slot: i + 1,
-          Members: String(x.MembersText || "").split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const [id, ...t] = l.split("|"); return { Id: id.trim(), Text: (t.join("|") || id).trim() }; }) })),
+        Dimensions: dims.map((x, i) => ({ DimId: x.DimId, Label: x.Label || x.DimId, Slot: i + 1, Type: x.Type || "GENERIC",
+          Attributes: (x.Attributes || []).filter((a) => a.Id).map((a) => ({ Id: a.Id, Label: a.Label || a.Id })),
+          Hierarchies: (x.Hierarchies || []).map((h) => ({ Id: h.Id, Label: h.Label || h.Id, Parents: h.Parents || {} })),
+          Members: (x.Members || []).map((m) => ({ Id: m.Id, Text: m.Text || m.Id, Props: m.Props || {} })) })),
         Measures: d.Measures.map((x) => ({ MeasureId: x.MeasureId, Label: x.Label || x.MeasureId, DataType: x.DataType, Aggregation: x.Aggregation,
           ExceptionAggregation: x.ExceptionAggregation || "", ExceptionDims: x.ExceptionAggregation ? (x.ExceptionDims || []).filter((k) => k !== "MEASURE") : [],
           UnitType: x.UnitType, Unit: x.UnitType === "None" ? "" : x.Unit || "", Scale: Number(x.ScaleKey) || 1, Decimals: Number(x.Decimals) || 0 }))

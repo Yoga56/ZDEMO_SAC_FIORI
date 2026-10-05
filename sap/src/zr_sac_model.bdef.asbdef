@@ -63,6 +63,9 @@ etag dependent by _Model
     Label = label;
     Slot = slot;
     Members = members;
+    DimType = dim_type;
+    Attributes = attributes;
+    Hierarchies = hierarchies;
     LocalLastChangedAt = local_last_changed_at;
   }
 }

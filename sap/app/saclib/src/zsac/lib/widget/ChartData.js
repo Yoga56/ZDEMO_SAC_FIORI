@@ -31,7 +31,17 @@ sap.ui.define(["../core/QueryEngine"], function (QueryEngine) {
     return { nodes, links };
   }
 
-  function fromResult(type, result, measureLabel) {
+  /**
+   * With a hierarchy on an axis a chart shows one level: nodes at depth `level`, plus leaves that sit higher up so that every
+   * member of the subtree is counted once (level 1 = the top nodes).
+   */
+  function atLevel(result, level) {
+    const pick = (keys, info) => (info ? keys.filter((k) => { const i = info(k); return i.depth === level || (i.depth < level && !i.hasChildren); }) : keys);
+    return Object.assign({}, result, { rowKeys: pick(result.rowKeys, result.rowInfo), colKeys: pick(result.colKeys, result.colInfo) });
+  }
+
+  function fromResult(type, result, measureLabel, level) {
+    if (level && (result.rowInfo || result.colInfo)) { result = atLevel(result, level); }
     switch (type) {
       case "chart.bar": case "chart.line": return categoriesAndSeries(result, measureLabel);
       case "chart.donut": case "chart.funnel": return categoriesAndTotals(result);
@@ -40,5 +50,5 @@ sap.ui.define(["../core/QueryEngine"], function (QueryEngine) {
     }
   }
 
-  return { fromResult, categoriesAndSeries, categoriesAndTotals, sankey, QueryEngine };
+  return { fromResult, atLevel, categoriesAndSeries, categoriesAndTotals, sankey, QueryEngine };
 });

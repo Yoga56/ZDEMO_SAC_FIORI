@@ -10,6 +10,9 @@ define view entity ZC_SAC_DIM
   Label,
   Slot,
   Members,
+  DimType,
+  Attributes,
+  Hierarchies,
   LocalLastChangedAt,
   _Model : redirected to parent ZC_SAC_MODEL
 }

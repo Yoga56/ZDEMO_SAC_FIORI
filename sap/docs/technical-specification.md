@@ -13,7 +13,7 @@
 
 | Area | Modules | Role |
 |---|---|---|
-| core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
+| core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `HierarchyEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
 | provider | `MockProvider`, `ODataV4Provider`, `mockdata/*.json` | data sources |
 | planning | `DataActionEngine`, `VersionEngine`, `PlanningTable` | planning semantics and the editable grid |
 | widget | `SvgChart` + `ChartBuilders`/`ChartData`, `KpiTile`, `PivotTable`, `WidgetCard`, `Widgets` (registrations) | what a story shows |
@@ -36,12 +36,28 @@ next step for larger data.
 |---|---|
 | Model | `PlanningEnabled` (off: read only in Planning), `DataLocking` (planners can lock and unlock public versions), `DataAudit` (change history of plan values), `DataSource` (last CSV imported) |
 | Measure | `DataType`, `Aggregation` (SUM, AVG, MIN, MAX, COUNT), `ExceptionAggregation` + `ExceptionDims`, `UnitType` + `Unit`, `Scale` (1, 1000, 1000000), `Decimals` |
-| Dimension | `DimId`, `Label` (the description), `Slot`, members; Version and Date are shown as built-in dimensions |
+| Dimension | `DimId`, `Label` (the description), `Slot`, `Type` (GENERIC, ORGANIZATION, ACCOUNT), `Attributes` (master data columns, preset by type), `Members` (`Id`, `Text`, `Props`), `Hierarchies`; Version and Date are shown as built-in dimensions |
 
 `QueryEngine.aggregate` applies the measure's aggregation to every cell and total (an average total is the average of the facts, not of the cell
 averages). With an exception aggregation the facts are first reduced along the exception dimensions, then the standard aggregation applies to
 the rest. Tables use the measure's scale and decimals unless the widget overrides them, KPI tiles can use them (`Number format: Measure format`),
 the planning grid uses the decimals. `ModelSchema` holds the defaults and the validation the Modeller runs before saving.
+
+### Hierarchies
+
+A hierarchy is `{Id, Label, Parents: {childId: parentId}}` on the dimension; members without a parent are roots, several hierarchies per dimension are
+allowed, validation rejects unknown parents and cycles. A query names the hierarchy per dimension (`Hierarchies: {REGION: "GEO"}`); the dimension on that axis
+is then expanded to the nodes: every fact counts for its member and each ancestor, so a parent shows the total of its subtree, while grand and axis totals
+still count each fact once. Where it shows:
+
+* **Tables** render the tree with indentation and expand/collapse per node (`ExpandLevel` sets the levels open at first).
+* **Charts** show one level (`Props.Level`, 1 = top): the nodes at that depth plus shallower leaves, so no value is counted twice.
+* **Filters**: selecting a node selects its whole subtree.
+* **Planning** can group the rows under a hierarchy (toolbar select): parent nodes are read-only subtotal rows that collapse, leaf rows stay editable; the
+  add-row dialog offers leaf members only.
+
+The dimension type presets the attribute set (Organization: Owner, Currency; Account: Account type, Unit) and can be changed at any time. Attributes are master
+data columns; they are not used for filtering or calculation yet (no account-type sign rules, no time dimension).
 
 Data Audit is recorded by `MockProvider` (`capabilities.audit`) and shown in Planning; the OData backend stores the flag but has no change log table yet.
 
@@ -92,5 +108,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
   association paths, action names with the generated namespace `com.sap.gateway.srvd.zui_sac_o4.v0001.`.
 * Authorization is open to every user (`get_global_authorizations` is empty, no DCL). Add owner and sharing rules per customer.
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
-* Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder), dimension types beyond Generic, attributes or hierarchies.
+* Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

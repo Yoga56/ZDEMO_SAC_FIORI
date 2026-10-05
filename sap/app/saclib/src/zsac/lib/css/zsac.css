@@ -83,3 +83,10 @@
   .zsacCanvas:not(.zsacEditable) .zsacCell > .zsacCard { height: auto; min-height: 100%; }
   .zsacCanvas:not(.zsacEditable) .zsacCardBody > .zsacChart { min-height: 220px; }
 }
+
+/* hierarchy nodes in pivot and planning grids */
+.zsacTog { display: inline-block; width: 1rem; cursor: pointer; color: var(--sapContent_IconColor, #556b82); user-select: none; }
+.zsacTogGap { display: inline-block; width: 1rem; }
+.zsacGrid2 td.zsacNode { white-space: nowrap; }
+.zsacGrid2 tr.zsacSubtotal td { font-weight: 600; background: var(--sapList_AlternatingBackground, #fafafa); }
+.zsacPivotCaption { margin-bottom: 0.25rem; }

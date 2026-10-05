@@ -19,20 +19,25 @@ def noise(*parts):
     return (zlib.crc32("|".join(map(str, parts)).encode()) % 1000) / 1000
 
 
+def mem(i, t=None, **props):
+    return {"Id": i, "Text": t or i, "Props": props}
+
+
 SALES = {
     "ModelId": "SALES_PLAN", "Name": "Sales Plan", "Description": "Revenue and cost by region, product and channel",
     "Currency": "USD", "PeriodFrom": "2026-01", "PeriodTo": "2026-12",
     "PlanningEnabled": True, "DataLocking": True, "DataAudit": True, "DataSource": "Sample data (make_mock_data.py)",
     "Dimensions": [
-        {"DimId": "REGION", "Label": "Region", "Slot": 1, "Members": [
-            {"Id": "APAC", "Text": "Asia Pacific"}, {"Id": "EMEA", "Text": "Europe, Middle East, Africa"},
-            {"Id": "AMER", "Text": "Americas"}, {"Id": "LATAM", "Text": "Latin America"}]},
-        {"DimId": "PRODUCT", "Label": "Product", "Slot": 2, "Members": [
-            {"Id": "Cloud ERP", "Text": "Cloud ERP"}, {"Id": "Analytics", "Text": "Analytics"},
-            {"Id": "Planning", "Text": "Planning"}, {"Id": "Services", "Text": "Services"},
-            {"Id": "Licences", "Text": "Licences"}]},
-        {"DimId": "CHANNEL", "Label": "Channel", "Slot": 3, "Members": [
-            {"Id": "Direct", "Text": "Direct"}, {"Id": "Partner", "Text": "Partner"}]},
+        {"DimId": "REGION", "Label": "Region", "Slot": 1, "Type": "GENERIC", "Attributes": [], "Members": [
+            mem("APAC", "Asia Pacific"), mem("EMEA", "Europe, Middle East, Africa"), mem("AMER", "Americas"), mem("LATAM", "Latin America"),
+            mem("AMERICAS", "North and South America"), mem("EASTERN", "Eastern hemisphere"), mem("WORLD", "Worldwide")],
+         "Hierarchies": [{"Id": "GEO", "Label": "Geography", "Parents": {
+             "AMERICAS": "WORLD", "EASTERN": "WORLD", "AMER": "AMERICAS", "LATAM": "AMERICAS", "EMEA": "EASTERN", "APAC": "EASTERN"}}]},
+        {"DimId": "PRODUCT", "Label": "Product", "Slot": 2, "Type": "GENERIC", "Attributes": [], "Members": [
+            mem("Cloud ERP"), mem("Analytics"), mem("Planning"), mem("Services"), mem("Licences"), mem("RECURRING", "Recurring revenue"), mem("ONE_OFF", "One-off revenue")],
+         "Hierarchies": [{"Id": "FAMILY", "Label": "Product family", "Parents": {
+             "Cloud ERP": "RECURRING", "Analytics": "RECURRING", "Planning": "RECURRING", "Services": "ONE_OFF", "Licences": "ONE_OFF"}}]},
+        {"DimId": "CHANNEL", "Label": "Channel", "Slot": 3, "Type": "GENERIC", "Attributes": [], "Members": [mem("Direct"), mem("Partner")], "Hierarchies": []},
     ],
     "Measures": [
         {"MeasureId": "REVENUE", "Label": "Revenue", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0},
@@ -44,12 +49,20 @@ OPEX = {
     "Currency": "USD", "PeriodFrom": "2026-01", "PeriodTo": "2026-12",
     "PlanningEnabled": True, "DataLocking": False, "DataAudit": False, "DataSource": "Sample data (make_mock_data.py)",
     "Dimensions": [
-        {"DimId": "DEPARTMENT", "Label": "Department", "Slot": 1, "Members": [
-            {"Id": "Finance", "Text": "Finance"}, {"Id": "Sales", "Text": "Sales"}, {"Id": "R&D", "Text": "R&D"},
-            {"Id": "Operations", "Text": "Operations"}, {"Id": "HR", "Text": "HR"}]},
-        {"DimId": "ACCOUNT", "Label": "Account", "Slot": 2, "Members": [
-            {"Id": "Salaries", "Text": "Salaries"}, {"Id": "Travel", "Text": "Travel"},
-            {"Id": "Software", "Text": "Software"}, {"Id": "Facilities", "Text": "Facilities"}]},
+        {"DimId": "DEPARTMENT", "Label": "Department", "Slot": 1, "Type": "ORGANIZATION",
+         "Attributes": [{"Id": "OWNER", "Label": "Owner"}, {"Id": "CURRENCY", "Label": "Currency"}], "Members": [
+            mem("Finance", None, OWNER="CFO", CURRENCY="USD"), mem("Sales", None, OWNER="CSO", CURRENCY="USD"), mem("R&D", None, OWNER="CTO", CURRENCY="USD"),
+            mem("Operations", None, OWNER="COO", CURRENCY="USD"), mem("HR", None, OWNER="CHRO", CURRENCY="USD"),
+            mem("G_A", "General and administration", OWNER="CFO"), mem("OPS", "Operations and engineering", OWNER="COO"), mem("COMPANY", "Whole company", OWNER="CEO")],
+         "Hierarchies": [{"Id": "ORG", "Label": "Organization", "Parents": {
+             "G_A": "COMPANY", "OPS": "COMPANY", "Sales": "COMPANY", "Finance": "G_A", "HR": "G_A", "Operations": "OPS", "R&D": "OPS"}}]},
+        {"DimId": "ACCOUNT", "Label": "Account", "Slot": 2, "Type": "ACCOUNT",
+         "Attributes": [{"Id": "ACCOUNT_TYPE", "Label": "Account type"}, {"Id": "UNIT", "Label": "Unit"}], "Members": [
+            mem("Salaries", None, ACCOUNT_TYPE="EXP", UNIT="USD"), mem("Travel", None, ACCOUNT_TYPE="EXP", UNIT="USD"), mem("Software", None, ACCOUNT_TYPE="EXP", UNIT="USD"),
+            mem("Facilities", None, ACCOUNT_TYPE="EXP", UNIT="USD"), mem("PEOPLE", "People cost", ACCOUNT_TYPE="EXP"), mem("OTHER_OPEX", "Other operating cost", ACCOUNT_TYPE="EXP"),
+            mem("OPEX_TOTAL", "Total operating expense", ACCOUNT_TYPE="EXP")],
+         "Hierarchies": [{"Id": "PNL", "Label": "P&L structure", "Parents": {
+             "PEOPLE": "OPEX_TOTAL", "OTHER_OPEX": "OPEX_TOTAL", "Salaries": "PEOPLE", "Travel": "OTHER_OPEX", "Software": "OTHER_OPEX", "Facilities": "OTHER_OPEX"}}]},
     ],
     "Measures": [{"MeasureId": "AMOUNT", "Label": "Amount", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0}],
 }
@@ -147,6 +160,10 @@ def stories():
         {"Id": "W11", "Page": 2, "Type": "table", "Title": "Revenue by region and product", "X": 0, "Y": 4, "W": 12, "H": 5,
          "Binding": {"ModelId": "SALES_PLAN", "Rows": ["REGION", "PRODUCT"], "Columns": ["VERSION"], "Measure": "REVENUE", "Filters": {"VERSION": ["ACT", "BUD"], "MEASURE": ["REVENUE"]}}, "Props": {}},
     ]
+    sales["Widgets"].append(
+        {"Id": "W12", "Page": 2, "Type": "table", "Title": "Revenue by region (geography hierarchy)", "X": 0, "Y": 9, "W": 12, "H": 5,
+         "Binding": {"ModelId": "SALES_PLAN", "Rows": ["REGION"], "Columns": ["VERSION"], "Measure": "REVENUE", "Filters": {"VERSION": ["ACT", "BUD"], "MEASURE": ["REVENUE"]},
+                     "Hierarchies": {"REGION": "GEO"}}, "Props": {"ExpandLevel": 2}})
     opex = {
         "Id": "STORY_OPEX", "Name": "Opex Review", "Description": "Operating expense by department", "ModelId": "OPEX_PLAN",
         "Status": "D", "Pages": [{"Id": 1, "Title": "Opex"}], "Filters": {},
@@ -156,8 +173,12 @@ def stories():
              "Props": {"CompareVersion": "BUD", "Format": "k", "LowerIsBetter": True}},
             {"Id": "O2", "Page": 1, "Type": "chart.bar", "Title": "Opex by department", "X": 0, "Y": 2, "W": 8, "H": 4,
              "Binding": {"ModelId": "OPEX_PLAN", "Rows": ["DEPARTMENT"], "Columns": ["VERSION"], "Measure": "AMOUNT", "Filters": {"VERSION": ["ACT", "BUD"], "PERIOD": ytd}}, "Props": {}},
-            {"Id": "O3", "Page": 1, "Type": "chart.donut", "Title": "Opex by account", "X": 8, "Y": 2, "W": 4, "H": 4,
-             "Binding": {"ModelId": "OPEX_PLAN", "Rows": ["ACCOUNT"], "Columns": [], "Measure": "AMOUNT", "Filters": {"VERSION": ["ACT"]}}, "Props": {}},
+            {"Id": "O3", "Page": 1, "Type": "chart.donut", "Title": "Opex by account group", "X": 8, "Y": 2, "W": 4, "H": 4,
+             "Binding": {"ModelId": "OPEX_PLAN", "Rows": ["ACCOUNT"], "Columns": [], "Measure": "AMOUNT", "Filters": {"VERSION": ["ACT"]}, "Hierarchies": {"ACCOUNT": "PNL"}},
+             "Props": {"Level": 2}},
+            {"Id": "O4", "Page": 1, "Type": "table", "Title": "Opex by organization", "X": 0, "Y": 6, "W": 12, "H": 5,
+             "Binding": {"ModelId": "OPEX_PLAN", "Rows": ["DEPARTMENT"], "Columns": ["VERSION"], "Measure": "AMOUNT", "Filters": {"VERSION": ["ACT", "BUD"], "PERIOD": ytd},
+                         "Hierarchies": {"DEPARTMENT": "ORG"}}, "Props": {"ExpandLevel": 2}},
         ],
     }
     return [sales, opex]

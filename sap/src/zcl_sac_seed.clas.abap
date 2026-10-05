@@ -78,16 +78,32 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         created_at = now last_changed_at = now local_last_changed_at = now ) ).
 
     dims = VALUE #(
-      ( model_id = 'SALES_PLAN' dim_id = 'REGION' label = 'Region' slot = 1
-        members = `[{"Id":"APAC","Text":"Asia Pacific"},{"Id":"EMEA","Text":"Europe, Middle East, Africa"},{"Id":"AMER","Text":"Americas"},{"Id":"LATAM","Text":"Latin America"}]` )
-      ( model_id = 'SALES_PLAN' dim_id = 'PRODUCT' label = 'Product' slot = 2
-        members = `[{"Id":"Cloud ERP","Text":"Cloud ERP"},{"Id":"Analytics","Text":"Analytics"},{"Id":"Planning","Text":"Planning"},{"Id":"Services","Text":"Services"},{"Id":"Licences","Text":"Licences"}]` )
-      ( model_id = 'SALES_PLAN' dim_id = 'CHANNEL' label = 'Channel' slot = 3
-        members = `[{"Id":"Direct","Text":"Direct"},{"Id":"Partner","Text":"Partner"}]` )
-      ( model_id = 'OPEX_PLAN' dim_id = 'DEPARTMENT' label = 'Department' slot = 1
-        members = `[{"Id":"Finance","Text":"Finance"},{"Id":"Sales","Text":"Sales"},{"Id":"R&D","Text":"R&D"},{"Id":"Operations","Text":"Operations"},{"Id":"HR","Text":"HR"}]` )
-      ( model_id = 'OPEX_PLAN' dim_id = 'ACCOUNT' label = 'Account' slot = 2
-        members = `[{"Id":"Salaries","Text":"Salaries"},{"Id":"Travel","Text":"Travel"},{"Id":"Software","Text":"Software"},{"Id":"Facilities","Text":"Facilities"}]` ) ).
+      ( model_id = 'SALES_PLAN' dim_id = 'REGION' label = 'Region' slot = 1 dim_type = 'GENERIC' attributes = `[]`
+        members = `[{"Id":"APAC","Text":"Asia Pacific","Props":{}},{"Id":"EMEA","Text":"Europe, Middle East, Africa","Props":{}},{"Id":"AMER","Text":"Americas","Props":{}},`
+               && `{"Id":"LATAM","Text":"Latin America","Props":{}},{"Id":"AMERICAS","Text":"North and South America","Props":{}},`
+               && `{"Id":"EASTERN","Text":"Eastern hemisphere","Props":{}},{"Id":"WORLD","Text":"Worldwide","Props":{}}]`
+        hierarchies = `[{"Id":"GEO","Label":"Geography","Parents":{"AMERICAS":"WORLD","EASTERN":"WORLD","AMER":"AMERICAS","LATAM":"AMERICAS","EMEA":"EASTERN","APAC":"EASTERN"}}]` )
+      ( model_id = 'SALES_PLAN' dim_id = 'PRODUCT' label = 'Product' slot = 2 dim_type = 'GENERIC' attributes = `[]`
+        members = `[{"Id":"Cloud ERP","Text":"Cloud ERP","Props":{}},{"Id":"Analytics","Text":"Analytics","Props":{}},{"Id":"Planning","Text":"Planning","Props":{}},`
+               && `{"Id":"Services","Text":"Services","Props":{}},{"Id":"Licences","Text":"Licences","Props":{}},`
+               && `{"Id":"RECURRING","Text":"Recurring revenue","Props":{}},{"Id":"ONE_OFF","Text":"One-off revenue","Props":{}}]`
+        hierarchies = `[{"Id":"FAMILY","Label":"Product family","Parents":{"Cloud ERP":"RECURRING","Analytics":"RECURRING","Planning":"RECURRING","Services":"ONE_OFF","Licences":"ONE_OFF"}}]` )
+      ( model_id = 'SALES_PLAN' dim_id = 'CHANNEL' label = 'Channel' slot = 3 dim_type = 'GENERIC' attributes = `[]` hierarchies = `[]`
+        members = `[{"Id":"Direct","Text":"Direct","Props":{}},{"Id":"Partner","Text":"Partner","Props":{}}]` )
+      ( model_id = 'OPEX_PLAN' dim_id = 'DEPARTMENT' label = 'Department' slot = 1 dim_type = 'ORGANIZATION'
+        attributes = `[{"Id":"OWNER","Label":"Owner"},{"Id":"CURRENCY","Label":"Currency"}]`
+        members = `[{"Id":"Finance","Text":"Finance","Props":{"OWNER":"CFO","CURRENCY":"USD"}},{"Id":"Sales","Text":"Sales","Props":{"OWNER":"CSO","CURRENCY":"USD"}},`
+               && `{"Id":"R&D","Text":"R&D","Props":{"OWNER":"CTO","CURRENCY":"USD"}},{"Id":"Operations","Text":"Operations","Props":{"OWNER":"COO","CURRENCY":"USD"}},`
+               && `{"Id":"HR","Text":"HR","Props":{"OWNER":"CHRO","CURRENCY":"USD"}},{"Id":"G_A","Text":"General and administration","Props":{"OWNER":"CFO"}},`
+               && `{"Id":"OPS","Text":"Operations and engineering","Props":{"OWNER":"COO"}},{"Id":"COMPANY","Text":"Whole company","Props":{"OWNER":"CEO"}}]`
+        hierarchies = `[{"Id":"ORG","Label":"Organization","Parents":{"G_A":"COMPANY","OPS":"COMPANY","Sales":"COMPANY","Finance":"G_A","HR":"G_A","Operations":"OPS","R&D":"OPS"}}]` )
+      ( model_id = 'OPEX_PLAN' dim_id = 'ACCOUNT' label = 'Account' slot = 2 dim_type = 'ACCOUNT'
+        attributes = `[{"Id":"ACCOUNT_TYPE","Label":"Account type"},{"Id":"UNIT","Label":"Unit"}]`
+        members = `[{"Id":"Salaries","Text":"Salaries","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},{"Id":"Travel","Text":"Travel","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},`
+               && `{"Id":"Software","Text":"Software","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},{"Id":"Facilities","Text":"Facilities","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},`
+               && `{"Id":"PEOPLE","Text":"People cost","Props":{"ACCOUNT_TYPE":"EXP"}},{"Id":"OTHER_OPEX","Text":"Other operating cost","Props":{"ACCOUNT_TYPE":"EXP"}},`
+               && `{"Id":"OPEX_TOTAL","Text":"Total operating expense","Props":{"ACCOUNT_TYPE":"EXP"}}]`
+        hierarchies = `[{"Id":"PNL","Label":"P&L structure","Parents":{"PEOPLE":"OPEX_TOTAL","OTHER_OPEX":"OPEX_TOTAL","Salaries":"PEOPLE","Travel":"OTHER_OPEX","Software":"OTHER_OPEX","Facilities":"OTHER_OPEX"}}]` ) ).
 
     meas = VALUE #(
       ( model_id = 'SALES_PLAN' measure_id = 'REVENUE' label = 'Revenue' unit = 'USD' aggregation = 'SUM'

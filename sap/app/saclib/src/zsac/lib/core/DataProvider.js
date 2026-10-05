@@ -74,14 +74,14 @@ sap.ui.define(["./QueryEngine"], function (QueryEngine) {
 
     // --- composed behaviour (same for every provider) ----------------------------------------
     /**
-     * Aggregated read. spec = { ModelId, Rows:[dim], Columns:[dim], Filters:{dim:[m]} }.
+     * Aggregated read. spec = { ModelId, Rows:[dim], Columns:[dim], Filters:{dim:[m]}, Hierarchies:{dim: hierarchyId} }.
      * Providers return raw facts; the aggregation is the shared QueryEngine.
      */
     async query(spec) {
       const model = await this.getModel(spec.ModelId);
       const facts = await this.readFacts(spec.ModelId, spec.Filters || {});
       const result = QueryEngine.aggregate(model, facts, {
-        rows: spec.Rows || [], columns: spec.Columns || [], filters: spec.Filters || {}
+        rows: spec.Rows || [], columns: spec.Columns || [], filters: spec.Filters || {}, hierarchies: spec.Hierarchies || {}
       });
       result.model = model;
       return result;

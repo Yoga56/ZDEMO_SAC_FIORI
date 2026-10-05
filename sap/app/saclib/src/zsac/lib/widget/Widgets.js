@@ -20,7 +20,15 @@ sap.ui.define([
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema) {
   "use strict";
 
-  const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {} });
+  const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
+
+  /** Only hierarchies of dimensions the widget really uses on an axis count. */
+  function activeHierarchies(b) {
+    const used = new Set((b.Rows || []).concat(b.Columns || []));
+    const out = {};
+    Object.keys(b.Hierarchies || {}).forEach((d) => { if (b.Hierarchies[d] && used.has(d)) { out[d] = b.Hierarchies[d]; } });
+    return out;
+  }
 
   /** Aggregate for a widget: story filters narrow the widget's own filters. */
   async function runQuery(widget, ctx, mutate) {
@@ -28,7 +36,7 @@ sap.ui.define([
     const filters = FilterEngine.merge(ctx.filters || {}, b.Filters || {});
     if (b.Measure && !(filters.MEASURE && filters.MEASURE.length)) { filters.MEASURE = [b.Measure]; }
     if (mutate) { mutate(filters); }
-    return ctx.provider.query({ ModelId: b.ModelId, Rows: b.Rows || [], Columns: b.Columns || [], Filters: filters });
+    return ctx.provider.query({ ModelId: b.ModelId, Rows: b.Rows || [], Columns: b.Columns || [], Filters: filters, Hierarchies: activeHierarchies(b) });
   }
 
   const noModel = (card, widget) => {
@@ -61,6 +69,7 @@ sap.ui.define([
   const queryBuilder = (rowsLabel, colsLabel, maxRows) => baseBuilder.concat([
     { key: "Binding.Rows", label: rowsLabel, kind: "dimensions", max: maxRows }
   ]).concat(colsLabel ? [{ key: "Binding.Columns", label: colsLabel, kind: "dimensions", max: 1 }] : []).concat([
+    { key: "Binding.Hierarchies", label: "Hierarchies", kind: "hierarchies" },
     { key: "Binding.Measure", label: "Measure", kind: "measure" },
     { key: "Binding.Filters", label: "Filters", kind: "filters" }
   ]);
@@ -70,14 +79,14 @@ sap.ui.define([
     WidgetRegistry.register(type, {
       name, icon, group: "Charts", size,
       defaults: chartDefaults(["$FIRST_DIM"], type === "chart.sankey" ? ["$SECOND_DIM"] : []),
-      builder: queryBuilder(rowsLabel, colsLabel, maxRows),
+      builder: queryBuilder(rowsLabel, colsLabel, maxRows).concat([{ key: "Props.Level", label: "Hierarchy level shown (1 = top)", kind: "number", min: 1 }]),
       create(widget, ctx) {
         const content = new SvgChart({ type });
         const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content });
         return wire(card, widget, async () => {
           const result = await runQuery(widget, ctx);
           const measure = (result.model.Measures || []).find((m) => m.MeasureId === widget.Binding.Measure);
-          content.setData(ChartData.fromResult(type, result, measure && measure.Label));
+          content.setData(ChartData.fromResult(type, result, measure && measure.Label, Object.keys(activeHierarchies(widget.Binding)).length ? Math.max(1, Number(widget.Props.Level) || 1) : 0));
         });
       }
     });
@@ -153,11 +162,12 @@ sap.ui.define([
     defaults: { Binding: Object.assign(emptyBinding(), { Rows: ["$FIRST_DIM"], Columns: ["VERSION"] }), Props: { ShowTotals: true, UseMeasureFormat: true, Decimals: 0 } },
     builder: queryBuilder("Rows", "Columns", 3).concat([
       { key: "Props.ShowTotals", label: "Show totals", kind: "bool" },
+      { key: "Props.ExpandLevel", label: "Hierarchy levels expanded at first", kind: "number", min: 1, default: 2 },
       { key: "Props.UseMeasureFormat", label: "Use the measure's scale and decimals", kind: "bool", default: true },
       { key: "Props.Decimals", label: "Decimals (when not using the measure's)", kind: "number" }
     ]),
     create(widget, ctx) {
-      const table = new PivotTable({ showTotals: widget.Props.ShowTotals !== false, decimals: widget.Props.UseMeasureFormat === false ? Number(widget.Props.Decimals) || 0 : -1 });
+      const table = new PivotTable({ expandLevel: Math.max(1, Number(widget.Props.ExpandLevel) || 2), showTotals: widget.Props.ShowTotals !== false, decimals: widget.Props.UseMeasureFormat === false ? Number(widget.Props.Decimals) || 0 : -1 });
       const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: table });
       return wire(card, widget, async () => { table.setResult(await runQuery(widget, ctx)); });
     }

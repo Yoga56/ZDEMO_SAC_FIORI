@@ -81,14 +81,14 @@
                       <Text text="{m>DimId}"/>
                       <Text text="{m>Label}"/>
                       <HBox alignItems="Center">
-                        <core:Icon src="{= ${m>Type} === 'Version' ? 'sap-icon://history' : ${m>Type} === 'Date' ? 'sap-icon://calendar' : 'sap-icon://dimension'}" class="sapUiTinyMarginEnd"/>
-                        <Text text="{m>Type}"/>
+                        <core:Icon src="{= ${m>Type} === 'VERSION' ? 'sap-icon://history' : ${m>Type} === 'DATE' ? 'sap-icon://calendar' : ${m>Type} === 'ORGANIZATION' ? 'sap-icon://org-chart' : ${m>Type} === 'ACCOUNT' ? 'sap-icon://expense-report' : 'sap-icon://dimension'}" class="sapUiTinyMarginEnd"/>
+                        <Text text="{path: 'm>Type', formatter: '.typeLabel'}"/>
                       </HBox>
                       <HBox alignItems="Center">
                         <core:Icon src="sap-icon://list" class="sapUiTinyMarginEnd"/>
-                        <Text text="{parts: [{path: 'm>builtin'}, {path: 'm>CountText'}, {path: 'm>MembersText'}], formatter: '.memberCount'}" class="sapUiSmallMarginEnd"/>
+                        <Text text="{parts: [{path: 'm>builtin'}, {path: 'm>CountText'}, {path: 'm>Members'}], formatter: '.memberCount'}" class="sapUiSmallMarginEnd"/>
                         <core:Icon src="sap-icon://tree" class="sapUiTinyMarginEnd"/>
-                        <Text text="-"/>
+                        <Text text="{parts: [{path: 'm>builtin'}, {path: 'm>Hierarchies'}], formatter: '.hierarchyCount'}"/>
                       </HBox>
                     </cells>
                   </ColumnListItem>
@@ -243,14 +243,36 @@
                     <Label text="Description"/>
                     <Input value="{m>Label}" enabled="{= !${m>builtin}}"/>
                     <Label text="Type"/>
-                    <Input value="{m>Type}" enabled="false"/>
+                    <Select selectedKey="{m>Type}" width="100%" enabled="{= !${m>builtin}}" change=".onDimType" items="{path: 'view>/dimTypes', templateShareable: false}" visible="{= !${m>builtin}}">
+                      <core:Item key="{view>key}" text="{view>text}"/>
+                    </Select>
+                    <Input value="{path: 'm>Type', formatter: '.typeLabel'}" enabled="false" visible="{m>builtin}"/>
                     <VBox visible="{= !${m>builtin}}">
-                      <Title text="Members" level="H5" class="sapUiMediumMarginTop"/>
-                      <Text class="zsacSmall" text="One per line: ID or ID | Text. Members can be edited at any time; the ID of a dimension that holds data is fixed."/>
-                      <TextArea value="{m>MembersText}" rows="12" width="100%"/>
+                      <Title text="Members &amp; Hierarchies" level="H5" class="sapUiMediumMarginTop"/>
+                      <Text text="{parts: [{path: 'm>builtin'}, {path: 'm>CountText'}, {path: 'm>Members'}], formatter: '.memberCount'}" class="sapUiTinyMarginTop"/>
+                      <List items="{path: 'm>Hierarchies', templateShareable: false}" noDataText="No hierarchies: members form a flat list" showSeparators="None">
+                        <StandardListItem title="{m>Label}" description="{m>Id}" icon="sap-icon://tree"/>
+                      </List>
+                      <Button text="Edit members and hierarchies" icon="sap-icon://edit" press=".onMasterData" class="sapUiTinyMarginTop"/>
+                      <Text class="zsacSmall" text="Members listed in a hierarchy roll up: a parent shows the total of its children. Ids of members that may hold data are fixed once the model is saved."/>
+
+                      <Title text="Attributes" level="H5" class="sapUiMediumMarginTop"/>
+                      <Table items="{path: 'm>Attributes', templateShareable: false}" noDataText="No attributes" showSeparators="None">
+                        <columns><Column width="38%"><Text text="ID"/></Column><Column><Text text="Description"/></Column><Column width="3rem"/></columns>
+                        <items>
+                          <ColumnListItem>
+                            <cells>
+                              <Input value="{m>Id}" maxLength="20"/>
+                              <Input value="{m>Label}"/>
+                              <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveAttribute"/>
+                            </cells>
+                          </ColumnListItem>
+                        </items>
+                      </Table>
+                      <Button text="Add attribute" icon="sap-icon://add" press=".onAddAttribute"/>
                     </VBox>
                     <VBox visible="{= ${m>builtin}}">
-                      <Text class="zsacSmall sapUiSmallMarginTop" text="{= ${m>Type} === 'Version' ? 'Versions are managed in Planning (Actual, Budget, Forecast, private versions).' : 'The period range comes from the model settings (Model tab).'}"/>
+                      <Text class="zsacSmall sapUiSmallMarginTop" text="{= ${m>Type} === 'VERSION' ? 'Versions are managed in Planning (Actual, Budget, Forecast, private versions).' : 'The period range comes from the model settings (Model tab).'}"/>
                     </VBox>
                   </VBox>
                 </VBox>

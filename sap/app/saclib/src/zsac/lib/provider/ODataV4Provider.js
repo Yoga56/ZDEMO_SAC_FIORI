@@ -79,7 +79,8 @@ sap.ui.define([
         ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency,
         PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking,
         DataAudit: !!e.DataAudit, DataSource: e.DataSource,
-        Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: json(d.Members, []) }))
+        Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
+          Attributes: json(d.Attributes, undefined), Hierarchies: json(d.Hierarchies, []) }))
           .sort((a, b) => a.Slot - b.Slot),
         Measures: (e._Measure || []).map((m) => ({ MeasureId: m.MeasureId, Label: m.Label, Unit: m.Unit, Aggregation: m.Aggregation || "SUM",
           DataType: m.DataType || "Decimal", UnitType: m.UnitType || "None", Scale: m.Scale, Decimals: m.Decimals,
@@ -98,7 +99,8 @@ sap.ui.define([
         DataAudit: !!m.DataAudit, DataSource: m.DataSource || ""
       });
       for (const d of m.Dimensions || []) {
-        await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: str(d.Members || []) }, true).created();
+        await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: str(d.Members || []),
+          DimType: d.Type || "GENERIC", Attributes: str(d.Attributes || []), Hierarchies: str(d.Hierarchies || []) }, true).created();
       }
       for (const x of m.Measures || []) {
         await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, Label: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM",
