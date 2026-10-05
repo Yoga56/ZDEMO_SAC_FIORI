@@ -15,7 +15,7 @@ sap.ui.define([
   "use strict";
 
   const STORE_KEY = "zsac.mock.v1";
-  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit", "runs"];
+  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit", "runs", "comments"];
   const AUDIT_LIMIT = 2000;
   const RUN_LIMIT = 500;
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -187,6 +187,28 @@ sap.ui.define([
     async deleteDataAction(id) {
       this._remove("dataactions", (x) => x.Id === id);
       this._remove("files", (x) => x.Type === "DATAACTION" && x.ObjectId === id);
+    }
+
+    // comments (Comment Management step); a comment belongs to a version and, optionally, a period and a member combination
+    async listComments(modelId, versionId) {
+      return clone(this._db.comments.filter((c) => (!modelId || c.ModelId === modelId) && (!versionId || c.VersionId === versionId)));
+    }
+    async copyComments(modelId, fromVersionId, toVersionId) {
+      const copies = this._db.comments.filter((c) => c.ModelId === modelId && c.VersionId === fromVersionId)
+        .map((c) => Object.assign(clone(c), { Id: "C" + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36), VersionId: toVersionId }));
+      this._db.comments.push(...copies);
+      this._save();
+      return copies.length;
+    }
+    async deleteComments(modelId, versionId) {
+      const n = this._db.comments.filter((c) => c.ModelId === modelId && c.VersionId === versionId).length;
+      this._remove("comments", (c) => c.ModelId === modelId && c.VersionId === versionId);
+      return n;
+    }
+
+    /** The mock has no PaPM: the run is simulated so a multi action with a PaPM step can be tried out. */
+    async runPapm(request) {
+      return { Status: "S", Message: "Simulated PaPM run of " + request.FunctionId + " in " + request.Environment + " (" + Object.keys(request.Parameters || {}).length + " parameters)" };
     }
 
     // run history of data and multi actions

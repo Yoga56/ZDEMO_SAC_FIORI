@@ -15,7 +15,7 @@
 |---|---|---|
 | core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `HierarchyEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
 | provider | `MockProvider`, `ODataV4Provider`, `mockdata/*.json` | data sources |
-| planning | `DataActionSchema`, `MultiActionSchema`, `DataActionEngine`, `DataActionRun`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
+| planning | `DataActionSchema`, `MultiActionSchema`, `StepRunners`, `ImportEngine`, `Forecaster`, `DataActionEngine`, `DataActionRun`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
 | widget | `SvgChart` + `ChartBuilders`/`ChartData`, `KpiTile`, `PivotTable`, `WidgetCard`, `Widgets` (registrations) | what a story shows |
 | designer | `StoryCanvas`, `StoryViewer`, `BuilderPanel`, `FilterEditor` | grid, drag and resize, viewer, generated forms |
 
@@ -157,6 +157,22 @@ A **Data Locking step** has the operation LOCK or UNLOCK on a `Version`; the loc
 Steps have name, description and an active switch (inactive steps are skipped). Steps run in order, the first failing step stops the run and earlier steps stay written.
 Validate checks the name, parameters (id, model, dimension, number default), that data actions exist and their parameters are mapped to parameters of the same type and
 dimension, that versions exist, the publish target is not locked and differs from the source; unused parameters are warnings and a parameter used nowhere shows in the list.
+
+* **Data Import** (`ImportEngine`): a CSV (header line, one value per line; comma, semicolon or tab; pasted or loaded from a file and stored in the step) and a mapping of every column to
+  Version, Period, Measure, Value or a dimension (guessed from the column names). What the file lacks is fixed in the step: the version and the measure (ids or parameters).
+  Every row is checked (member exists, period `YYYY-MM` inside the model, version exists and is not locked, value is a number); rows of the same cell add up. `OnError` FAIL (default) stops the
+  step and imports nothing, SKIP imports the valid rows and reports the first rejected line. Mode UPDATE replaces the value of a cell, ADD adds to it.
+* **Predictive** (`Forecaster`): a statistical forecast, not Smart Predict. For every combination of members of the source version and measure it takes the monthly history
+  (`HistoryFrom`..`HistoryTo`) and writes `ForecastFrom`..`ForecastTo` into the target version. Methods: LINEAR (least squares line), MOVING_AVERAGE (`Window` months, flat), EXP_SMOOTHING (`Alpha`, flat),
+  SEASONAL_NAIVE (same month a year earlier, needs 12 months). Missing months are left out of the fit; a series with too little history is skipped and counted. Periods, versions and measure can be parameters.
+* **API**: `Method`, `Url`, `Headers`, `Body`, expected status (`2xx` or `200,201`) and timeout. `@Name` in the URL, headers and body is replaced by the value of the parameter (several members are
+  joined with a comma). The call is made by `DataProvider.callApi` with `fetch`: no cookies or credentials, so the endpoint must allow the origin (CORS); the log shows method, URL without query
+  string and status. Headers are stored with the step, so they must not hold secrets.
+* **PaPM Integration**: `Environment`, `FunctionId`, `Parameters` (values may be `@Name`) are handed to `DataProvider.runPapm`. The base class refuses ("not connected"); `MockProvider`
+  simulates a successful run. A real connection is implemented by overriding `runPapm` in a provider (for example through a BTP destination).
+* **Comment Management**: COPY the comments of one version to another (added to the existing ones) or DELETE all comments of a version, through `copyComments` / `deleteComments`. Only `MockProvider`
+  keeps comments (collection `comments`); other sources refuse the step.
+
 Runs appear in the Run History (Job Monitor) of the Data Actions page. Backend: `ZSAC_MULTIACT.PARAMETERS` and `ZSAC_MASTEP` with name, description, active and `CONFIG` (JSON).
 
 ### Data actions
@@ -188,6 +204,6 @@ Every real run is recorded (`_putRun`, entity `ActionRun`) and shown in the Run 
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
 * Planning: formulas cannot refer to members, other measures or other cells; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); the version panels are dialogs, not SAC's side panel, and "hold data" means the version has facts, not that a table uses it; the unpublished buffer is per browser page (not shared, not saved).
-* Multi actions: only Data Action, Publish Version, Version Management and Data Locking steps (no Predictive, Data Import, API, PaPM or Comment Management steps); locking is per version, not per slice of data (no lock regions, owners or states); `ODataV4Provider.saveVersion` replaces the version row, which fires the `DeleteFacts` determination of the Version BO, so lock and unlock need a real update there before they are safe on a live service; a data action writes straight to its version, so there is no "publish after execution" option per step; no "Used In" list for stories yet.
+* Multi actions: the Predictive step is a plain statistical forecast (four methods, no accuracy figures, no training); the API step runs in the browser (CORS, no stored credentials, no response mapping); the PaPM step is only simulated by the sample data source; comments exist only in the sample data source and there is no place in the planning table to write or read them yet; the CSV of an import is stored inside the step (no file store, no big files, no mapping of several measure columns); locking is per version, not per slice of data (no lock regions, owners or states); `ODataV4Provider.saveVersion` replaces the version row, which fires the `DeleteFacts` determination of the Version BO, so lock and unlock need a real update there before they are safe on a live service; a data action writes straight to its version, so there is no "publish after execution" option per step; no "Used In" list for stories yet.
 * Data actions: no Advanced Formulas, no Currency Conversion, no cross-model copy; the run is client side (one browser, no server job, large models read all facts of the model); the step flow is linear (no branches or loops).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

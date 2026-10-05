@@ -4,9 +4,13 @@ sap.ui.define([
   "sap/m/Select", "sap/m/ComboBox", "sap/m/MultiComboBox", "sap/m/CheckBox", "sap/m/Switch", "sap/m/VBox", "sap/m/HBox", "sap/m/MessageStrip",
   "sap/ui/core/Item", "sap/ui/core/Icon",
   "zsac/lib/planning/MultiActionSchema",
-  "zsac/lib/planning/DataActionRun"
+  "zsac/lib/planning/DataActionRun",
+  "zsac/lib/planning/ImportEngine",
+  "zsac/lib/planning/Forecaster",
+  "zsac/fiori/model/Csv",
+  "zsac/lib/core/CsvParser"
 ], function (BaseController, Button, MenuButton, Menu, MenuItem, ToolbarSpacer, Title, Text, Label, Input, TextArea, Select, ComboBox, MultiComboBox, CheckBox, Switch,
-  VBox, HBox, MessageStrip, Item, Icon, Schema, Run) {
+  VBox, HBox, MessageStrip, Item, Icon, Schema, Run, ImportEngine, Forecaster, Csv, CsvParser) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -285,6 +289,10 @@ sap.ui.define([
         new Text({ text: "Step is active (inactive steps are skipped)" }).addStyleClass("sapUiTinyMarginBegin")] }));
       if (s.StepType === "DATAACTION") { this._dataActionEditor(edit, s); }
       else if (s.StepType === "PUBLISH") { this._publishEditor(edit, s); }
+      else if (s.StepType === "IMPORT") { this._importEditor(edit, s); }
+      else if (s.StepType === "PREDICT") { this._predictEditor(edit, s); }
+      else if (s.StepType === "API") { this._apiEditor(edit, s); }
+      else if (s.StepType === "PAPM") { this._papmEditor(edit, s); }
       else { this._versionStepEditor(edit, s); }
     },
 
@@ -352,16 +360,140 @@ sap.ui.define([
       if (!s.ModelId) { return; }
       const versionParams = this._a.Parameters.filter((p) => p.Type === "MEMBER" && p.DimId === "VERSION");
       const members = this._members(s.ModelId, "VERSION");
+      if (s.StepType === "COMMENT" && s.Operation === "COPY") {
+        this._field(edit, "Copy the comments of version", this._combo((raw) => { s.SourceVersion = raw; }, s.SourceVersion, versionParams, members));
+        this._field(edit, "to version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, versionParams, members), "The comments are added to the ones the target version already has.");
+        return;
+      }
       if (s.StepType === "VERSION" && s.Operation === "CREATE_PRIVATE") {
         this._field(edit, "Version to copy", this._combo((raw) => { s.SourceVersion = raw; }, s.SourceVersion, versionParams, members), "The private version starts with a copy of its values.");
         this._field(edit, "Name of the private version", this._text(s, "VersionName"));
         return;
       }
-      const label = s.StepType === "LOCK" ? (s.Operation === "LOCK" ? "Version to lock" : "Version to unlock")
+      const label = s.StepType === "COMMENT" ? "Version whose comments are deleted" : s.StepType === "LOCK" ? (s.Operation === "LOCK" ? "Version to lock" : "Version to unlock")
         : (s.Operation === "REVERT" ? "Private version to revert" : "Version to delete");
-      const hint = s.StepType === "LOCK" ? "A locked version cannot be written to by planners or by data actions."
+      const hint = s.StepType === "COMMENT" ? "Every comment of the version is deleted. The sample data source keeps comments; a source without comments makes the step fail."
+        : s.StepType === "LOCK" ? "A locked version cannot be written to by planners or by data actions."
         : (s.Operation === "REVERT" ? "The private version gets the values of the version it was copied from." : "The version and its values are removed. A locked version cannot be deleted.");
       this._field(edit, label, this._combo((raw) => { s.Version = raw; }, s.Version, versionParams, members), hint);
+    },
+
+    _modelSelect(s, onChange) {
+      return new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        change: (e) => { s.ModelId = e.getParameter("selectedItem").getKey(); onChange(); this._changed(true); } });
+    },
+
+    _params(type, dimId) { return this._a.Parameters.filter((p) => p.Type === type && (!dimId || p.DimId === dimId)); },
+
+    _choice(value, options, onChange, width) {
+      return new Select({ width: width || "100%", selectedKey: value, items: options.map(([k, t]) => new Item({ key: k, text: t })), change: (e) => { onChange(e.getParameter("selectedItem").getKey()); this._changed(true); } });
+    },
+
+    /** Name and value rows (API headers, PaPM parameters). */
+    _pairs(edit, list, nameLabel, valueLabel, addLabel) {
+      list.forEach((h, i) => {
+        const row = new HBox({ alignItems: "Center", wrap: "Wrap" }).addStyleClass("zsacRow");
+        row.addItem(this._text(h, "Name", { placeholder: nameLabel, width: "12rem" }));
+        row.addItem(this._text(h, "Value", { placeholder: valueLabel, width: "16rem" }));
+        row.addItem(new Button({ icon: "sap-icon://decline", type: "Transparent", tooltip: "Remove", press: () => { list.splice(i, 1); this._changed(true); } }));
+        edit.addItem(row);
+      });
+      edit.addItem(new Button({ text: addLabel, icon: "sap-icon://add", press: () => { list.push({ Name: "", Value: "" }); this._changed(true); } }));
+    },
+
+    _paramHint() {
+      const ids = this._a.Parameters.map((p) => "@" + p.Id);
+      return ids.length ? "Parameters you can use: " + ids.join(", ") : "Add parameters to the multi action to use them here as @Name.";
+    },
+
+    // Data Import ------------------------------------------------------------------------------------------------------------
+    _importEditor(edit, s) {
+      this._field(edit, "Model", this._modelSelect(s, () => { s.Mapping = {}; s.TargetVersion = ""; s.MeasureId = ""; }));
+      const model = this._model(s.ModelId);
+      if (!model) { return; }
+      const area = new TextArea({ value: s.Csv, rows: 8, width: "100%", placeholder: "Region;Product;Channel;Month;Amount\nEMEA;Cloud ERP;Direct;2026-10;1200", growing: false,
+        liveChange: () => {}, change: (e) => this._setCsv(s, model, e.getParameter("value")) });
+      area.addStyleClass("zsacMono");
+      this._field(edit, "CSV (header line, one value per line)", area);
+      edit.addItem(new Button({ text: "Load file", icon: "sap-icon://upload", press: this.guard(async () => { const f = await Csv.pick(); if (f) { this._setCsv(s, model, f.text); } }) }));
+      const header = ImportEngine.header(s.Csv);
+      if (!header.length) { return; }
+      const lines = Math.max(0, CsvParser.parse(s.Csv).length - 1);
+      edit.addItem(new Text({ text: header.length + " columns, " + lines + " data lines. Comma, semicolon or tab separated." }).addStyleClass("zsacSmall"));
+      edit.addItem(new Title({ text: "What each column is", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      const targets = [["", "Ignore"], ["VERSION", "Version"], ["PERIOD", "Period (2026-03)"], ["MEASURE", "Measure"], ["VALUE", "Value"]].concat((model.Dimensions || []).map((d) => [d.DimId, d.Label || d.DimId]));
+      header.forEach((h) => {
+        const row = new HBox({ alignItems: "Center", wrap: "Wrap" }).addStyleClass("zsacRow");
+        row.addItem(new Text({ text: h, width: "10rem" }));
+        row.addItem(this._choice(s.Mapping[h] || "", targets, (v) => { s.Mapping[h] = v; }, "14rem"));
+        edit.addItem(row);
+      });
+      const mapped = (t) => Object.keys(s.Mapping).some((c) => s.Mapping[c] === t && header.indexOf(c) >= 0);
+      if (!mapped("VERSION")) {
+        this._field(edit, "Import into version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, this._params("MEMBER", "VERSION"), this._members(s.ModelId, "VERSION")), "The file has no version column.");
+      }
+      if (!mapped("MEASURE")) {
+        this._field(edit, "Measure of the values", this._combo((raw) => { s.MeasureId = raw; }, s.MeasureId, this._params("MEMBER", "MEASURE"), this._members(s.ModelId, "MEASURE")), "The file has no measure column.");
+      }
+      this._field(edit, "Existing values", this._choice(s.Mode, [["UPDATE", "Replace the value of the same cell"], ["ADD", "Add to the value of the same cell"]], (v) => { s.Mode = v; }));
+      this._field(edit, "Rows that cannot be imported", this._choice(s.OnError, [["FAIL", "Stop the step, import nothing"], ["SKIP", "Skip them and import the rest"]], (v) => { s.OnError = v; }),
+        "Unknown members, periods outside the model, locked versions and values that are not numbers.");
+    },
+
+    _setCsv(s, model, text) {
+      s.Csv = text;
+      const header = ImportEngine.header(text);
+      const guess = ImportEngine.guessMapping(model, header);
+      const next = {};
+      header.forEach((h) => { next[h] = s.Mapping[h] !== undefined ? s.Mapping[h] : guess[h]; });
+      s.Mapping = next;
+      this._changed(true);
+    },
+
+    // Predictive -------------------------------------------------------------------------------------------------------------
+    _predictEditor(edit, s) {
+      this._field(edit, "Model", this._modelSelect(s, () => { s.MeasureId = ""; s.SourceVersion = ""; s.TargetVersion = ""; }));
+      if (!s.ModelId) { return; }
+      const ver = this._members(s.ModelId, "VERSION");
+      const vp = this._params("MEMBER", "VERSION");
+      const per = this._members(s.ModelId, "PERIOD");
+      const pp = this._params("MEMBER", "PERIOD");
+      this._field(edit, "Measure to forecast", this._combo((raw) => { s.MeasureId = raw; }, s.MeasureId, this._params("MEMBER", "MEASURE"), this._members(s.ModelId, "MEASURE")));
+      this._field(edit, "History from version", this._combo((raw) => { s.SourceVersion = raw; }, s.SourceVersion, vp, ver));
+      this._field(edit, "History from month", this._combo((raw) => { s.HistoryFrom = raw; }, s.HistoryFrom, pp, per));
+      this._field(edit, "History to month", this._combo((raw) => { s.HistoryTo = raw; }, s.HistoryTo, pp, per));
+      this._field(edit, "Write the forecast to version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, vp, ver));
+      this._field(edit, "Forecast from month", this._combo((raw) => { s.ForecastFrom = raw; }, s.ForecastFrom, pp, per));
+      this._field(edit, "Forecast to month", this._combo((raw) => { s.ForecastTo = raw; }, s.ForecastTo, pp, per));
+      this._field(edit, "Method", this._choice(s.Method, Object.keys(Forecaster.METHODS).map((k) => [k, Forecaster.METHODS[k]]), (v) => { s.Method = v; }),
+        "A statistical forecast for every combination of members, from the months of the history. It is not SAP Smart Predict.");
+      if (s.Method === "MOVING_AVERAGE") { this._field(edit, "Months to average", new Input({ type: "Number", value: String(s.Window), width: "8rem", change: (e) => { s.Window = Number(e.getParameter("value")); this._changed(false); } })); }
+      if (s.Method === "EXP_SMOOTHING") { this._field(edit, "Alpha (0 to 1)", new Input({ type: "Number", value: String(s.Alpha), width: "8rem", change: (e) => { s.Alpha = Number(e.getParameter("value")); this._changed(false); } }), "How strongly the latest months count."); }
+    },
+
+    // API --------------------------------------------------------------------------------------------------------------------
+    _apiEditor(edit, s) {
+      this._field(edit, "Method", this._choice(s.Method, Schema.METHODS.map((m) => [m, m]), (v) => { s.Method = v; }, "10rem"));
+      this._field(edit, "URL", this._text(s, "Url", { placeholder: "https://host/path" }), this._paramHint());
+      edit.addItem(new Title({ text: "Headers", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      this._pairs(edit, s.Headers, "Name", "Value", "Add header");
+      edit.addItem(new Text({ text: "Do not put secrets here: the step is stored with the multi action and is readable by everyone who can open it." }).addStyleClass("zsacSmall"));
+      if (s.Method !== "GET" && s.Method !== "DELETE") {
+        this._field(edit, "Body", new TextArea({ value: s.Body, rows: 6, width: "100%", change: (e) => { s.Body = e.getParameter("value"); this._changed(false); } }).addStyleClass("zsacMono"));
+      }
+      this._field(edit, "Expected status", this._text(s, "Expect", { width: "10rem" }), "2xx, or a list such as 200,201. Any other status fails the step.");
+      this._field(edit, "Timeout (seconds)", new Input({ type: "Number", value: String(s.TimeoutSec), width: "8rem", change: (e) => { s.TimeoutSec = Number(e.getParameter("value")); this._changed(false); } }),
+        "The browser makes the call without cookies, so the endpoint must allow this origin (CORS).");
+    },
+
+    // PaPM -------------------------------------------------------------------------------------------------------------------
+    _papmEditor(edit, s) {
+      this._field(edit, "Environment", this._text(s, "Environment"));
+      this._field(edit, "Function or process", this._text(s, "FunctionId"));
+      edit.addItem(new Title({ text: "Parameters", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      this._pairs(edit, s.Parameters, "Name", "Value", "Add parameter");
+      edit.addItem(new Text({ text: this._paramHint() + ". The sample data source only simulates the run; a real connection to PaPM is part of the data source." }).addStyleClass("zsacSmall"));
     },
 
     // validation results -------------------------------------------------------------------------------------------------------------

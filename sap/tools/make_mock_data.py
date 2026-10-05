@@ -232,6 +232,13 @@ def dataactions():
     ]
 
 
+def comments():
+    return [
+        {"Id": "C1", "ModelId": "SALES_PLAN", "VersionId": "BUD", "Period": "2026-07", "Text": "Budget assumes the new partner programme starts in July", "Author": "ME", "At": "2026-01-15T09:00:00.000Z"},
+        {"Id": "C2", "ModelId": "SALES_PLAN", "VersionId": "BUD", "Period": "2026-10", "Text": "Q4 includes the price increase", "Author": "ME", "At": "2026-01-16T09:00:00.000Z"},
+    ]
+
+
 def multiactions():
     return [{"Id": "MA_FORECAST_CYCLE", "Name": "Forecast cycle", "Description": "Run the forecast action, then publish the forecast to the budget",
              "Parameters": [
@@ -249,7 +256,15 @@ def multiactions():
                  {"StepNo": 10, "StepType": "VERSION", "Name": "Private snapshot", "Description": "A private copy to keep working on",
                   "ModelId": "SALES_PLAN", "Operation": "CREATE_PRIVATE", "SourceVersion": "@Version", "VersionName": "Snapshot before close"},
                  {"StepNo": 20, "StepType": "LOCK", "Name": "Lock the version", "Description": "Planners and data actions can no longer write to it",
-                  "ModelId": "SALES_PLAN", "Operation": "LOCK", "Version": "@Version"}]}]
+                  "ModelId": "SALES_PLAN", "Operation": "LOCK", "Version": "@Version"}]},
+            {"Id": "MA_STAT_FORECAST", "Name": "Statistical forecast", "Description": "Forecast the last months of the year from the actuals, then carry the budget comments over",
+             "Parameters": [],
+             "Steps": [
+                 {"StepNo": 10, "StepType": "PREDICT", "Name": "Forecast Q4 from actuals", "Description": "A straight line through Jan to Sep, continued to Oct to Dec",
+                  "ModelId": "SALES_PLAN", "MeasureId": "REVENUE", "SourceVersion": "ACT", "TargetVersion": "FCT", "HistoryFrom": "2026-01", "HistoryTo": "2026-09",
+                  "ForecastFrom": "2026-10", "ForecastTo": "2026-12", "Method": "LINEAR", "Window": 3, "Alpha": 0.3},
+                 {"StepNo": 20, "StepType": "COMMENT", "Name": "Carry budget comments to the forecast", "Description": "",
+                  "ModelId": "SALES_PLAN", "Operation": "COPY", "SourceVersion": "BUD", "TargetVersion": "FCT"}]}]
 
 
 def files():
@@ -267,6 +282,7 @@ def files():
         f("F_DATAACTION_DA_ALLOC_OPEX", "DATAACTION", "DA_ALLOC_OPEX", "Allocate HR budget to departments", ""),
         f("F_DATAACTION_DA_FORECAST_CYCLE", "DATAACTION", "DA_FORECAST_CYCLE", "Forecast refresh (aggressive)", ""),
         f("F_MULTIACTION_MA_FORECAST_CYCLE", "MULTIACTION", "MA_FORECAST_CYCLE", "Forecast cycle", ""),
+        f("F_MULTIACTION_MA_STAT_FORECAST", "MULTIACTION", "MA_STAT_FORECAST", "Statistical forecast", ""),
         f("F_MULTIACTION_MA_CLOSE_VERSION", "MULTIACTION", "MA_CLOSE_VERSION", "Snapshot and lock a version", ""),
     ]
 
@@ -294,6 +310,7 @@ if __name__ == "__main__":
     dump("dataactions.json", dataactions())
     dump("multiactions.json", multiactions())
     dump("runs.json", [])
+    dump("comments.json", comments())
     dump("files.json", files())
     dump("tasks.json", tasks())
     dump("audit.json", [])

@@ -6,7 +6,7 @@
  * A subclass implements the underscore-free primitives below (all return promises). `query`, `saveStory`,
  * `saveModel` ... are composed here from those primitives so every provider behaves the same.
  */
-sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema"], function (QueryEngine, DataActionEngine, DataActionSchema, MultiActionSchema) {
+sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners"], function (QueryEngine, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners) {
   "use strict";
 
   const abstract = (name) => function () { return Promise.reject(new Error(this.constructor.name + " does not implement " + name)); };
@@ -54,6 +54,34 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
     getDataAction(/* id */) { return abstract("getDataAction").call(this); }
     _putDataAction(/* action */) { return abstract("_putDataAction").call(this); }
     deleteDataAction(/* id */) { return abstract("deleteDataAction").call(this); }
+    // ---- what the API, PaPM and Comment Management steps of a multi action need from the data source ----------------------
+    /**
+     * Calls an HTTP endpoint for an API step. request = { Method, Url, Headers: [{Name, Value}], Body, TimeoutSec }.
+     * No cookies or credentials are sent; the browser's CORS rules apply, so the endpoint must allow calls from this origin.
+     * @returns {Promise<{status:number, text:string}>}
+     */
+    async callApi(request) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), (request.TimeoutSec || 30) * 1000);
+      const headers = {};
+      (request.Headers || []).forEach((h) => { headers[h.Name] = h.Value; });
+      try {
+        const res = await fetch(request.Url, { method: request.Method, headers, body: request.Body ? request.Body : undefined, credentials: "omit", signal: controller.signal });
+        return { status: res.status, text: await res.text() };
+      } catch (e) {
+        throw new Error(e && e.name === "AbortError" ? "no answer within " + (request.TimeoutSec || 30) + " seconds" : "the call failed (network, certificate or CORS): " + ((e && e.message) || e));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    /** Runs a PaPM function: { Environment, FunctionId, Parameters: {name: value} } -> { Status: "S"|"E", Message }. A data source that is connected to PaPM overrides this. */
+    async runPapm(/* request */) { throw new Error("PaPM integration is not connected to the data source " + this.id); }
+
+    /** Comments of a version (Comment Management step). Data sources without comments say so. */
+    async copyComments(/* modelId, fromVersionId, toVersionId */) { throw new Error("Comments are not supported by the data source " + this.id); }
+    async deleteComments(/* modelId, versionId */) { throw new Error("Comments are not supported by the data source " + this.id); }
+
     /** Run history of data actions and multi actions, newest first (empty where the source keeps none). */
     async listRuns(/* actionId, limit */) { return []; }
     async _putRun(/* entry */) { /* sources that keep a run history override this */ }
@@ -197,6 +225,11 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
             if (!!v.Locked !== locked) { await this.saveVersion(Object.assign({}, v, { Locked: locked })); }
             entry.message = (locked ? "Locked " : "Unlocked ") + version + (!!v.Locked === locked ? " (already so)" : "");
             log.push(step.Name + ": " + entry.message);
+          } else if (StepRunners.handles(step.StepType)) {
+            const r = await StepRunners.run(this, step, values, action.Parameters);
+            entry.touched = r.touched;
+            entry.message = r.message;
+            log.push(step.Name + ": " + r.message);
           } else {
             throw new Error("unknown step type " + step.StepType);
           }

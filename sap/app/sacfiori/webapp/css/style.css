@@ -30,3 +30,5 @@
 .zsacPlanCard { width: 100%; max-height: calc(100vh - 22rem); min-height: 14rem; }
 
 .zsacPlanCard { width: 100%; max-height: calc(100vh - 22rem); min-height: 14rem; }
+
+.zsacMono textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8125rem; }
