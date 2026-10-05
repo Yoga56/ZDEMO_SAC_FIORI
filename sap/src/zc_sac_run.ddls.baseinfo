@@ -2,7 +2,9 @@
 "BASEINFO":
 {
 "FROM":
-[],
+[
+"ZR_SAC_RUN"
+],
 "ASSOCIATED":
 [],
 "BASE":

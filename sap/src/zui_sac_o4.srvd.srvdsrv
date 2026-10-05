@@ -20,5 +20,6 @@ define service ZUI_SAC_O4
   expose ZC_SAC_DASTEP      as DataActionStep;
   expose ZC_SAC_MULTIACT    as MultiAction;
   expose ZC_SAC_MASTEP      as MultiActionStep;
+  expose ZC_SAC_RUN         as ActionRun;
   expose ZC_SAC_CALTASK     as CalendarTask;
 }

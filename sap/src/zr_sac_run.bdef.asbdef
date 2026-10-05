@@ -1,0 +1,34 @@
+managed implementation in class ZBP_R_SAC_RUN unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_RUN alias ActionRun
+persistent table zsac_run
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly )
+   LocalLastChangedAt;
+
+  create;
+  update;
+  delete;
+
+  mapping for zsac_run
+  {
+    RunId = run_id;
+    ActionId = action_id;
+    ActionName = action_name;
+    ModelId = model_id;
+    RunKind = run_kind;
+    Status = status;
+    Changed = changed;
+    DurationMs = duration_ms;
+    UserName = user_name;
+    StartedAt = started_at;
+    ParamsText = params_text;
+    LogText = log_text;
+    StepsJson = steps_json;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

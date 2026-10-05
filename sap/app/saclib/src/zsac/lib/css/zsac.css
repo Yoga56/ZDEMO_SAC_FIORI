@@ -115,3 +115,18 @@ input.zsacFx { flex: 1; min-width: 8rem; box-sizing: border-box; font: inherit; 
 input.zsacFx:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); }
 .zsacPlanGrid [data-hr], .zsacPlanGrid th[data-hc], .zsacPlanGrid th[data-all] { cursor: pointer; user-select: none; }
 .zsacPlanGrid .zsacSelHdr { background: var(--sapList_SelectionBackgroundColor, #e5f0fa); color: var(--sapContent_FocusColor, #0070f2); }
+
+/* data action trace and designer */
+.zsacTraceCard { border: 1px solid var(--sapList_BorderColor, #d9d9d9); border-radius: .5rem; padding: .5rem .75rem; margin-bottom: .5rem; background: var(--sapTile_Background, #fff); width: 100%; box-sizing: border-box; }
+.zsacTraceFailed { border-color: var(--sapNegativeColor, #b00); }
+.zsacFlow { display: flex; flex-direction: column; align-items: stretch; gap: 0; width: 15rem; padding: .5rem; box-sizing: border-box; }
+.zsacFlowNode { border: 1px solid var(--sapList_BorderColor, #d9d9d9); border-radius: .5rem; padding: .5rem .75rem; background: var(--sapTile_Background, #fff); cursor: pointer; box-sizing: border-box; }
+.zsacFlowNode:hover { background: var(--sapList_Hover_Background, #f5f5f5); }
+.zsacFlowNodeSel { border-color: var(--sapSelectedColor, #0a6ed1); box-shadow: 0 0 0 1px var(--sapSelectedColor, #0a6ed1); }
+.zsacFlowNodeOff { opacity: .55; }
+.zsacFlowEdge { width: 2px; height: .9rem; background: var(--sapList_BorderColor, #bbb); margin: 0 auto; }
+.zsacFlowTerm { text-align: center; font-weight: 600; border-radius: 1rem; padding: .25rem .75rem; background: var(--sapNeutralBackground, #eee); }
+.zsacDesignerBody { display: flex; height: 100%; min-height: 28rem; }
+.zsacDesignerFlow { flex: 0 0 16rem; overflow: auto; border-right: 1px solid var(--sapList_BorderColor, #d9d9d9); }
+.zsacDesignerEdit { flex: 1 1 auto; overflow: auto; padding: 1rem; min-width: 0; }
+.zsacRow { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .35rem; }

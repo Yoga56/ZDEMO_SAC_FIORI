@@ -10,6 +10,7 @@ define root view entity ZC_SAC_DATAACT
   ModelId,
   ActionName,
   Description,
+  Parameters,
   CreatedBy,
   CreatedAt,
   LastChangedBy,

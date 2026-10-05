@@ -1,0 +1,11 @@
+<mvc:View controllerName="zsac.fiori.controller.DataAction" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
+  <ScrollContainer height="100%" vertical="true">
+    <VBox class="zsacPage">
+      <OverflowToolbar id="bar" style="Clear"/>
+      <HBox class="zsacDesignerBody">
+        <VBox id="flow" class="zsacDesignerFlow"/>
+        <VBox id="edit" class="zsacDesignerEdit"/>
+      </HBox>
+    </VBox>
+  </ScrollContainer>
+</mvc:View>

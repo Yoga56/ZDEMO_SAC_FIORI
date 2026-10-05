@@ -3,10 +3,10 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <DDLS>
-    <DDLNAME>ZA_SAC_RUN_RESULT</DDLNAME>
+    <DDLNAME>ZR_SAC_RUN</DDLNAME>
     <DDLANGUAGE>E</DDLANGUAGE>
-    <DDTEXT>Run Result</DDTEXT>
-    <SOURCE_TYPE>A</SOURCE_TYPE>
+    <DDTEXT>Action Run</DDTEXT>
+    <SOURCE_TYPE>W</SOURCE_TYPE>
    </DDLS>
   </asx:values>
  </asx:abap>

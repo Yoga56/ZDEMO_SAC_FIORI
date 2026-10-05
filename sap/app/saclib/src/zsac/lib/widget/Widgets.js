@@ -20,9 +20,10 @@ sap.ui.define([
   "../core/HierarchyEngine",
   "../planning/PlanGrid",
   "../planning/PlanPublisher",
+  "../planning/DataActionRun",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine,
-  PlanGrid, PlanPublisher, VBox, Button, MessageBox, MessageToast) {
+  PlanGrid, PlanPublisher, DataActionRun, VBox, Button, MessageBox, MessageToast) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -230,12 +231,14 @@ sap.ui.define([
       { key: "Binding.ModelId", label: "Model", kind: "model" },
       { key: "Props.ActionId", label: "Data action", kind: "dataaction" },
       { key: "Props.Subtitle", label: "Subtitle", kind: "text" },
-      { key: "Props.ParamDims", label: "Parameters the planner can set (data filter)", kind: "dimensions" }
+      { key: "Props.ParamDims", label: "Extra data filter the planner can set", kind: "dimensions" }
     ],
     create(widget, ctx) {
       const box = new VBox({ width: "100%" });
       const card = new WidgetCard({ title: "", widgetId: widget.Id, bare: false, content: box });
       const params = {};
+      let declared = null;
+      let lastValues;
       const run = async () => {
         const id = widget.Props.ActionId;
         if (!id) { MessageToast.show("Choose a data action in the builder panel"); return; }
@@ -248,7 +251,7 @@ sap.ui.define([
           }
           const filter = {};
           Object.keys(params).forEach((d) => { if (params[d].length) { filter[d] = params[d]; } });
-          const r = await ctx.provider.executeDataAction(id, { Filter: filter });
+          const r = await ctx.provider.executeDataAction(id, { Filter: filter, Values: declared ? declared.values : undefined });
           MessageToast.show(r.Changed + " values changed");
           ctx.bus.fire("refresh-all", {});
         } catch (e) {
@@ -263,6 +266,12 @@ sap.ui.define([
         box.addItem(new Text({ text: widget.Props.Subtitle || "" }).addStyleClass("zsacSmall"));
         const model = await ctx.provider.getModel(widget.Binding.ModelId);
         const versions = await ctx.provider.listVersions(model.ModelId);
+        lastValues = declared ? declared.values : lastValues;
+        declared = null;
+        if (action && (action.Parameters || []).length) {
+          declared = DataActionRun.paramControls(action, model, versions, lastValues);
+          box.addItem(declared.box);
+        }
         for (const dimId of widget.Props.ParamDims || []) {
           let label = dimId;
           let members;

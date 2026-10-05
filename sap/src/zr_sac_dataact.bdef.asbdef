@@ -18,7 +18,6 @@ etag master LocalLastChangedAt
   update;
   delete;
   association _Step { create; }
-  action Execute parameter ZA_SAC_DA_PARAM result [1] ZA_SAC_RUN_RESULT;
 
   mapping for zsac_dataact
   {
@@ -26,6 +25,7 @@ etag master LocalLastChangedAt
     ModelId = model_id;
     ActionName = action_name;
     Description = description;
+    Parameters = parameters;
     CreatedBy = created_by;
     CreatedAt = created_at;
     LastChangedBy = last_changed_by;
@@ -54,12 +54,10 @@ etag dependent by _DataAction
     ActionId = action_id;
     StepNo = step_no;
     StepType = step_type;
-    SrcVersion = src_version;
-    TgtVersion = tgt_version;
-    FilterText = filter_text;
-    Factor = factor;
-    TargetDim = target_dim;
-    TargetMembers = target_members;
+    StepName = step_name;
+    Description = description;
+    Active = active;
+    Config = config;
     LocalLastChangedAt = local_last_changed_at;
   }
 }

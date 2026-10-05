@@ -71,6 +71,7 @@
         { "name": "modeller", "pattern": "modeller/{id}", "target": "modeller" },
         { "name": "planning", "pattern": "planning:?query:", "target": "planning" },
         { "name": "dataactions", "pattern": "dataactions:?query:", "target": "dataactions" },
+        { "name": "dataaction", "pattern": "dataactions/{id}", "target": "dataaction" },
         { "name": "multiactions", "pattern": "multiactions:?query:", "target": "multiactions" },
         { "name": "calendar", "pattern": "calendar", "target": "calendar" }
       ],
@@ -85,6 +86,7 @@
         "modeller": { "viewName": "Modeller", "viewId": "modeller" },
         "planning": { "viewName": "Planning", "viewId": "planning" },
         "dataactions": { "viewName": "DataActions", "viewId": "dataactions" },
+        "dataaction": { "viewName": "DataAction", "viewId": "dataaction" },
         "multiactions": { "viewName": "MultiActions", "viewId": "multiactions" },
         "calendar": { "viewName": "Calendar", "viewId": "calendar" }
       }

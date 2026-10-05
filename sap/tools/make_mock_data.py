@@ -204,15 +204,31 @@ def stories():
 
 
 def dataactions():
+    q3 = ["2026-07", "2026-08", "2026-09"]
     return [
         {"Id": "DA_FORECAST_FROM_ACT", "ModelId": "SALES_PLAN", "Name": "Forecast Q4 from run-rate",
-         "Description": "Copy actuals to the forecast and uplift 5%", "Steps": [
-             {"StepNo": 10, "StepType": "COPY", "SrcVersion": "ACT", "TgtVersion": "FCT", "Filter": {}, "Factor": 1},
-             {"StepNo": 20, "StepType": "SCALE", "TgtVersion": "FCT", "Filter": {"PERIOD": ["2026-07", "2026-08", "2026-09"]}, "Factor": 1.05}]},
+         "Description": "Copy actuals to the forecast and uplift Q3 by a percentage you choose",
+         "Parameters": [
+             {"Id": "Region", "Prompt": "Regions (empty = all)", "Type": "MEMBER", "DimId": "REGION", "Multi": True, "Default": []},
+             {"Id": "Uplift", "Prompt": "Q3 uplift factor", "Type": "NUMBER", "Default": 1.05}],
+         "Steps": [
+             {"StepNo": 10, "StepType": "COPY", "Name": "Copy actuals to forecast", "Description": "Overwrites the forecast of the chosen regions",
+              "Filter": {"VERSION": ["ACT"], "REGION": ["@Region"]}, "Rules": [{"Dim": "VERSION", "From": "ACT", "To": "FCT"}], "WriteMode": "OVERWRITE", "Factor": 1},
+             {"StepNo": 20, "StepType": "SCALE", "Name": "Uplift Q3", "Description": "Scale the copied Q3 months",
+              "Filter": {"VERSION": ["FCT"], "PERIOD": q3, "REGION": ["@Region"]}, "Factor": "@Uplift"}]},
         {"Id": "DA_ALLOC_OPEX", "ModelId": "OPEX_PLAN", "Name": "Allocate HR budget to departments",
-         "Description": "Spread HR budget equally over three departments", "Steps": [
-             {"StepNo": 10, "StepType": "ALLOCATE", "SrcVersion": "BUD", "TgtVersion": "FCT", "Filter": {"DEPARTMENT": ["HR"]},
-              "TargetDim": "DEPARTMENT", "TargetMembers": ["Finance", "Sales", "Operations"]}]},
+         "Description": "Spread the HR budget over three departments in the version you choose",
+         "Parameters": [{"Id": "Target", "Prompt": "Target version", "Type": "MEMBER", "DimId": "VERSION", "Multi": False, "Default": ["FCT"]}],
+         "Steps": [
+             {"StepNo": 10, "StepType": "ALLOCATE", "Name": "Allocate HR", "Description": "Equal shares, the HR line is cleared",
+              "Filter": {"VERSION": ["BUD"], "DEPARTMENT": ["HR"]}, "TargetDim": "DEPARTMENT", "TargetMembers": ["Finance", "Sales", "Operations"],
+              "TgtVersion": "@Target", "Driver": "EQUAL", "WriteMode": "OVERWRITE", "ClearSource": False}]},
+        {"Id": "DA_FORECAST_CYCLE", "ModelId": "SALES_PLAN", "Name": "Forecast refresh (aggressive)",
+         "Description": "Runs the run-rate forecast with a 10% uplift for every region",
+         "Parameters": [],
+         "Steps": [
+             {"StepNo": 10, "StepType": "EMBED", "Name": "Run-rate forecast", "Description": "Embedded data action with its own parameters",
+              "ActionId": "DA_FORECAST_FROM_ACT", "ParamMap": {"Uplift": 1.1}}]},
     ]
 
 
@@ -236,6 +252,7 @@ def files():
         f("F_MODEL_OPEX_PLAN", "MODEL", "OPEX_PLAN", "Opex Plan", "Operating expense by department and account"),
         f("F_DATAACTION_DA_FORECAST_FROM_ACT", "DATAACTION", "DA_FORECAST_FROM_ACT", "Forecast Q4 from run-rate", "", False, True),
         f("F_DATAACTION_DA_ALLOC_OPEX", "DATAACTION", "DA_ALLOC_OPEX", "Allocate HR budget to departments", ""),
+        f("F_DATAACTION_DA_FORECAST_CYCLE", "DATAACTION", "DA_FORECAST_CYCLE", "Forecast refresh (aggressive)", ""),
         f("F_MULTIACTION_MA_FORECAST_CYCLE", "MULTIACTION", "MA_FORECAST_CYCLE", "Forecast cycle", ""),
     ]
 
@@ -262,6 +279,7 @@ if __name__ == "__main__":
     dump("stories.json", stories())
     dump("dataactions.json", dataactions())
     dump("multiactions.json", multiactions())
+    dump("runs.json", [])
     dump("files.json", files())
     dump("tasks.json", tasks())
     dump("audit.json", [])

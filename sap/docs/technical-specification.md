@@ -15,7 +15,7 @@
 |---|---|---|
 | core | `DataProvider`, `ProviderRegistry`, `QueryEngine`, `HierarchyEngine`, `FilterEngine`, `ModelSchema`, `StorySchema`, `WidgetRegistry`, `EventBus`, `Format` | contracts and pure logic, no UI |
 | provider | `MockProvider`, `ODataV4Provider`, `mockdata/*.json` | data sources |
-| planning | `DataActionEngine`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
+| planning | `DataActionSchema`, `DataActionEngine`, `DataActionRun`, `VersionEngine`, `PlanBuffer`, `Spreader`, `PlanEditor`, `PlanPublisher`, `PlanGrid`, `PlanToolbar` | planning semantics, the unpublished buffer and the editable cross-tab |
 | widget | `SvgChart` + `ChartBuilders`/`ChartData`, `KpiTile`, `PivotTable`, `WidgetCard`, `Widgets` (registrations) | what a story shows |
 | designer | `StoryCanvas`, `StoryViewer`, `BuilderPanel`, `FilterEditor` | grid, drag and resize, viewer, generated forms |
 
@@ -80,10 +80,10 @@ Generated from `sap/tools/sac_spec.py` by `gen_rap.py` and `abapgit_meta.py`; ha
 
 | Layer | Objects |
 |---|---|
-| Tables | `ZSAC_FILE`, `_STORY`, `_WIDGET`, `_MODEL`, `_DIM`, `_MEASURE`, `_VERSION`, `_FACT`, `_DATAACT`, `_DASTEP`, `_MULTIACT`, `_MASTEP`, `_CALTASK` |
-| BOs | `ZR_SAC_*` managed (no draft: the freestyle app edits directly), compositions Story-Widget, Model-Dimension/Measure, DataAction-Step, MultiAction-Step; `ZC_SAC_*` projections |
-| Actions | Version: `CreatePrivate` (static), `Publish`, `Revert`; Fact: `WriteFacts`, `DeleteFacts` (static, bulk); DataAction: `Execute`; MultiAction: `Run` |
-| Engines | `ZCL_SAC_FACT_WRITER` (all fact writes go through the Fact BO), `ZCL_SAC_VERSION_ENGINE`, `ZCL_SAC_DATAACT_ENGINE`, `ZCL_SAC_FILTER` |
+| Tables | `ZSAC_FILE`, `_STORY`, `_WIDGET`, `_MODEL`, `_DIM`, `_MEASURE`, `_VERSION`, `_FACT`, `_DATAACT`, `_DASTEP`, `_MULTIACT`, `_MASTEP`, `_RUN`, `_CALTASK` |
+| BOs | `ZR_SAC_*` managed (no draft: the freestyle app edits directly), compositions Story-Widget, Model-Dimension/Measure, DataAction-Step, MultiAction-Step; `ActionRun` is the run history; `ZC_SAC_*` projections |
+| Actions | Version: `CreatePrivate` (static), `Publish`, `Revert`; Fact: `WriteFacts`, `DeleteFacts` (static, bulk). Data and multi actions have no server action: they run in the client (see Data actions) |
+| Engines | `ZCL_SAC_FACT_WRITER` (all fact writes go through the Fact BO), `ZCL_SAC_VERSION_ENGINE` |
 | Service | `ZUI_SAC_O4` (OData V4 UI), binding created in ADT |
 | Seed | `ZCL_SAC_SEED` (F9) |
 
@@ -107,8 +107,8 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
   aggregated cell (parent node, year, quarter) it is **spread** over the facts below (`Spreader`: proportional for SUM, equal parts when the current sum is
   zero, every fact takes the value for AVG/MIN/MAX). An empty cell creates a fact only when every dimension has one leaf member. The Add row action creates
   zero facts for every month.
-* **Data action trigger widget.** A button with parameter inputs (members of chosen dimensions become the data filter parameter). A data action runs on
-  published data, so unpublished changes are published first after a confirmation; the page reloads afterwards.
+* **Data action trigger widget.** A button with the inputs of the declared parameters of the action (defaults filled in) and, optionally, extra data filter
+  dimensions. A data action runs on published data, so unpublished changes are published first after a confirmation; the page reloads afterwards.
 * **Version Management** (`VersionManager`, toolbar button *Versions*). Public and private versions of the model in two lists with category filter, search and a
   "hold data" switch. Per version: Details (values, periods, owner, source), Rename, Lock or Unlock (when the model has Data Locking), Copy as private version, Delete
   (a locked version must be unlocked first; deleting removes its numbers); for private versions Publish to a public version and Revert to source. A blank public
@@ -142,9 +142,27 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 
 ### Planning semantics (JS and ABAP twins)
 
-* Data action steps: COPY (source to target times factor), SCALE (target times factor), DELETE (target slice), ALLOCATE (sum of the
-  source slice spread equally over target members of a dimension). The data filter parameter narrows the filter of every step.
+* Data actions: see the next section.
 * Version: private = copy of a source; publish replaces the target version; revert copies the source again.
+
+### Data actions
+
+`DataActionSchema` (shape, defaults, validation) and `DataActionEngine` (pure) are shared by every provider. **Execution is client side**: `DataProvider.executeDataAction`
+reads the facts of the model, runs the steps in memory and writes only the difference (`writeFacts`/`deleteFacts`) when every step succeeded, so a failing step
+or a locked version leaves the data as it was. `previewDataAction` is the same run without the write (Trace). `runMultiAction` runs its steps through the same path.
+Every real run is recorded (`_putRun`, entity `ActionRun`) and shown in the Run History tab.
+
+* **Action** = `{Id, ModelId, Name, Description, Parameters[], Steps[]}`. **Parameter** = `{Id, Prompt, Type: MEMBER|NUMBER, DimId, Multi, Default}`. A value written
+  `@Id` in a filter, copy rule, factor, target version, allocation member or embedded `ParamMap` is replaced by the value entered at run time (an empty member
+  parameter means no restriction). The run dialog and the trigger widget prompt for the parameters.
+* **Steps** (all have Name, Description, Active; inactive steps are skipped; every step has a filter of the facts it works on):
+  COPY (rules per dimension `{Dim, From, To}`; dates shift by whole years or quarters; AggregateTo sums onto one member; WriteMode OVERWRITE or APPEND; Factor),
+  SCALE (Factor), DELETE (the filtered facts), ALLOCATE (spread over TargetMembers of TargetDim in TgtVersion by Driver EQUAL, PROPORTIONAL to existing values or
+  REFERENCE version; nodes are expanded to leaves; ClearSource), EMBED (runs another action of the model with a ParamMap; at most 5 levels, loops are rejected).
+* **Validate** reports errors (name, parameters, unknown dimensions or versions, locked target, missing allocation fields, embedded loop ...) and warnings
+  (unused parameter, delete without filter); Save is blocked by errors. **Trace** shows per step created/updated/deleted counts and sample old/new values.
+* **Backend**: `ZSAC_DATAACT.PARAMETERS` (JSON) and `ZSAC_DASTEP` with name, description, active and `CONFIG` (JSON of everything specific to the step type),
+  so a new step option needs no new column; `ZSAC_RUN` keeps the history. There is no ABAP twin of the engine.
 
 ## Known gaps
 
@@ -156,4 +174,5 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * The deployed app ships the library inside itself (`--include-dependency zsac.lib`); the library can also be deployed on its own.
 * Modeller: no undo/redo, grid view, calculated measures (the Calculations view is a placeholder). Dimension types preset attributes only; no time dimension, no level-based or ragged hierarchy rules, one hierarchy per dimension in a widget.
 * Planning: formulas cannot refer to members, other measures or other cells; keyboard copy and paste need the browser's clipboard events (the toolbar buttons are the fallback); the version panels are dialogs, not SAC's side panel, and "hold data" means the version has facts, not that a table uses it; the unpublished buffer is per browser page (not shared, not saved).
+* Data actions: no Advanced Formulas, no Currency Conversion, no cross-model copy; the run is client side (one browser, no server job, large models read all facts of the model); the step flow is linear (no branches or loops).
 * Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting (Analytics Designer), server side aggregation.

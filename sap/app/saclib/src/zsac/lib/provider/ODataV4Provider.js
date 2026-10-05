@@ -23,9 +23,6 @@ sap.ui.define([
   const str = (o) => JSON.stringify(o === undefined ? null : o);
   const quote = (v) => "'" + String(v).replace(/'/g, "''") + "'";
   /** Filters travel as "REGION=APAC,EMEA;PERIOD=2026-01" in the filter columns and action parameters of the backend. */
-  const encFilter = (f) => Object.keys(f || {}).filter((k) => (f[k] || []).length).map((k) => k + "=" + f[k].join(",")).join(";");
-  const decFilter = (t) => String(t || "").split(";").filter(Boolean).reduce((o, part) => { const i = part.indexOf("="); o[part.slice(0, i)] = part.slice(i + 1).split(",").filter(Boolean); return o; }, {});
-  const csv = (a) => (a || []).join(",");
   const strip = (o) => { const c = Object.assign({}, o); Object.keys(c).forEach((k) => { if (k.startsWith("@") || k.startsWith("_")) { delete c[k]; } }); return c; };
 
   class ODataV4Provider extends DataProvider {
@@ -194,30 +191,43 @@ sap.ui.define([
     deleteStory(id) { return this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); }
 
     // ---- data actions -----------------------------------------------------------------------
+    /** A step is its own columns for what every step has and CONFIG (JSON) for what depends on the step type. */
     _toDataAction(e) {
       return {
-        Id: e.ActionId, ModelId: e.ModelId, Name: e.ActionName, Description: e.Description,
-        Steps: (e._Step || []).map((s) => ({ StepNo: s.StepNo, StepType: s.StepType, SrcVersion: s.SrcVersion, TgtVersion: s.TgtVersion,
-          Filter: decFilter(s.FilterText), Factor: s.Factor === null ? 1 : Number(s.Factor), TargetDim: s.TargetDim,
-          TargetMembers: String(s.TargetMembers || "").split(",").filter(Boolean) })).sort((a, b) => a.StepNo - b.StepNo)
+        Id: e.ActionId, ModelId: e.ModelId, Name: e.ActionName, Description: e.Description, Parameters: json(e.Parameters, []),
+        Steps: (e._Step || []).map((s) => Object.assign(json(s.Config, {}), { StepNo: s.StepNo, StepType: s.StepType, Name: s.StepName,
+          Description: s.Description, Active: s.Active !== false })).sort((a, b) => a.StepNo - b.StepNo)
       };
     }
     async listDataActions() { return (await this._list("/DataAction", [], { $expand: "_Step" })).map((e) => this._toDataAction(e)); }
     async getDataAction(id) { return this._toDataAction(await this._one("/DataAction", ["ActionId", id], { $expand: "_Step" })); }
     async _putDataAction(a) {
       const key = "/DataAction(ActionId=" + quote(a.Id) + ")";
-      await this._replace("/DataAction", key, { ActionId: a.Id, ModelId: a.ModelId, ActionName: a.Name, Description: a.Description || "" });
+      await this._replace("/DataAction", key, { ActionId: a.Id, ModelId: a.ModelId, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []) });
       for (const s of a.Steps || []) {
-        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, SrcVersion: s.SrcVersion || "",
-          TgtVersion: s.TgtVersion || "", FilterText: encFilter(s.Filter), Factor: String(s.Factor === undefined ? 1 : s.Factor),
-          TargetDim: s.TargetDim || "", TargetMembers: csv(s.TargetMembers) }, true).created();
+        const config = Object.assign({}, s);
+        ["StepNo", "StepType", "Name", "Description", "Active"].forEach((k) => { delete config[k]; });
+        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, StepName: s.Name || "", Description: s.Description || "",
+          Active: s.Active !== false, Config: str(config) }, true).created();
       }
       return a;
     }
     deleteDataAction(id) { return this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); }
-    async executeDataAction(id, params) {
-      const r = await this._action("/DataAction(ActionId=" + quote(id) + ")/" + NS + "Execute(...)", { FilterText: encFilter(params && params.Filter) });
-      return { Changed: r.Changed, Log: String(r.LogText || "").split("\n").filter(Boolean) };
+    // executing (executeDataAction, previewDataAction, runMultiAction) is inherited: the steps run in the client and the difference is written as facts
+
+    // ---- run history ------------------------------------------------------------------------
+    async listRuns(actionId, limit) {
+      const filters = actionId ? [new Filter("ActionId", FilterOperator.EQ, actionId)] : [];
+      const rows = (await this._list("/ActionRun", filters)).map((e) => ({
+        Id: e.RunId, ActionId: e.ActionId, ActionName: e.ActionName, ModelId: e.ModelId, Kind: e.RunKind, Status: e.Status, Changed: e.Changed,
+        DurationMs: e.DurationMs, User: e.UserName, At: e.StartedAt, ParamsText: e.ParamsText, Log: String(e.LogText || "").split("\n").filter(Boolean), Steps: json(e.StepsJson, []) }));
+      return rows.sort((a, b) => String(b.At).localeCompare(String(a.At))).slice(0, limit || 100);
+    }
+    async _putRun(r) {
+      const id = "RUN" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+      await this._m.bindList("/ActionRun").create({ RunId: id, ActionId: r.ActionId, ActionName: r.ActionName || "", ModelId: r.ModelId || "", RunKind: r.Kind,
+        Status: r.Status, Changed: r.Changed || 0, DurationMs: r.DurationMs || 0, UserName: "", StartedAt: new Date().toISOString(), ParamsText: String(r.ParamsText || "").slice(0, 255),
+        LogText: (r.Log || []).join("\n"), StepsJson: str(r.Steps || []) }, true).created();
     }
 
     // ---- multi actions ----------------------------------------------------------------------
@@ -240,10 +250,6 @@ sap.ui.define([
       return a;
     }
     deleteMultiAction(id) { return this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); }
-    async runMultiAction(id, params) {
-      const r = await this._action("/MultiAction(ActionId=" + quote(id) + ")/" + NS + "Run(...)", { FilterText: encFilter(params && params.Filter) });
-      return { Status: r.Status, Log: String(r.LogText || "").split("\n").filter(Boolean) };
-    }
 
     // ---- files and calendar -----------------------------------------------------------------
     _toFile(e) { return { Id: e.FileId, ParentId: e.ParentId, Type: e.FileType, ObjectId: e.ObjectId, Name: e.FileName, Description: e.Description,

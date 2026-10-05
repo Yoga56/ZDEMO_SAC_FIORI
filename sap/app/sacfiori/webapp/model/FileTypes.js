@@ -6,7 +6,7 @@ sap.ui.define([], function () {
     FOLDER: { label: "Folder", icon: "sap-icon://folder-full" },
     STORY: { label: "Story", icon: "sap-icon://business-objects-experience", open: (c, f) => c.navTo("story", { id: f.ObjectId }) },
     MODEL: { label: "Dataset", icon: "sap-icon://database", open: (c, f) => c.navTo("modeller", { id: f.ObjectId }) },
-    DATAACTION: { label: "Data Action", icon: "sap-icon://workflow-tasks", open: (c, f) => c.router().navTo("dataactions", { query: { id: f.ObjectId } }) },
+    DATAACTION: { label: "Data Action", icon: "sap-icon://workflow-tasks", open: (c, f) => c.router().navTo("dataaction", { id: f.ObjectId }) },
     MULTIACTION: { label: "Multi Action", icon: "sap-icon://process", open: (c, f) => c.router().navTo("multiactions", { query: { id: f.ObjectId } }) }
   };
 

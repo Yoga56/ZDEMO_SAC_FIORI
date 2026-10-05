@@ -1,75 +1,78 @@
-<mvc:View controllerName="zsac.fiori.controller.DataActions" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" height="100%">
+<mvc:View controllerName="zsac.fiori.controller.DataActions" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
   <ScrollContainer height="100%" vertical="true">
     <VBox class="zsacPage">
-      <HBox class="zsacTwoPane">
-        <VBox class="zsacMaster">
-          <List id="list" items="{list>/items}" mode="SingleSelectMaster" selectionChange=".onSelect" noDataText="No data actions">
-            <headerToolbar>
-              <OverflowToolbar>
-                <Title text="Data Actions" level="H4"/>
-                <ToolbarSpacer/>
-                <Button icon="sap-icon://add" text="New" press=".onNew"/>
-              </OverflowToolbar>
-            </headerToolbar>
-            <StandardListItem title="{list>Name}" description="{list>ModelId}" icon="sap-icon://workflow-tasks"/>
-          </List>
-        </VBox>
-        <VBox class="zsacDetail" id="detail" visible="false">
-          <OverflowToolbar style="Clear">
-            <Title text="{a>/Name}" level="H3"/>
-            <ToolbarSpacer/>
-            <Button text="Run" icon="sap-icon://play" press=".onRun" type="Emphasized"/>
-            <Button text="Save" icon="sap-icon://save" press=".onSave"/>
-            <Button icon="sap-icon://delete" press=".onDelete" tooltip="Delete"/>
-          </OverflowToolbar>
-          <HBox wrap="Wrap" class="sapUiSmallMarginBottom">
-            <VBox class="sapUiSmallMarginEnd"><Label text="Name" required="true"/><Input value="{a>/Name}" width="16rem"/></VBox>
-            <VBox class="sapUiSmallMarginEnd"><Label text="Model" required="true"/>
-              <Select id="model" selectedKey="{a>/ModelId}" change=".onModel" width="12rem" items="{path: 'ver>/models', templateShareable: false}"><core:Item key="{ver>ModelId}" text="{ver>Name}"/></Select></VBox>
-            <VBox><Label text="Description"/><Input value="{a>/Description}" width="24rem"/></VBox>
-          </HBox>
-          <Table items="{a>/Steps}" noDataText="Add a step">
-            <headerToolbar>
-              <OverflowToolbar>
-                <Title text="Steps (run in order)" level="H5"/>
-                <ToolbarSpacer/>
-                <Button text="Add step" icon="sap-icon://add" press=".onAddStep"/>
-              </OverflowToolbar>
-            </headerToolbar>
-            <columns>
-              <Column width="4rem"><Text text="No."/></Column>
-              <Column width="9rem"><Text text="Type"/></Column>
-              <Column width="10rem"><Text text="From version"/></Column>
-              <Column width="10rem"><Text text="To version"/></Column>
-              <Column width="6rem"><Text text="Factor"/></Column>
-              <Column width="11rem"><Text text="Filter"/></Column>
-              <Column width="13rem"><Text text="Allocate over"/></Column>
-              <Column width="3rem"/>
-            </columns>
-            <items>
-              <ColumnListItem vAlign="Middle">
-                <cells>
-                  <Input value="{a>StepNo}" type="Number"/>
-                  <Select selectedKey="{a>StepType}">
-                    <core:Item key="COPY" text="Copy"/><core:Item key="SCALE" text="Scale"/><core:Item key="DELETE" text="Delete"/><core:Item key="ALLOCATE" text="Allocate"/>
-                  </Select>
-                  <Select selectedKey="{a>SrcVersion}" items="{path: 'ver>/versions', templateShareable: false}" enabled="{= ['COPY','ALLOCATE'].indexOf(${a>StepType}) >= 0}" forceSelection="false">
-                    <core:Item key="{ver>VersionId}" text="{ver>VersionId}"/></Select>
-                  <Select selectedKey="{a>TgtVersion}" items="{path: 'ver>/versions', templateShareable: false}" forceSelection="false">
-                    <core:Item key="{ver>VersionId}" text="{ver>VersionId}"/></Select>
-                  <Input value="{a>Factor}" type="Number" enabled="{= ['COPY','SCALE'].indexOf(${a>StepType}) >= 0}"/>
-                  <Button text="{= ${a>FilterText} || 'All data'}" press=".onFilter" type="Transparent" tooltip="Edit filter"/>
-                  <VBox visible="{= ${a>StepType} === 'ALLOCATE'}">
-                    <Select selectedKey="{a>TargetDim}" items="{path: 'ver>/dims', templateShareable: false}" forceSelection="false"><core:Item key="{ver>DimId}" text="{ver>Label}"/></Select>
-                    <Input value="{a>TargetMembersText}" placeholder="A, B, C"/>
-                  </VBox>
-                  <Button icon="sap-icon://delete" type="Transparent" press=".onRemoveStep"/>
-                </cells>
-              </ColumnListItem>
-            </items>
-          </Table>
-        </VBox>
-      </HBox>
+      <IconTabBar id="tabs" expandable="false" applyContentPadding="false" select=".onTab">
+        <items>
+          <IconTabFilter key="actions" text="Data Actions" icon="sap-icon://workflow-tasks">
+            <Table id="actionTable" items="{list>/items}" noDataText="No data actions yet. Create one to get started." growing="true" growingThreshold="50">
+              <headerToolbar>
+                <OverflowToolbar>
+                  <SearchField width="16rem" placeholder="Search" liveChange=".onSearch"/>
+                  <ToolbarSpacer/>
+                  <Button text="Create" icon="sap-icon://add" type="Emphasized" press=".onNew"/>
+                </OverflowToolbar>
+              </headerToolbar>
+              <columns>
+                <Column><Text text="Name"/></Column>
+                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Model"/></Column>
+                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Steps"/></Column>
+                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Parameters"/></Column>
+                <Column minScreenWidth="Desktop" demandPopin="true"><Text text="Last run"/></Column>
+                <Column width="12rem" hAlign="End"><Text text=""/></Column>
+              </columns>
+              <items>
+                <ColumnListItem type="Navigation" press=".onOpen">
+                  <cells>
+                    <ObjectIdentifier title="{list>Name}" text="{list>Description}"/>
+                    <Text text="{list>ModelName}"/>
+                    <Text text="{list>StepCount}"/>
+                    <Text text="{list>ParamCount}"/>
+                    <ObjectStatus text="{list>LastRunText}" state="{list>LastRunState}"/>
+                    <HBox justifyContent="End">
+                      <Button icon="sap-icon://play" tooltip="Run" type="Transparent" press=".onRunRow"/>
+                      <Button icon="sap-icon://duplicate" tooltip="Duplicate" type="Transparent" press=".onDuplicateRow"/>
+                      <Button icon="sap-icon://delete" tooltip="Delete" type="Transparent" press=".onDeleteRow"/>
+                    </HBox>
+                  </cells>
+                </ColumnListItem>
+              </items>
+            </Table>
+          </IconTabFilter>
+          <IconTabFilter key="runs" text="Run History" icon="sap-icon://history">
+            <Table id="runTable" items="{runs>/items}" noDataText="Nothing has run yet." growing="true" growingThreshold="50">
+              <headerToolbar>
+                <OverflowToolbar>
+                  <Title text="Job Monitor" level="H5"/>
+                  <ToolbarSpacer/>
+                  <Button icon="sap-icon://refresh" tooltip="Refresh" press=".onRefreshRuns"/>
+                </OverflowToolbar>
+              </headerToolbar>
+              <columns>
+                <Column width="7rem"><Text text="Status"/></Column>
+                <Column><Text text="Action"/></Column>
+                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Type"/></Column>
+                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Changed"/></Column>
+                <Column minScreenWidth="Desktop" demandPopin="true"><Text text="Duration"/></Column>
+                <Column minScreenWidth="Desktop" demandPopin="true"><Text text="User"/></Column>
+                <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Started"/></Column>
+              </columns>
+              <items>
+                <ColumnListItem type="Navigation" press=".onRunDetail">
+                  <cells>
+                    <ObjectStatus text="{runs>StatusText}" state="{runs>StatusState}"/>
+                    <ObjectIdentifier title="{runs>ActionName}" text="{runs>ParamsText}"/>
+                    <Text text="{runs>KindText}"/>
+                    <Text text="{runs>Changed}"/>
+                    <Text text="{runs>DurationText}"/>
+                    <Text text="{runs>User}"/>
+                    <Text text="{runs>AtText}"/>
+                  </cells>
+                </ColumnListItem>
+              </items>
+            </Table>
+          </IconTabFilter>
+        </items>
+      </IconTabBar>
     </VBox>
   </ScrollContainer>
 </mvc:View>

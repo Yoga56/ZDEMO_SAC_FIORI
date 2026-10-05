@@ -1,0 +1,10 @@
+projection;
+strict ( 2 );
+
+define behavior for ZC_SAC_RUN alias ActionRun
+use etag
+{
+  use create;
+  use update;
+  use delete;
+}

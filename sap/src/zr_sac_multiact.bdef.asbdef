@@ -18,7 +18,6 @@ etag master LocalLastChangedAt
   update;
   delete;
   association _Step { create; }
-  action Run parameter ZA_SAC_DA_PARAM result [1] ZA_SAC_RUN_RESULT;
 
   mapping for zsac_multiact
   {

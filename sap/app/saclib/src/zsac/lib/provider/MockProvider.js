@@ -15,8 +15,9 @@ sap.ui.define([
   "use strict";
 
   const STORE_KEY = "zsac.mock.v1";
-  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit"];
+  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit", "runs"];
   const AUDIT_LIMIT = 2000;
+  const RUN_LIMIT = 500;
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const wait = (v) => Promise.resolve(clone(v));
 
@@ -187,19 +188,16 @@ sap.ui.define([
       this._remove("dataactions", (x) => x.Id === id);
       this._remove("files", (x) => x.Type === "DATAACTION" && x.ObjectId === id);
     }
-    async executeDataAction(id, params) {
-      const action = await this.getDataAction(id);
-      const model = await this.getModel(action.ModelId);
-      const versions = this._db.versions.filter((v) => v.ModelId === action.ModelId);
-      const locked = new Set(versions.filter((v) => v.Locked).map((v) => v.VersionId));
-      const targets = (action.Steps || []).filter((s) => s.TgtVersion && locked.has(s.TgtVersion));
-      if (targets.length) { throw new Error("Version " + targets[0].TgtVersion + " is locked"); }
-      const before = this._db.facts.filter((f) => f.ModelId === action.ModelId);
-      const run = DataActionEngine.run(model, before, action, params);
-      const delta = DataActionEngine.diff(before, run.facts);
-      await this.deleteFacts(action.ModelId, delta.deletes);
-      await this.writeFacts(action.ModelId, delta.upserts);
-      return { Changed: run.changed, Log: run.log };
+
+    // run history of data and multi actions
+    async listRuns(actionId, limit) {
+      return clone(this._db.runs.filter((r) => !actionId || r.ActionId === actionId).slice(0, limit || 100));
+    }
+    async _putRun(entry) {
+      const at = new Date().toISOString();
+      this._db.runs.unshift(Object.assign({ Id: "RUN" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), User: "ME", At: at }, clone(entry)));
+      if (this._db.runs.length > RUN_LIMIT) { this._db.runs.length = RUN_LIMIT; }
+      this._save();
     }
 
     // multi actions
@@ -212,27 +210,6 @@ sap.ui.define([
     async deleteMultiAction(id) {
       this._remove("multiactions", (x) => x.Id === id);
       this._remove("files", (x) => x.Type === "MULTIACTION" && x.ObjectId === id);
-    }
-    async runMultiAction(id, params) {
-      const action = await this.getMultiAction(id);
-      const log = [];
-      for (const step of (action.Steps || []).slice().sort((a, b) => a.StepNo - b.StepNo)) {
-        try {
-          if (step.StepType === "DATAACTION") {
-            const r = await this.executeDataAction(step.ActionId, params);
-            log.push("Step " + step.StepNo + " data action " + step.ActionId + ": " + r.Changed + " values changed");
-          } else if (step.StepType === "PUBLISH") {
-            const r = await this.publishVersion(step.ModelId, step.SourceVersion, step.TargetVersion);
-            log.push("Step " + step.StepNo + " publish " + step.SourceVersion + " to " + step.TargetVersion + ": " + r.Published + " values");
-          } else {
-            log.push("Step " + step.StepNo + ": unknown type " + step.StepType);
-          }
-        } catch (e) {
-          log.push("Step " + step.StepNo + " failed: " + e.message);
-          return { Status: "E", Log: log };
-        }
-      }
-      return { Status: "S", Log: log };
     }
 
     // files and calendar

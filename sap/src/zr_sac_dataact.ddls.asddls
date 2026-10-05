@@ -9,6 +9,7 @@ define root view entity ZR_SAC_DATAACT
   model_id as ModelId,
   action_name as ActionName,
   description as Description,
+  parameters as Parameters,
   @Semantics.user.createdBy: true,
   created_by as CreatedBy,
   @Semantics.systemDateTime.createdAt: true,

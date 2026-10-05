@@ -19,7 +19,7 @@ widget registry and provider contract are the extension points).
 | Data of a model | Datasets, Modeller (Data Management) | preview, CSV import and export |
 | Version | **Version Management** panel (Planning page and any story with a planning table) | public (Budget, Forecast, Actual) or private what-if copy; create, rename, lock, copy, publish, revert, delete; **Version History** lists the session's unpublished steps (undo to any step) and the published change log |
 | Plan data | Planning page, or a **Planning table** widget in any story | typed into an editable cross-tab (any dimensions on rows and columns, Date hierarchy year > quarter > month, parent nodes spread their value over the numbers below); changes stay **unpublished** (undo, redo) until Publish Data; select cells (or a whole row or column by its header) to **Distribute Values** (equally, proportionally, or like another version), to **copy and paste** to and from spreadsheets, or to apply a value or **formula** from the formula bar (`*1.1`, `+10%`, `=ACT*1.05`) |
-| Data action | Data Actions; a **Data action trigger** widget runs one from a story with its own parameter inputs | steps copy, scale, delete, allocate; optional data filter parameter at run time |
+| Data action | Data Actions (list, designer, Job Monitor run history); a **Data action trigger** widget runs one from a story and asks for its parameters | designer with step flow, undo/redo, Validate and Trace (dry run); member and number parameters (`@Name`); steps Copy (per-dimension from/to rules, aggregate-to, overwrite or append, factor), Allocation (equal, proportional, reference version), Scale, Fact Deletion, Embedded Data Action |
 | Multi action | Multi Actions | ordered steps: run a data action, publish a version |
 | Task | Calendar | submit, approve, reject, tied to a model and version |
 
@@ -66,8 +66,8 @@ Same flow as Estate Command.
 
 1. ADT: create package `ZSAC_FIORI`. *abapGit Repositories* view: link this repository to the package, **Pull**.
 2. Activate all (Ctrl+Shift+F3). If mass activation complains, in this order: tables, `ZA_SAC_*` abstract entities,
-   `ZR_SAC_*` views, `ZC_SAC_*` views, `ZCL_SAC_FILTER`, `ZCL_SAC_FACT_WRITER`, `ZCL_SAC_VERSION_ENGINE`,
-   `ZCL_SAC_DATAACT_ENGINE`, behavior definitions `ZR_SAC_*` then `ZC_SAC_*`, `ZBP_R_SAC_*`, `ZUI_SAC_O4`, `ZCL_SAC_SEED`.
+   `ZR_SAC_*` views, `ZC_SAC_*` views, `ZCL_SAC_FACT_WRITER`, `ZCL_SAC_VERSION_ENGINE`,
+   behavior definitions `ZR_SAC_*` then `ZC_SAC_*`, `ZBP_R_SAC_*`, `ZUI_SAC_O4`, `ZCL_SAC_SEED`.
 3. Create the service binding `ZUI_SAC_O4` (OData V4 - UI) on the service definition and publish it. The binding is ignored by
    abapGit on purpose.
 4. Run `ZCL_SAC_SEED` with F9 for the sample models, plan data, story and actions.

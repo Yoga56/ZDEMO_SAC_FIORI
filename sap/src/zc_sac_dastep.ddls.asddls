@@ -8,12 +8,10 @@ define view entity ZC_SAC_DASTEP
   key ActionId,
   key StepNo,
   StepType,
-  SrcVersion,
-  TgtVersion,
-  FilterText,
-  Factor,
-  TargetDim,
-  TargetMembers,
+  StepName,
+  Description,
+  Active,
+  Config,
   LocalLastChangedAt,
   _DataAction : redirected to parent ZC_SAC_DATAACT
 }

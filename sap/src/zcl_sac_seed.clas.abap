@@ -51,8 +51,8 @@ CLASS zcl_sac_seed IMPLEMENTATION.
     DELETE FROM zsac_model   WHERE model_id IN ( 'SALES_PLAN', 'OPEX_PLAN' ).
     DELETE FROM zsac_widget  WHERE story_id IN ( 'STORY_SALES' ).
     DELETE FROM zsac_story   WHERE story_id IN ( 'STORY_SALES' ).
-    DELETE FROM zsac_dastep  WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX' ).
-    DELETE FROM zsac_dataact WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX' ).
+    DELETE FROM zsac_dastep  WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX', 'DA_FORECAST_CYCLE' ).
+    DELETE FROM zsac_dataact WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX', 'DA_FORECAST_CYCLE' ).
     DELETE FROM zsac_mastep  WHERE action_id = 'MA_FORECAST_CYCLE'.
     DELETE FROM zsac_multiact WHERE action_id = 'MA_FORECAST_CYCLE'.
     DELETE FROM zsac_file    WHERE file_id LIKE 'F\_%' ESCAPE '\' AND owner_id = 'SEED'.
@@ -230,16 +230,33 @@ CLASS zcl_sac_seed IMPLEMENTATION.
 
     INSERT zsac_dataact FROM TABLE @( VALUE #(
       ( action_id = 'DA_FORECAST_FROM_ACT' model_id = 'SALES_PLAN' action_name = 'Forecast Q4 from run-rate'
-        description = 'Copy actuals to the forecast and uplift 5%' created_at = now last_changed_at = now local_last_changed_at = now )
+        description = 'Copy actuals to the forecast and uplift Q3 by a percentage you choose'
+        parameters = `[{"Id":"Region","Prompt":"Regions (empty = all)","Type":"MEMBER","DimId":"REGION","Multi":true,"Default":[]},{"Id":"Uplift","Prompt":"Q3 uplift factor","Type":"NUMBER","Default":1.` &&
+                    `05}]`
+        created_at = now last_changed_at = now local_last_changed_at = now )
       ( action_id = 'DA_ALLOC_OPEX' model_id = 'OPEX_PLAN' action_name = 'Allocate HR budget to departments'
-        description = 'Spread HR budget equally over three departments' created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
+        description = 'Spread the HR budget over three departments in the version you choose'
+        parameters = `[{"Id":"Target","Prompt":"Target version","Type":"MEMBER","DimId":"VERSION","Multi":false,"Default":["FCT"]}]`
+        created_at = now last_changed_at = now local_last_changed_at = now )
+      ( action_id = 'DA_FORECAST_CYCLE' model_id = 'SALES_PLAN' action_name = 'Forecast refresh (aggressive)'
+        description = 'Runs the run-rate forecast with a 10% uplift for every region'
+        parameters = `[]`
+        created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
 
     INSERT zsac_dastep FROM TABLE @( VALUE #(
-      ( action_id = 'DA_FORECAST_FROM_ACT' step_no = 10 step_type = 'COPY'  src_version = 'ACT' tgt_version = 'FCT' factor = 1 local_last_changed_at = now )
-      ( action_id = 'DA_FORECAST_FROM_ACT' step_no = 20 step_type = 'SCALE' tgt_version = 'FCT' factor = '1.05'
-        filter_text = 'PERIOD=2026-07,2026-08,2026-09' local_last_changed_at = now )
-      ( action_id = 'DA_ALLOC_OPEX' step_no = 10 step_type = 'ALLOCATE' src_version = 'BUD' tgt_version = 'FCT' factor = 1
-        filter_text = 'DEPARTMENT=HR' target_dim = 'DEPARTMENT' target_members = 'Finance,Sales,Operations' local_last_changed_at = now ) ) ).
+      ( action_id = 'DA_FORECAST_FROM_ACT' step_no = 10 step_type = 'COPY' step_name = 'Copy actuals to forecast' description = 'Overwrites the forecast of the chosen regions' active = abap_true
+        config = `{"Filter":{"VERSION":["ACT"],"REGION":["@Region"]},"Rules":[{"Dim":"VERSION","From":"ACT","To":"FCT"}],"WriteMode":"OVERWRITE","Factor":1}`
+        local_last_changed_at = now )
+      ( action_id = 'DA_FORECAST_FROM_ACT' step_no = 20 step_type = 'SCALE' step_name = 'Uplift Q3' description = 'Scale the copied Q3 months' active = abap_true
+        config = `{"Filter":{"VERSION":["FCT"],"PERIOD":["2026-07","2026-08","2026-09"],"REGION":["@Region"]},"Factor":"@Uplift"}`
+        local_last_changed_at = now )
+      ( action_id = 'DA_ALLOC_OPEX' step_no = 10 step_type = 'ALLOCATE' step_name = 'Allocate HR' description = 'Equal shares, the HR line is cleared' active = abap_true
+        config = `{"Filter":{"VERSION":["BUD"],"DEPARTMENT":["HR"]},"TargetDim":"DEPARTMENT","TargetMembers":["Finance","Sales","Operations"],"TgtVersion":"@Target","Driver":"EQUAL","WriteMode":"OVE` &&
+                 `RWRITE","ClearSource":false}`
+        local_last_changed_at = now )
+      ( action_id = 'DA_FORECAST_CYCLE' step_no = 10 step_type = 'EMBED' step_name = 'Run-rate forecast' description = 'Embedded data action with its own parameters' active = abap_true
+        config = `{"ActionId":"DA_FORECAST_FROM_ACT","ParamMap":{"Uplift":1.1}}`
+        local_last_changed_at = now ) ) ).
 
     INSERT zsac_multiact FROM TABLE @( VALUE #(
       ( action_id = 'MA_FORECAST_CYCLE' action_name = 'Forecast cycle'
@@ -257,6 +274,8 @@ CLASS zcl_sac_seed IMPLEMENTATION.
       ( file_id = 'F_MODEL_SALES_PLAN' file_type = 'MODEL' object_id = 'SALES_PLAN' file_name = 'Sales Plan' description = 'Revenue and cost by region, product and channel'
         owner_id = 'SEED' favourite = abap_true created_at = now last_changed_at = now local_last_changed_at = now )
       ( file_id = 'F_MODEL_OPEX_PLAN' file_type = 'MODEL' object_id = 'OPEX_PLAN' file_name = 'Opex Plan' description = 'Operating expense by department and account'
+        owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
+      ( file_id = 'F_DATAACTION_DA_FORECAST_CYCLE' file_type = 'DATAACTION' object_id = 'DA_FORECAST_CYCLE' file_name = 'Forecast refresh (aggressive)'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )
       ( file_id = 'F_DATAACTION_DA_FORECAST_FROM_ACT' file_type = 'DATAACTION' object_id = 'DA_FORECAST_FROM_ACT' file_name = 'Forecast Q4 from run-rate'
         owner_id = 'SEED' created_at = now last_changed_at = now local_last_changed_at = now )

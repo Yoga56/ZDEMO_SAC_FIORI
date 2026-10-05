@@ -1,145 +1,108 @@
 sap.ui.define([
   "./BaseController",
   "sap/ui/model/json/JSONModel",
-  "sap/m/Dialog", "sap/m/Button", "sap/m/VBox", "sap/m/Text", "sap/m/Label", "sap/m/TextArea",
-  "zsac/lib/designer/FilterEditor",
-  "zsac/lib/core/FilterEngine",
+  "sap/ui/model/Filter", "sap/ui/model/FilterOperator",
+  "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Label", "sap/m/Select", "sap/m/TextArea", "sap/m/VBox", "sap/ui/core/Item",
+  "zsac/lib/planning/DataActionRun",
+  "zsac/lib/planning/DataActionSchema",
   "zsac/lib/core/StorySchema"
-], function (BaseController, JSONModel, Dialog, Button, VBox, Text, Label, TextArea, FilterEditor, FilterEngine, StorySchema) {
+], function (BaseController, JSONModel, Filter, FilterOperator, Dialog, Button, Input, Label, Select, TextArea, VBox, Item, DataActionRun, Schema, StorySchema) {
   "use strict";
 
-  /** Data action designer: steps (copy, scale, delete, allocate) per model, run with an optional data filter parameter. */
+  const fmtAt = (at) => (at ? new Date(at).toLocaleString() : "");
+
+  /** Data Actions landing page: the list of actions (open, run, duplicate, delete) and the run history (Job Monitor). */
   return BaseController.extend("zsac.fiori.controller.DataActions", {
     onInit() {
       this._list = new JSONModel({ items: [] });
-      this._a = new JSONModel({});
-      this._ver = new JSONModel({ models: [], versions: [], dims: [] });
-      const v = this.getView();
-      v.setModel(this._list, "list"); v.setModel(this._a, "a"); v.setModel(this._ver, "ver");
-      this.onRoute("dataactions", (args) => this._load((args["?query"] || {}).id));
+      this._runs = new JSONModel({ items: [] });
+      this.getView().setModel(this._list, "list");
+      this.getView().setModel(this._runs, "runs");
+      this.onRoute("dataactions", (args) => this._load((args["?query"] || {}).tab));
     },
 
-    async _load(id) {
+    async _load(tab) {
       const p = (this._p = await this.provider());
-      const items = await p.listDataActions();
-      this._list.setProperty("/items", items);
-      this._ver.setProperty("/models", await p.listModels());
-      const hit = items.find((x) => x.Id === id) || items[0];
-      if (hit) { await this._edit(hit); } else { this.byId("detail").setVisible(false); }
+      const [actions, models, runs] = await Promise.all([p.listDataActions(), p.listModels(), p.listRuns(null, 200)]);
+      this._models = models;
+      const names = new Map(models.map((m) => [m.ModelId, m.Name]));
+      const last = new Map();
+      runs.forEach((r) => { if (r.Kind === "DATA" && !last.has(r.ActionId)) { last.set(r.ActionId, r); } });
+      this._list.setProperty("/items", actions.map((a) => {
+        const r = last.get(a.Id);
+        return Object.assign({}, a, { ModelName: names.get(a.ModelId) || a.ModelId, StepCount: (a.Steps || []).length, ParamCount: (a.Parameters || []).length,
+          LastRunText: r ? (r.Status === "S" ? "Succeeded " : "Failed ") + fmtAt(r.At) : "Never run", LastRunState: r ? (r.Status === "S" ? "Success" : "Error") : "None" });
+      }));
+      this._runs.setProperty("/items", runs.map((r) => Object.assign({}, r, {
+        StatusText: r.Status === "S" ? "Succeeded" : "Failed", StatusState: r.Status === "S" ? "Success" : "Error", KindText: r.Kind === "MULTI" ? "Multi Action" : "Data Action",
+        DurationText: r.DurationMs + " ms", AtText: fmtAt(r.At) })));
+      if (tab === "runs") { this.byId("tabs").setSelectedKey("runs"); }
     },
 
-    async _edit(action) {
-      const a = JSON.parse(JSON.stringify(action));
-      a.Steps = (a.Steps || []).map((s) => this._toRow(s));
-      this._a.setData(a);
-      await this._model(a.ModelId);
-      this.byId("detail").setVisible(true);
-      const i = this._list.getProperty("/items").findIndex((x) => x.Id === action.Id);
-      const list = this.byId("list");
-      if (i >= 0) { list.setSelectedItem(list.getItems()[i]); }
+    onTab() { /* both tabs are loaded together */ },
+    onRefreshRuns: function () { this.guard(() => this._load("runs"))(); },
+
+    onSearch(e) {
+      const q = e.getParameter("newValue");
+      this.byId("actionTable").getBinding("items").filter(q ? [new Filter("Name", FilterOperator.Contains, q)] : []);
     },
 
-    _toRow(s) {
-      return Object.assign({ StepNo: 10, StepType: "COPY", SrcVersion: "", TgtVersion: "", Factor: 1, TargetDim: "" }, s, {
-        Filter: s.Filter || {}, FilterText: FilterEngine.describe(s.Filter || {}), TargetMembersText: (s.TargetMembers || []).join(", ") });
+    _row(e) { return e.getSource().getBindingContext("list").getObject(); },
+
+    onOpen(e) { this.navTo("dataaction", { id: this._row(e).Id }); },
+
+    onRunRow(e) {
+      DataActionRun.open({ provider: this._p, actionId: this._row(e).Id, onDone: () => this._load().catch((x) => this.fail(x)) });
     },
 
-    async _model(id) {
-      const m = (this._ver.getProperty("/models") || []).find((x) => x.ModelId === id);
-      this._m = m || null;
-      this._ver.setProperty("/dims", m ? m.Dimensions : []);
-      this._ver.setProperty("/versions", m ? await this._p.listVersions(id) : []);
-    },
-
-    onSelect(e) { this._edit(e.getParameter("listItem").getBindingContext("list").getObject()).catch((x) => this.fail(x)); },
-    onModel(e) { this._model(e.getParameter("selectedItem").getKey()).catch((x) => this.fail(x)); },
-
-    onNew() {
-      const m = (this._ver.getProperty("/models") || [])[0];
-      if (!m) { this.toast("Create a dataset first"); return; }
-      this._edit({ Id: StorySchema.uid("DA"), ModelId: m.ModelId, Name: "New data action", Description: "", Steps: [], isNew: true }).catch((x) => this.fail(x));
-    },
-
-    onAddStep() {
-      const steps = this._a.getProperty("/Steps");
-      steps.push(this._toRow({ StepNo: (steps.length ? Math.max.apply(null, steps.map((s) => Number(s.StepNo))) : 0) + 10 }));
-      this._a.setProperty("/Steps", steps);
-    },
-
-    onRemoveStep(e) {
-      const i = Number(e.getSource().getBindingContext("a").getPath().split("/").pop());
-      const steps = this._a.getProperty("/Steps");
-      steps.splice(i, 1);
-      this._a.setProperty("/Steps", steps);
-    },
-
-    onFilter(e) {
-      const ctx = e.getSource().getBindingContext("a");
-      const step = ctx.getObject();
-      let filter = JSON.parse(JSON.stringify(step.Filter || {}));
-      if (!this._m) { return; }
-      const holder = new VBox({ width: "100%" });
-      const build = () => { holder.destroyItems(); holder.addItem(FilterEditor.build({ model: this._m, versions: this._ver.getProperty("/versions"), filters: filter,
-        onChange: (f) => { filter = f; }, onRebuild: build })); };
-      build();
-      const dlg = new Dialog({ title: "Step filter", content: [this._margin({ width: "24rem", items: [new Text({ text: "Only values matching the filter are touched by this step." }), holder] })],
-        beginButton: new Button({ text: "OK", type: "Emphasized", press: () => { this._a.setProperty(ctx.getPath() + "/Filter", filter); this._a.setProperty(ctx.getPath() + "/FilterText", FilterEngine.describe(filter)); dlg.close(); } }),
-        endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
-      dlg.open();
-    },
-
-    _collect() {
-      const d = this._a.getData();
-      const problems = [];
-      if (!(d.Name || "").trim()) { problems.push("Name is required"); }
-      if (!d.ModelId) { problems.push("Choose a model"); }
-      if (!d.Steps.length) { problems.push("Add at least one step"); }
-      const steps = d.Steps.map((s) => {
-        const t = s.StepType;
-        if (["COPY", "ALLOCATE"].includes(t) && !s.SrcVersion) { problems.push("Step " + s.StepNo + ": choose the source version"); }
-        if (!s.TgtVersion) { problems.push("Step " + s.StepNo + ": choose the target version"); }
-        const members = String(s.TargetMembersText || "").split(",").map((x) => x.trim()).filter(Boolean);
-        if (t === "ALLOCATE" && (!s.TargetDim || !members.length)) { problems.push("Step " + s.StepNo + ": choose the dimension and members to allocate over"); }
-        return { StepNo: Number(s.StepNo), StepType: t, SrcVersion: s.SrcVersion || "", TgtVersion: s.TgtVersion || "", Filter: s.Filter || {}, Factor: s.Factor === "" ? 1 : Number(s.Factor),
-          TargetDim: s.TargetDim || "", TargetMembers: members };
-      });
-      if (problems.length) { throw new Error(problems.join("\n")); }
-      return { Id: d.Id, ModelId: d.ModelId, Name: d.Name.trim(), Description: d.Description || "", Steps: steps };
-    },
-
-    onSave: function () {
-      this.guard(async () => { await this._p.saveDataAction(this._collect()); this.toast("Data action saved"); await this._load(this._a.getProperty("/Id")); })();
-    },
-
-    onDelete: function () {
+    onDuplicateRow: function (e) {
+      const row = this._row(e);
       this.guard(async () => {
-        if (!(await this.confirm("Delete this data action?", "Delete"))) { return; }
-        await this._p.deleteDataAction(this._a.getProperty("/Id"));
+        const copy = JSON.parse(JSON.stringify(await this._p.getDataAction(row.Id)));
+        copy.Id = StorySchema.uid("DA");
+        copy.Name = row.Name + " (copy)";
+        await this._p.saveDataAction(copy);
+        this.toast("Duplicated");
         await this._load();
       })();
     },
 
-    onRun: function () {
+    onDeleteRow: function (e) {
+      const row = this._row(e);
       this.guard(async () => {
-        const action = this._collect();
-        await this._p.saveDataAction(action);
-        let filter = {};
-        const holder = new VBox({ width: "100%" });
-        const build = () => { holder.destroyItems(); holder.addItem(FilterEditor.build({ model: this._m, versions: this._ver.getProperty("/versions"), filters: filter,
-          onChange: (f) => { filter = f; }, onRebuild: build })); };
-        build();
-        const dlg = new Dialog({ title: "Run " + action.Name,
-          content: [this._margin({ width: "24rem", items: [new Label({ text: "Data filter parameter (optional)", design: "Bold" }), holder] })],
-          beginButton: new Button({ text: "Run", type: "Emphasized", press: this.guard(async () => {
-            const r = await this._p.executeDataAction(action.Id, { Filter: filter });
-            dlg.close();
-            const out = new Dialog({ title: "Result: " + r.Changed + " values changed", content: [new TextArea({ value: r.Log.join("\n"), rows: 6, width: "28rem", editable: false })],
-              endButton: new Button({ text: "Close", press: () => out.close() }), afterClose: () => out.destroy() });
-            out.open();
-          }) }),
-          endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
-        dlg.open();
+        if (!(await this.confirm("Delete the data action \"" + row.Name + "\"?", "Delete"))) { return; }
+        await this._p.deleteDataAction(row.Id);
+        await this._load();
       })();
+    },
+
+    onNew() {
+      if (!this._models || !this._models.length) { this.toast("Create a dataset first"); return; }
+      const name = new Input({ width: "100%", placeholder: "Name" });
+      const model = new Select({ width: "100%", selectedKey: this._models[0].ModelId });
+      this._models.forEach((m) => model.addItem(new Item({ key: m.ModelId, text: m.Name })));
+      const dlg = new Dialog({ title: "Create data action",
+        content: [this._margin({ width: "22rem", items: [new Label({ text: "Name", required: true }), name, new Label({ text: "Model", required: true }), model] })],
+        beginButton: new Button({ text: "Create", type: "Emphasized", press: this.guard(async () => {
+          if (!name.getValue().trim()) { name.setValueState("Error"); return; }
+          const a = { Id: StorySchema.uid("DA"), ModelId: model.getSelectedKey(), Name: name.getValue().trim(), Description: "", Parameters: [], Steps: [] };
+          await this._p.saveDataAction(a);
+          dlg.close();
+          this.navTo("dataaction", { id: a.Id });
+        }) }),
+        endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+      dlg.open();
+    },
+
+    onRunDetail(e) {
+      const r = e.getSource().getBindingContext("runs").getObject();
+      const lines = [r.ActionName + "  (" + r.KindText + ")", "Status: " + r.StatusText + "   Changed: " + r.Changed + "   " + r.DurationText + "   User: " + r.User + "   " + r.AtText];
+      if (r.ParamsText) { lines.push("Parameters: " + r.ParamsText); }
+      (r.Steps || []).forEach((s) => lines.push("Step " + s.no / 10 + " " + s.name + ": " + s.touched + " values" + (s.message ? " - " + s.message : "")));
+      lines.push("", "Log"); (r.Log || []).forEach((l) => lines.push(l));
+      const dlg = new Dialog({ title: "Run " + r.Id, content: [new TextArea({ value: lines.join("\n"), rows: 14, width: "34rem", editable: false })],
+        endButton: new Button({ text: "Close", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+      dlg.open();
     }
   });
 });

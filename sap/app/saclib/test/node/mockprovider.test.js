@@ -65,3 +65,18 @@ test("a public version can be deleted with its numbers unless it is locked", asy
   assert.strictEqual((await p.readFacts("SALES_PLAN", { VERSION: ["BUD2"] })).length, 0);
   await assert.rejects(() => p.deleteVersion("SALES_PLAN", "ACT"), /locked/);
 });
+
+test("data action: parameters, dry run writes nothing, runs are logged", async () => {
+  const p = make();
+  const before = await p.readFacts("SALES_PLAN", { VERSION: ["FCT"] });
+  const dry = await p.previewDataAction("DA_FORECAST_FROM_ACT", { Values: { Uplift: 1.2 } });
+  assert.strictEqual(dry.Status, "S");
+  assert.ok(dry.Steps.length === 2 && dry.DryRun);
+  assert.strictEqual((await p.readFacts("SALES_PLAN", { VERSION: ["FCT"] })).length, before.length);
+  assert.strictEqual((await p.listRuns()).length, 0);
+  const r = await p.executeDataAction("DA_FORECAST_CYCLE", {});
+  assert.strictEqual(r.Status, "S");
+  const runs = await p.listRuns();
+  assert.strictEqual(runs.length, 1);
+  assert.strictEqual(runs[0].Kind, "DATA");
+});

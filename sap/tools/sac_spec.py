@@ -66,19 +66,26 @@ ENTITIES = [
                  "static action DeleteFacts parameter ZA_SAC_FACT_BATCH;"],
         uses=["use action WriteFacts;", "use action DeleteFacts;"], service_ops=False),
 
+    # data actions run in the client (zsac.lib DataActionEngine); the backend stores the definitions and the run history.
+    # PARAMETERS is the JSON list of parameters; CONFIG of a step is the JSON of everything that depends on the step type
+    # (filter, copy rules, factor, allocation settings, embedded action ...), so a new step option needs no new column.
     dict(id="DATAACT", table="ZSAC_DATAACT", label="Data Action", set="DataAction", admin=ADMIN, children=[("DASTEP", "_Step")], fields=[
-        ("*ACTION_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255")],
-        actions=["action Execute parameter ZA_SAC_DA_PARAM result [1] ZA_SAC_RUN_RESULT;"], uses=["use action Execute;"]),
+        ("*ACTION_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("PARAMETERS", "STRG")]),
     dict(id="DASTEP", table="ZSAC_DASTEP", label="Data Action Step", set="DataActionStep", admin=LOCAL_ONLY, parent=("DATAACT", "_DataAction"), fields=[
-        ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 10"), ("SRC_VERSION", "CHAR 12"), ("TGT_VERSION", "CHAR 12"),
-        ("FILTER_TEXT", "STRG"), ("FACTOR", "DEC 15 4"), ("TARGET_DIM", "CHAR 20"), ("TARGET_MEMBERS", "STRG")]),
+        ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 10"), ("STEP_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"),
+        ("ACTIVE", BOOL), ("CONFIG", "STRG")]),
 
     dict(id="MULTIACT", table="ZSAC_MULTIACT", label="Multi Action", set="MultiAction", admin=ADMIN, children=[("MASTEP", "_Step")], fields=[
-        ("*ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255")],
-        actions=["action Run parameter ZA_SAC_DA_PARAM result [1] ZA_SAC_RUN_RESULT;"], uses=["use action Run;"]),
+        ("*ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255")]),
     dict(id="MASTEP", table="ZSAC_MASTEP", label="Multi Action Step", set="MultiActionStep", admin=LOCAL_ONLY, parent=("MULTIACT", "_MultiAction"), fields=[
         ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 12"), ("DATA_ACTION_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"),
         ("SOURCE_VERSION", "CHAR 12"), ("TARGET_VERSION", "CHAR 12")]),
+
+    # history of data action and multi action runs (written by the client after every run, read by the Job Monitor tab)
+    dict(id="RUN", table="ZSAC_RUN", label="Action Run", set="ActionRun", admin=LOCAL_ONLY, fields=[
+        ("*RUN_ID", "CHAR 32"), ("ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("MODEL_ID", "CHAR 20"), ("RUN_KIND", "CHAR 5"),
+        ("STATUS", "CHAR 1"), ("CHANGED", "INT4"), ("DURATION_MS", "INT4"), ("USER_NAME", "CHAR 12"), ("STARTED_AT", "CHAR 30"),
+        ("PARAMS_TEXT", "CHAR 255"), ("LOG_TEXT", "STRG"), ("STEPS_JSON", "STRG")]),
 
     dict(id="CALTASK", table="ZSAC_CALTASK", label="Calendar Task", set="CalendarTask", admin=ADMIN, fields=[
         ("*TASK_ID", "CHAR 32"), ("TITLE", "CHAR 120"), ("MODEL_ID", "CHAR 20"), ("VERSION_ID", "CHAR 12"), ("ASSIGNEE", "CHAR 12"),
@@ -91,16 +98,12 @@ ABSTRACT = {
     "ZA_SAC_PUBLISH": ("Publish Parameter", [("TargetVersion", "abap.char(12)")]),
     "ZA_SAC_PUBRESULT": ("Publish Result", [("Published", "abap.int4")]),
     "ZA_SAC_FACT_BATCH": ("Fact Batch", [("Payload", "abap.string")]),
-    "ZA_SAC_DA_PARAM": ("Data Action Parameter", [("FilterText", "abap.string")]),
-    "ZA_SAC_RUN_RESULT": ("Run Result", [("Changed", "abap.int4"), ("Status", "abap.char(1)"), ("LogText", "abap.string")]),
 }
 
 # hand-written global classes: name -> (description, category)
 CLASSES = {
-    "ZCL_SAC_FILTER": ("SAC: filter text (REGION=A,B;PERIOD=2026-01)", None),
     "ZCL_SAC_FACT_WRITER": ("SAC: read and write plan facts", None),
     "ZCL_SAC_VERSION_ENGINE": ("SAC: version publish and revert", None),
-    "ZCL_SAC_DATAACT_ENGINE": ("SAC: data action engine", None),
     "ZCL_SAC_SEED": ("SAC: sample models, plan data, stories", None),
 }
 

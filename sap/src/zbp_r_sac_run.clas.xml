@@ -3,12 +3,15 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
-    <CLSNAME>ZCL_SAC_DATAACT_ENGINE</CLSNAME>
+    <CLSNAME>ZBP_R_SAC_RUN</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>SAC: data action engine</DESCRIPT>
+    <DESCRIPT>Behavior Definition for ZR_SAC_RUN</DESCRIPT>
+    <CATEGORY>06</CATEGORY>
     <STATE>1</STATE>
+    <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
     <UNICODE>X</UNICODE>
+    <CLSDEFINT>ZR_SAC_RUN</CLSDEFINT>
    </VSEOCLASS>
   </asx:values>
  </asx:abap>
