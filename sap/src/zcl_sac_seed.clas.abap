@@ -79,26 +79,26 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         created_at = now last_changed_at = now local_last_changed_at = now ) ).
 
     dims = VALUE #(
-      ( model_id = 'SALES_PLAN' dim_id = 'REGION' label = 'Region' slot = 1 dim_type = 'GENERIC' attributes = `[]`
+      ( model_id = 'SALES_PLAN' dim_id = 'REGION' dim_label = 'Region' slot = 1 dim_type = 'GENERIC' attributes = `[]`
         members = `[{"Id":"APAC","Text":"Asia Pacific","Props":{}},{"Id":"EMEA","Text":"Europe, Middle East, Africa","Props":{}},{"Id":"AMER","Text":"Americas","Props":{}},`
                && `{"Id":"LATAM","Text":"Latin America","Props":{}},{"Id":"AMERICAS","Text":"North and South America","Props":{}},`
                && `{"Id":"EASTERN","Text":"Eastern hemisphere","Props":{}},{"Id":"WORLD","Text":"Worldwide","Props":{}}]`
         hierarchies = `[{"Id":"GEO","Label":"Geography","Parents":{"AMERICAS":"WORLD","EASTERN":"WORLD","AMER":"AMERICAS","LATAM":"AMERICAS","EMEA":"EASTERN","APAC":"EASTERN"}}]` )
-      ( model_id = 'SALES_PLAN' dim_id = 'PRODUCT' label = 'Product' slot = 2 dim_type = 'GENERIC' attributes = `[]`
+      ( model_id = 'SALES_PLAN' dim_id = 'PRODUCT' dim_label = 'Product' slot = 2 dim_type = 'GENERIC' attributes = `[]`
         members = `[{"Id":"Cloud ERP","Text":"Cloud ERP","Props":{}},{"Id":"Analytics","Text":"Analytics","Props":{}},{"Id":"Planning","Text":"Planning","Props":{}},`
                && `{"Id":"Services","Text":"Services","Props":{}},{"Id":"Licences","Text":"Licences","Props":{}},`
                && `{"Id":"RECURRING","Text":"Recurring revenue","Props":{}},{"Id":"ONE_OFF","Text":"One-off revenue","Props":{}}]`
         hierarchies = `[{"Id":"FAMILY","Label":"Product family","Parents":{"Cloud ERP":"RECURRING","Analytics":"RECURRING","Planning":"RECURRING","Services":"ONE_OFF","Licences":"ONE_OFF"}}]` )
-      ( model_id = 'SALES_PLAN' dim_id = 'CHANNEL' label = 'Channel' slot = 3 dim_type = 'GENERIC' attributes = `[]` hierarchies = `[]`
+      ( model_id = 'SALES_PLAN' dim_id = 'CHANNEL' dim_label = 'Channel' slot = 3 dim_type = 'GENERIC' attributes = `[]` hierarchies = `[]`
         members = `[{"Id":"Direct","Text":"Direct","Props":{}},{"Id":"Partner","Text":"Partner","Props":{}}]` )
-      ( model_id = 'OPEX_PLAN' dim_id = 'DEPARTMENT' label = 'Department' slot = 1 dim_type = 'ORGANIZATION'
+      ( model_id = 'OPEX_PLAN' dim_id = 'DEPARTMENT' dim_label = 'Department' slot = 1 dim_type = 'ORGANIZATION'
         attributes = `[{"Id":"OWNER","Label":"Owner"},{"Id":"CURRENCY","Label":"Currency"}]`
         members = `[{"Id":"Finance","Text":"Finance","Props":{"OWNER":"CFO","CURRENCY":"USD"}},{"Id":"Sales","Text":"Sales","Props":{"OWNER":"CSO","CURRENCY":"USD"}},`
                && `{"Id":"R&D","Text":"R&D","Props":{"OWNER":"CTO","CURRENCY":"USD"}},{"Id":"Operations","Text":"Operations","Props":{"OWNER":"COO","CURRENCY":"USD"}},`
                && `{"Id":"HR","Text":"HR","Props":{"OWNER":"CHRO","CURRENCY":"USD"}},{"Id":"G_A","Text":"General and administration","Props":{"OWNER":"CFO"}},`
                && `{"Id":"OPS","Text":"Operations and engineering","Props":{"OWNER":"COO"}},{"Id":"COMPANY","Text":"Whole company","Props":{"OWNER":"CEO"}}]`
         hierarchies = `[{"Id":"ORG","Label":"Organization","Parents":{"G_A":"COMPANY","OPS":"COMPANY","Sales":"COMPANY","Finance":"G_A","HR":"G_A","Operations":"OPS","R&D":"OPS"}}]` )
-      ( model_id = 'OPEX_PLAN' dim_id = 'ACCOUNT' label = 'Account' slot = 2 dim_type = 'ACCOUNT'
+      ( model_id = 'OPEX_PLAN' dim_id = 'ACCOUNT' dim_label = 'Account' slot = 2 dim_type = 'ACCOUNT'
         attributes = `[{"Id":"ACCOUNT_TYPE","Label":"Account type"},{"Id":"UNIT","Label":"Unit"}]`
         members = `[{"Id":"Salaries","Text":"Salaries","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},{"Id":"Travel","Text":"Travel","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},`
                && `{"Id":"Software","Text":"Software","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},{"Id":"Facilities","Text":"Facilities","Props":{"ACCOUNT_TYPE":"EXP","UNIT":"USD"}},`
@@ -107,11 +107,11 @@ CLASS zcl_sac_seed IMPLEMENTATION.
         hierarchies = `[{"Id":"PNL","Label":"P&L structure","Parents":{"PEOPLE":"OPEX_TOTAL","OTHER_OPEX":"OPEX_TOTAL","Salaries":"PEOPLE","Travel":"OTHER_OPEX","Software":"OTHER_OPEX","Facilities":"OTHER_OPEX"}}]` ) ).
 
     meas = VALUE #(
-      ( model_id = 'SALES_PLAN' measure_id = 'REVENUE' label = 'Revenue' unit = 'USD' aggregation = 'SUM'
+      ( model_id = 'SALES_PLAN' measure_id = 'REVENUE' measure_label = 'Revenue' unit = 'USD' aggregation = 'SUM'
         data_type = 'Decimal' unit_type = 'Currency' scale = 1 decimals = 0 )
-      ( model_id = 'SALES_PLAN' measure_id = 'COST'    label = 'Cost'    unit = 'USD' aggregation = 'SUM'
+      ( model_id = 'SALES_PLAN' measure_id = 'COST'    measure_label = 'Cost'    unit = 'USD' aggregation = 'SUM'
         data_type = 'Decimal' unit_type = 'Currency' scale = 1 decimals = 0 )
-      ( model_id = 'OPEX_PLAN'  measure_id = 'AMOUNT'  label = 'Amount'  unit = 'USD' aggregation = 'SUM'
+      ( model_id = 'OPEX_PLAN'  measure_id = 'AMOUNT'  measure_label = 'Amount'  unit = 'USD' aggregation = 'SUM'
         data_type = 'Decimal' unit_type = 'Currency' scale = 1 decimals = 0 ) ).
 
     LOOP AT models INTO DATA(m).
@@ -212,7 +212,7 @@ CLASS zcl_sac_seed IMPLEMENTATION.
 
     INSERT zsac_story FROM TABLE @( VALUE #( ( story_id = 'STORY_SALES' story_name = 'Sales Performance'
       description = 'Actual vs budget revenue, year to date' model_id = 'SALES_PLAN' status = 'P'
-      pages = `[{"Id":1,"Title":"Overview"}]` filters = `{}`
+      pages_json = `[{"Id":1,"Title":"Overview"}]` filters = `{}`
       created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
 
     INSERT zsac_widget FROM TABLE @( VALUE #(

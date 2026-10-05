@@ -84,10 +84,10 @@ sap.ui.define([
         ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency,
         PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking,
         DataAudit: !!e.DataAudit, DataSource: e.DataSource, Source: json(e.SourceJson, null),
-        Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
+        Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.DimLabel, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
           Attributes: json(d.Attributes, undefined), Hierarchies: json(d.Hierarchies, []) }))
           .sort((a, b) => a.Slot - b.Slot),
-        Measures: (e._Measure || []).map((m) => ({ MeasureId: m.MeasureId, Label: m.Label, Unit: m.Unit, Aggregation: m.Aggregation || "SUM",
+        Measures: (e._Measure || []).map((m) => ({ MeasureId: m.MeasureId, Label: m.MeasureLabel, Unit: m.Unit, Aggregation: m.Aggregation || "SUM",
           DataType: m.DataType || "Decimal", UnitType: m.UnitType || "None", Scale: m.Scale, Decimals: m.Decimals,
           ExceptionAggregation: m.ExceptionAgg || "", ExceptionDims: String(m.ExceptionDims || "").split(",").filter(Boolean) }))
       });
@@ -104,11 +104,11 @@ sap.ui.define([
         DataAudit: !!m.DataAudit, DataSource: m.DataSource || "", SourceJson: m.Source ? str(m.Source) : ""
       });
       for (const d of m.Dimensions || []) {
-        await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, Label: d.Label, Slot: d.Slot, Members: str(d.Members || []),
+        await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, DimLabel: d.Label, Slot: d.Slot, Members: str(d.Members || []),
           DimType: d.Type || "GENERIC", Attributes: str(d.Attributes || []), Hierarchies: str(d.Hierarchies || []) }, true).created();
       }
       for (const x of m.Measures || []) {
-        await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, Label: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM",
+        await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, MeasureLabel: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM",
           DataType: x.DataType || "Decimal", UnitType: x.UnitType || "None", Scale: x.Scale || 1, Decimals: x.Decimals || 0,
           ExceptionAgg: x.ExceptionAggregation || "", ExceptionDims: (x.ExceptionDims || []).join(",") }, true).created();
       }
@@ -196,7 +196,7 @@ sap.ui.define([
     _toStory(e, withWidgets) {
       return {
         Id: e.StoryId, Name: e.StoryName, Description: e.Description, ModelId: e.ModelId, Status: e.Status,
-        Pages: json(e.Pages, [{ Id: 1, Title: "Page 1" }]), Filters: json(e.Filters, {}),
+        Pages: json(e.PagesJson, [{ Id: 1, Title: "Page 1" }]), Filters: json(e.Filters, {}),
         Widgets: withWidgets ? (e._Widget || []).map((w) => ({
           Id: w.WidgetId, Page: w.PageNo, Type: w.WidgetType, Title: w.Title, X: w.GridX, Y: w.GridY, W: w.GridW, H: w.GridH,
           Binding: json(w.Binding, {}), Props: json(w.Props, {})
@@ -208,7 +208,7 @@ sap.ui.define([
     async _putStory(s) {
       const key = "/Story(StoryId=" + quote(s.Id) + ")";
       await this._replace("/Story", key, { StoryId: s.Id, StoryName: s.Name, Description: s.Description || "", ModelId: s.ModelId || "",
-        Status: s.Status || "D", Pages: str(s.Pages), Filters: str(s.Filters || {}) });
+        Status: s.Status || "D", PagesJson: str(s.Pages), Filters: str(s.Filters || {}) });
       for (const w of s.Widgets || []) {
         await this._m.bindList(key + "/_Widget").create({ StoryId: s.Id, WidgetId: w.Id, PageNo: w.Page, WidgetType: w.Type, Title: w.Title || "",
           GridX: w.X, GridY: w.Y, GridW: w.W, GridH: w.H, Binding: str(w.Binding || {}), Props: str(w.Props || {}) }, true).created();

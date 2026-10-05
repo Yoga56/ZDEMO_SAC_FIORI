@@ -7,7 +7,7 @@ define view entity ZR_SAC_MEASURE
 {
   key model_id as ModelId,
   key measure_id as MeasureId,
-  label as Label,
+  measure_label as MeasureLabel,
   unit as Unit,
   aggregation as Aggregation,
   data_type as DataType,
@@ -16,7 +16,7 @@ define view entity ZR_SAC_MEASURE
   decimals as Decimals,
   exception_agg as ExceptionAgg,
   exception_dims as ExceptionDims,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true,
+  @Semantics.systemDateTime.localInstanceLastChangedAt: true
   local_last_changed_at as LocalLastChangedAt,
   _Model
 }

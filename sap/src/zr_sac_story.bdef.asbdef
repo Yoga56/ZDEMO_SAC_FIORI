@@ -27,7 +27,7 @@ etag master LocalLastChangedAt
     Description = description;
     ModelId = model_id;
     Status = status;
-    Pages = pages;
+    PagesJson = pages_json;
     Filters = filters;
     CreatedBy = created_by;
     CreatedAt = created_at;

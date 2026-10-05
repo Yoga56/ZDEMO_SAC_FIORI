@@ -7,7 +7,7 @@ define view entity ZC_SAC_MEASURE
 {
   key ModelId,
   key MeasureId,
-  Label,
+  MeasureLabel,
   Unit,
   Aggregation,
   DataType,

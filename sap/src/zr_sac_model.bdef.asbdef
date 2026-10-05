@@ -61,7 +61,7 @@ etag dependent by _Model
   {
     ModelId = model_id;
     DimId = dim_id;
-    Label = label;
+    DimLabel = dim_label;
     Slot = slot;
     Members = members;
     DimType = dim_type;
@@ -90,7 +90,7 @@ etag dependent by _Model
   {
     ModelId = model_id;
     MeasureId = measure_id;
-    Label = label;
+    MeasureLabel = measure_label;
     Unit = unit;
     Aggregation = aggregation;
     DataType = data_type;

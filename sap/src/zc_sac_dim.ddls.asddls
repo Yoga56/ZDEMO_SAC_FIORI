@@ -7,7 +7,7 @@ define view entity ZC_SAC_DIM
 {
   key ModelId,
   key DimId,
-  Label,
+  DimLabel,
   Slot,
   Members,
   DimType,

@@ -14,6 +14,6 @@ define root view entity ZR_SAC_FACT
   key dim4 as Dim4,
   key dim5 as Dim5,
   fact_value as Value,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true,
+  @Semantics.systemDateTime.localInstanceLastChangedAt: true
   local_last_changed_at as LocalLastChangedAt
 }

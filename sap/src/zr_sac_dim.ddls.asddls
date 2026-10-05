@@ -7,13 +7,13 @@ define view entity ZR_SAC_DIM
 {
   key model_id as ModelId,
   key dim_id as DimId,
-  label as Label,
+  dim_label as DimLabel,
   slot as Slot,
   members as Members,
   dim_type as DimType,
   attributes as Attributes,
   hierarchies as Hierarchies,
-  @Semantics.systemDateTime.localInstanceLastChangedAt: true,
+  @Semantics.systemDateTime.localInstanceLastChangedAt: true
   local_last_changed_at as LocalLastChangedAt,
   _Model
 }

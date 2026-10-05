@@ -11,7 +11,7 @@ define root view entity ZC_SAC_STORY
   Description,
   ModelId,
   Status,
-  Pages,
+  PagesJson,
   Filters,
   CreatedBy,
   CreatedAt,

@@ -41,9 +41,8 @@ def r_ddls(e, E):
     for n, _ in S.all_fields(e):
         col = n.lstrip("*")
         anno = ADMIN_ANNO.get(col)
-        if anno:
-            body.append("  " + anno)
-        body.append(f"  {'key ' if n.startswith('*') else ''}{col.lower()} as {S.camel(col)}")
+        # an annotation stands on its own line before the element and takes no comma
+        body.append((f"  {anno}\n" if anno else "") + f"  {'key ' if n.startswith('*') else ''}{col.lower()} as {S.camel(col)}")
     exposed = [a for _, a in e.get("children", [])] + ([e["parent"][1]] if not root else [])
     out = ",\n".join(body + (["  " + a for a in exposed]))
     return "\n".join(lines) + "\n" + head + "\n{\n" + out + "\n}\n"
@@ -126,7 +125,7 @@ def roots_first(E):
 
 
 def abstract(name, label, elements):
-    body = ",\n".join(f"  {el} : {t}" for el, t in elements)
+    body = "\n".join(f"  {el} : {t};" for el, t in elements)
     return f"@EndUserText.label: '{label}'\ndefine abstract entity {name}\n{{\n{body}\n}}\n"
 
 

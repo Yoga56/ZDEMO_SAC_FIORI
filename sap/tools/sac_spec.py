@@ -28,7 +28,7 @@ ENTITIES = [
 
     dict(id="STORY", table="ZSAC_STORY", label="Story", set="Story", admin=ADMIN, children=[("WIDGET", "_Widget")], fields=[
         ("*STORY_ID", "CHAR 32"), ("STORY_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("MODEL_ID", "CHAR 20"),
-        ("STATUS", "CHAR 1"), ("PAGES", "STRG"), ("FILTERS", "STRG")],
+        ("STATUS", "CHAR 1"), ("PAGES_JSON", "STRG"), ("FILTERS", "STRG")],
         validations=[("CheckName", "StoryName")]),
     dict(id="WIDGET", table="ZSAC_WIDGET", label="Story Widget", set="Widget", admin=LOCAL_ONLY, parent=("STORY", "_Story"), fields=[
         ("*STORY_ID", "CHAR 32"), ("*WIDGET_ID", "CHAR 32"), ("PAGE_NO", "INT4"), ("WIDGET_TYPE", "CHAR 24"), ("TITLE", "CHAR 80"),
@@ -41,10 +41,10 @@ ENTITIES = [
         ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80"), ("SOURCE_JSON", "STRG")],
         validations=[("CheckStructure", "ModelName")]),
     dict(id="DIM", table="ZSAC_DIM", label="Model Dimension", set="Dimension", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
-        ("*MODEL_ID", "CHAR 20"), ("*DIM_ID", "CHAR 20"), ("LABEL", "CHAR 40"), ("SLOT", "INT4"), ("MEMBERS", "STRG"),
+        ("*MODEL_ID", "CHAR 20"), ("*DIM_ID", "CHAR 20"), ("DIM_LABEL", "CHAR 40"), ("SLOT", "INT4"), ("MEMBERS", "STRG"),
         ("DIM_TYPE", "CHAR 12"), ("ATTRIBUTES", "STRG"), ("HIERARCHIES", "STRG")]),
     dict(id="MEASURE", table="ZSAC_MEASURE", label="Model Measure", set="Measure", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
-        ("*MODEL_ID", "CHAR 20"), ("*MEASURE_ID", "CHAR 20"), ("LABEL", "CHAR 40"), ("UNIT", "CHAR 10"), ("AGGREGATION", "CHAR 10"),
+        ("*MODEL_ID", "CHAR 20"), ("*MEASURE_ID", "CHAR 20"), ("MEASURE_LABEL", "CHAR 40"), ("UNIT", "CHAR 10"), ("AGGREGATION", "CHAR 10"),
         ("DATA_TYPE", "CHAR 10"), ("UNIT_TYPE", "CHAR 10"), ("SCALE", "INT4"), ("DECIMALS", "INT4"), ("EXCEPTION_AGG", "CHAR 10"),
         ("EXCEPTION_DIMS", "CHAR 120")]),
 
