@@ -66,8 +66,12 @@ sap.ui.define(["./MultiActionSchema", "./ImportEngine", "./Forecaster", "../core
     });
     const out = [];
     let skipped = 0;
+    const opts = { window: Number(step.Window) || 3, alpha: Number(step.Alpha) || 0.3 };
+    const test = { abs: 0, actual: 0, n: 0 };
     series.forEach((s) => {
-      const predicted = Forecaster.forecast(s.values, offsets, step.Method, { window: Number(step.Window) || 3, alpha: Number(step.Alpha) || 0.3 });
+      const bt = Forecaster.backtest(s.values, step.Method, opts);
+      if (bt) { test.abs += bt.abs; test.actual += bt.actual; test.n += bt.n; }
+      const predicted = Forecaster.forecast(s.values, offsets, step.Method, opts);
       if (predicted.every((v) => v === null)) { skipped++; return; }
       predicted.forEach((v, i) => {
         if (v !== null) { out.push({ VersionId: tgt, Period: months[i], Measure: measure, Dim1: s.dims.Dim1, Dim2: s.dims.Dim2, Dim3: s.dims.Dim3, Dim4: s.dims.Dim4, Dim5: s.dims.Dim5, Value: v }); }
@@ -75,7 +79,8 @@ sap.ui.define(["./MultiActionSchema", "./ImportEngine", "./Forecaster", "../core
     });
     if (out.length) { await provider.writeFacts(step.ModelId, out); }
     return { touched: out.length, message: Forecaster.METHODS[step.Method] + ": " + out.length + " values for " + (series.size - skipped) + " series in " + tgt + " (" + months[0] + " to " + months[months.length - 1] + ")"
-      + (skipped ? ", " + skipped + " series skipped, too little history" : "") };
+      + (skipped ? ", " + skipped + " series skipped, too little history" : "")
+      + (test.n && test.actual > 0 ? ". Back-test on the last " + Forecaster.holdoutFor(history.length) + " months of the history: the forecast was off by " + (Math.round(test.abs / test.actual * 1000) / 10) + "% on average" : "") };
   }
 
   function statusOk(expect, status) {

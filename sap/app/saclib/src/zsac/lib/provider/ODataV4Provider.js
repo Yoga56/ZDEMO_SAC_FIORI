@@ -56,6 +56,13 @@ sap.ui.define([
       return context.getObject();
     }
 
+    /** Changes fields of an existing row with a PATCH (no delete, so determinations and dependants of a delete do not fire). Rejects when the row is missing. */
+    async _patch(keyPath, values) {
+      const context = this._m.bindContext(keyPath).getBoundContext();
+      await context.requestObject();
+      for (const k of Object.keys(values)) { await context.setProperty(k, values[k]); }
+    }
+
     async _invokeDelete(keyPath) {
       const binding = this._m.bindContext(keyPath);
       const context = binding.getBoundContext();
@@ -139,7 +146,7 @@ sap.ui.define([
       return rows.map((r) => [r.ModelId, r.VersionId, r.Period, r.Measure, r.Dim1 || "", r.Dim2 || "", r.Dim3 || "", r.Dim4 || "", r.Dim5 || "", r.Value].join("\t")).join("\n");
     }
 
-    get capabilities() { return {}; }
+    get capabilities() { return { comments: true }; }
 
     // ---- versions ---------------------------------------------------------------------------
     _toVersion(e) { return { ModelId: e.ModelId, VersionId: e.VersionId, Name: e.VersionName, Category: e.Category, Locked: !!e.Locked, Owner: e.OwnerId, SourceVersion: e.SourceVersion, Status: e.Status }; }
@@ -147,9 +154,21 @@ sap.ui.define([
       const filters = modelId ? [new Filter("ModelId", FilterOperator.EQ, modelId)] : [];
       return (await this._list("/Version", filters)).map((e) => this._toVersion(e));
     }
+    /**
+     * Changes the version in place with a PATCH. Deleting and re-creating it would fire the DeleteFacts determination of the Version BO and delete
+     * its values, which is what locking, unlocking and renaming must never do. A version that does not exist yet is created.
+     */
     async saveVersion(v) {
-      await this._replace("/Version", "/Version(ModelId=" + quote(v.ModelId) + ",VersionId=" + quote(v.VersionId) + ")", { ModelId: v.ModelId, VersionId: v.VersionId,
-        VersionName: v.Name, Category: v.Category, Locked: !!v.Locked, OwnerId: v.Owner || "", SourceVersion: v.SourceVersion || "", Status: v.Status || "P" });
+      const key = "/Version(ModelId=" + quote(v.ModelId) + ",VersionId=" + quote(v.VersionId) + ")";
+      const fields = { VersionName: v.Name, Category: v.Category, Locked: !!v.Locked, OwnerId: v.Owner || "", SourceVersion: v.SourceVersion || "", Status: v.Status || "P" };
+      let missing = false;
+      try { await this._patch(key, fields); } catch (e) {
+        if (!(e && (e.status === 404 || /not found|404/i.test(e.message || "")))) { throw e; }
+        missing = true;
+      }
+      if (missing) {
+        await this._m.bindList("/Version").create(Object.assign({ ModelId: v.ModelId, VersionId: v.VersionId }, fields), true).created();
+      }
       return v;
     }
     async createPrivateVersion(modelId, fromVersionId, name) {
@@ -214,6 +233,22 @@ sap.ui.define([
     }
     deleteDataAction(id) { return this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); }
     // executing (executeDataAction, previewDataAction, runMultiAction) is inherited: the steps run in the client and the difference is written as facts
+
+    // ---- comments on cells --------------------------------------------------------------------
+    _toComment(e) {
+      return { Id: e.CommentId, ModelId: e.ModelId, VersionId: e.VersionId, Period: e.Period, Measure: e.Measure, Dims: json(e.DimsJson, {}), Text: e.CommentText, Author: e.CreatedBy, At: e.CreatedAt };
+    }
+    async listComments(modelId, versionId) {
+      const filters = [new Filter("ModelId", FilterOperator.EQ, modelId)];
+      if (versionId) { filters.push(new Filter("VersionId", FilterOperator.EQ, versionId)); }
+      return (await this._list("/CellComment", filters)).map((e) => this._toComment(e)).sort((a, b) => String(a.At).localeCompare(String(b.At)));
+    }
+    async saveComment(c) {
+      await this._replace("/CellComment", "/CellComment(CommentId=" + quote(c.Id) + ")", { CommentId: c.Id, ModelId: c.ModelId, VersionId: c.VersionId, Period: c.Period || "", Measure: c.Measure,
+        DimsJson: str(c.Dims || {}), CommentText: c.Text });
+      return c;
+    }
+    deleteComment(id) { return this._invokeDelete("/CellComment(CommentId=" + quote(id) + ")"); }
 
     // ---- run history ------------------------------------------------------------------------
     async listRuns(actionId, limit) {

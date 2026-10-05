@@ -91,3 +91,23 @@ test("version management and data locking validation", async () => {
     assert.ok(msgs.includes(part), part + "\n" + msgs);
   }
 });
+
+test("comments: save, list by version, delete; cell lookup by coordinates", async () => {
+  const p = make();
+  const CommentKey = req("zsac/lib/planning/CommentKey");
+  const model = await p.getModel("SALES_PLAN");
+  assert.strictEqual(p.capabilities.comments, true);
+  const before = (await p.listComments("SALES_PLAN", "FCT")).length;
+  const saved = await p.saveComment({ Id: "N1", ModelId: "SALES_PLAN", VersionId: "FCT", Period: "2026-11", Measure: "REVENUE", Dims: { REGION: "APAC" }, Text: "hello" });
+  assert.strictEqual(saved.Author, "ME");
+  assert.strictEqual((await p.listComments("SALES_PLAN", "FCT")).length, before + 1);
+  const idx = CommentKey.index(model, await p.listComments("SALES_PLAN"));
+  assert.strictEqual(idx.get(CommentKey.keyOf(model, { VersionId: "FCT", Period: "2026-11", Measure: "REVENUE", Dims: { REGION: "APAC" } })).length, 1);
+  assert.strictEqual(idx.get(CommentKey.keyOf(model, { VersionId: "FCT", Period: "2026-11", Measure: "REVENUE", Dims: { REGION: "EMEA" } })), undefined);
+  await p.deleteComment("N1");
+  assert.strictEqual((await p.listComments("SALES_PLAN", "FCT")).length, before);
+  // a source without comments refuses the Comment Management operations
+  const plain = new (req("zsac/lib/core/DataProvider"))();
+  await assert.rejects(() => plain.copyComments("M", "A", "B"), /not supported/);
+  await assert.rejects(() => plain.deleteComments("M", "A"), /not supported/);
+});

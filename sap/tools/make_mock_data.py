@@ -198,6 +198,8 @@ def stories():
              "Props": {"Editable": True, "ExpandRows": 3, "ExpandCols": 2, "ShowTotals": True, "Attributes": []}},
             {"Id": "P6", "Page": 1, "Type": "chart.line", "Title": "Revenue by version", "X": 0, "Y": 10, "W": 12, "H": 4,
              "Binding": {"ModelId": "SALES_PLAN", "Rows": ["PERIOD"], "Columns": ["VERSION"], "Measure": "REVENUE", "Filters": {"VERSION": ["ACT", "BUD", "FCT"], "MEASURE": ["REVENUE"]}}, "Props": {}},
+            {"Id": "P7", "Page": 1, "Type": "multiaction.trigger", "Title": "", "X": 0, "Y": 14, "W": 4, "H": 2,
+             "Binding": {"ModelId": "", "Rows": [], "Columns": [], "Measure": "", "Filters": {}}, "Props": {"ActionId": "MA_STAT_FORECAST", "Subtitle": "Forecast Oct to Dec from the actuals and carry the budget comments over"}},
         ],
     }
     return [sales, opex, plan]
@@ -233,9 +235,12 @@ def dataactions():
 
 
 def comments():
+    def c(i, version, period, measure, dims, text):
+        return {"Id": i, "ModelId": "SALES_PLAN", "VersionId": version, "Period": period, "Measure": measure, "Dims": dims, "Text": text, "Author": "ME", "At": "2026-01-15T09:00:00.000Z"}
     return [
-        {"Id": "C1", "ModelId": "SALES_PLAN", "VersionId": "BUD", "Period": "2026-07", "Text": "Budget assumes the new partner programme starts in July", "Author": "ME", "At": "2026-01-15T09:00:00.000Z"},
-        {"Id": "C2", "ModelId": "SALES_PLAN", "VersionId": "BUD", "Period": "2026-10", "Text": "Q4 includes the price increase", "Author": "ME", "At": "2026-01-16T09:00:00.000Z"},
+        c("C1", "BUD", "2026-07", "REVENUE", {"REGION": "EMEA"}, "Budget assumes the new partner programme starts in July"),
+        c("C2", "BUD", "2026-10", "REVENUE", {"REGION": "EMEA"}, "Q4 includes the price increase"),
+        c("C3", "FCT", "2026-10", "REVENUE", {"REGION": "EMEA"}, "Check the price increase assumption before publishing"),
     ]
 
 

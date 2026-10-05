@@ -233,7 +233,10 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
         const dup = targets.filter((t, k) => targets.indexOf(t) !== k);
         if (dup.length) { err(i, where + ": " + dup[0] + " is mapped to more than one column"); }
         const mapped = (t) => targets.indexOf(t) >= 0;
-        if (!mapped("VALUE")) { err(i, where + ": map one column to Value"); }
+        const wideMeasures = targets.filter((t) => t.indexOf("MEASURE:") === 0).map((t) => t.slice(8));
+        wideMeasures.forEach((id) => { if (!(model.Measures || []).some((x) => x.MeasureId === id)) { err(i, where + ": measure " + id + " does not exist"); } });
+        if (wideMeasures.length && (mapped("VALUE") || mapped("MEASURE"))) { err(i, where + ": use either one Value column or one column per measure, not both"); }
+        if (!wideMeasures.length && !mapped("VALUE")) { err(i, where + ": map one column to Value, or map a column to each measure"); }
         if (!mapped("PERIOD")) { err(i, where + ": map one column to Period"); }
         (model.Dimensions || []).forEach((d) => { if (!mapped(d.DimId)) { err(i, where + ": map one column to " + (d.Label || d.DimId)); } });
         const header = rows[0].map((h) => String(h).trim());
@@ -246,7 +249,7 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
           else if (!versionsOf(s.ModelId).get(v)) { err(i, where + ": version " + v + " does not exist in the model"); }
           else if (versionsOf(s.ModelId).get(v).Locked) { err(i, where + ": version " + v + " is locked"); }
         }
-        if (!mapped("MEASURE")) {
+        if (!mapped("MEASURE") && !wideMeasures.length) {
           const m = s.MeasureId;
           if (!m) { err(i, where + ": choose the measure the values belong to"); }
           else if (isRef(m)) { refOk(m, "Measure", "MEMBER", "MEASURE"); }

@@ -61,11 +61,11 @@ sap.ui.define([
   };
 
   /** Wraps a loader into card.refresh with busy and error handling. */
-  function wire(card, widget, load) {
+  function wire(card, widget, load, options) {
     card.refresh = async function () {
       card.setBusy(true);
       try {
-        if (noModel(card, widget)) { return; }
+        if (!(options && options.noModel) && noModel(card, widget)) { return; }
         card.setMessage("");
         await load();
       } catch (e) {
@@ -214,7 +214,8 @@ sap.ui.define([
         const filters = FilterEngine.merge(ctx.filters || {}, b.Filters || {});
         if (b.Measure && !(filters.MEASURE && filters.MEASURE.length)) { filters.MEASURE = [b.Measure]; }
         const facts = await ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, filters));
-        grid.setContext({ model, facts, versions, plan: ctx.plan,
+        const comments = ctx.provider.capabilities.comments ? await ctx.provider.listComments(b.ModelId) : [];
+        grid.setContext({ model, facts, versions, plan: ctx.plan, comments,
           readReference: (versionId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }))),
           spec: { rows: b.Rows || [], columns: b.Columns || [], filters, hierarchies: activeHierarchies(b) },
           options: { editable: widget.Props.Editable !== false, expandRows: Math.max(1, Number(widget.Props.ExpandRows) || 3), expandCols: Math.max(1, Number(widget.Props.ExpandCols) || 2),
@@ -292,6 +293,42 @@ sap.ui.define([
     }
   });
 
+  WidgetRegistry.register("multiaction.trigger", {
+    name: "Multi action trigger", icon: "sap-icon://process", group: "Planning", size: { w: 4, h: 2 },
+    defaults: { Binding: emptyBinding(), Props: { ActionId: "", Subtitle: "Run the multi action" } },
+    builder: [
+      { key: "Title", label: "Title", kind: "text" },
+      { key: "Props.ActionId", label: "Multi action", kind: "multiaction" },
+      { key: "Props.Subtitle", label: "Subtitle", kind: "text" }
+    ],
+    create(widget, ctx) {
+      const box = new VBox({ width: "100%" });
+      const card = new WidgetCard({ title: "", widgetId: widget.Id, bare: false, content: box });
+      const run = async () => {
+        const id = widget.Props.ActionId;
+        if (!id) { MessageToast.show("Choose a multi action in the builder panel"); return; }
+        try {
+          if (ctx.plan && ctx.plan.dirty) {
+            const ok = await new Promise((resolve) => MessageBox.confirm("A multi action runs on published data. Publish your " + ctx.plan.count + " unpublished changes first?", {
+              actions: ["Publish and run", MessageBox.Action.CANCEL], emphasizedAction: "Publish and run", onClose: (a) => resolve(a === "Publish and run") }));
+            if (!ok) { return; }
+            await PlanPublisher.publish(ctx.plan, ctx.provider);
+          }
+          DataActionRun.openMulti({ provider: ctx.provider, actionId: id, onDone: () => ctx.bus.fire("refresh-all", {}) });
+        } catch (e) {
+          MessageBox.error(e.message || String(e));
+        }
+      };
+      return wire(card, widget, async () => {
+        box.destroyItems();
+        const action = widget.Props.ActionId ? await ctx.provider.getMultiAction(widget.Props.ActionId).catch(() => null) : null;
+        card.setTitle(widget.Title || (action ? action.Name : "Multi action"));
+        box.addItem(new Button({ text: action ? action.Name : "Choose a multi action", icon: "sap-icon://play", type: "Emphasized", width: "100%", press: run }));
+        box.addItem(new Text({ text: widget.Props.Subtitle || "" }).addStyleClass("zsacSmall"));
+      }, { noModel: true });
+    }
+  });
+
   WidgetRegistry.register("filter", {
     name: "Input control", icon: "sap-icon://filter", group: "Controls", size: { w: 3, h: 2 },
     defaults: { Binding: emptyBinding(), Props: { Dimension: "" } },
@@ -355,7 +392,7 @@ sap.ui.define([
     const first = widget.Type === "planning.table"
       ? ((versions || []).find((v) => v.Category === "BUDGET" && !v.Locked) || (versions || []).find((v) => v.Category !== "PRIVATE" && !v.Locked))
       : (versions || []).find((v) => v.Category !== "PRIVATE");
-    if (first && widget.Type !== "filter" && widget.Type !== "text" && widget.Type !== "dataaction.trigger" && !(b.Filters && b.Filters.VERSION) && !(b.Columns || []).includes("VERSION")) {
+    if (first && widget.Type !== "filter" && widget.Type !== "text" && widget.Type !== "dataaction.trigger" && widget.Type !== "multiaction.trigger" && !(b.Filters && b.Filters.VERSION) && !(b.Columns || []).includes("VERSION")) {
       b.Filters = Object.assign({}, b.Filters, { VERSION: [first.VersionId] });
     }
     return widget;

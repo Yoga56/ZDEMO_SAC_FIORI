@@ -14,7 +14,7 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
   class DataProvider {
     get id() { return "abstract"; }
 
-    /** What this source supports beyond reading and planning: { audit: change history of plan data }. */
+    /** What this source supports beyond reading and planning: { audit: change history of plan data, comments: comments on plan cells }. */
     get capabilities() { return {}; }
 
     // --- models (datasets) -------------------------------------------------------------------
@@ -78,9 +78,29 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
     /** Runs a PaPM function: { Environment, FunctionId, Parameters: {name: value} } -> { Status: "S"|"E", Message }. A data source that is connected to PaPM overrides this. */
     async runPapm(/* request */) { throw new Error("PaPM integration is not connected to the data source " + this.id); }
 
-    /** Comments of a version (Comment Management step). Data sources without comments say so. */
-    async copyComments(/* modelId, fromVersionId, toVersionId */) { throw new Error("Comments are not supported by the data source " + this.id); }
-    async deleteComments(/* modelId, versionId */) { throw new Error("Comments are not supported by the data source " + this.id); }
+    /**
+     * Comments on plan cells (only where capabilities.comments is true). A comment is { Id, ModelId, VersionId, Period, Measure, Dims: {DIM: member}, Text, Author, At }.
+     * listComments(modelId, versionId?) newest last; saveComment creates or replaces; deleteComment by id.
+     */
+    async listComments(/* modelId, versionId */) { return []; }
+    async saveComment(/* comment */) { throw new Error("Comments are not supported by the data source " + this.id); }
+    async deleteComment(/* id */) { throw new Error("Comments are not supported by the data source " + this.id); }
+
+    /** Comment Management step: the comments of a version are added to another version, or all deleted. */
+    async copyComments(modelId, fromVersionId, toVersionId) {
+      if (!this.capabilities.comments) { throw new Error("Comments are not supported by the data source " + this.id); }
+      const source = await this.listComments(modelId, fromVersionId);
+      for (const c of source) {
+        await this.saveComment(Object.assign({}, c, { Id: "C" + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36) + Math.floor(Math.random() * 46656).toString(36), VersionId: toVersionId }));
+      }
+      return source.length;
+    }
+    async deleteComments(modelId, versionId) {
+      if (!this.capabilities.comments) { throw new Error("Comments are not supported by the data source " + this.id); }
+      const source = await this.listComments(modelId, versionId);
+      for (const c of source) { await this.deleteComment(c.Id); }
+      return source.length;
+    }
 
     /** Run history of data actions and multi actions, newest first (empty where the source keeps none). */
     async listRuns(/* actionId, limit */) { return []; }

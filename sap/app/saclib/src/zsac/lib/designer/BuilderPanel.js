@@ -72,17 +72,18 @@ sap.ui.define([
         return;
       }
       const def = WidgetRegistry.get(widget.Type);
-      const [models, model, versions, actions] = await Promise.all([
+      const [models, model, versions, actions, multiActions] = await Promise.all([
         provider.listModels(),
         widget.Binding && widget.Binding.ModelId ? provider.getModel(widget.Binding.ModelId).catch(() => null) : Promise.resolve(null),
         widget.Binding && widget.Binding.ModelId ? provider.listVersions(widget.Binding.ModelId).catch(() => []) : Promise.resolve([]),
-        provider.listDataActions().catch(() => [])
+        provider.listDataActions().catch(() => []),
+        provider.listMultiActions().catch(() => [])
       ]);
       if (token !== this._token) { return; }
       const form = new VBox({ width: "100%" }).addStyleClass("zsacBuilderForm");
       form.addItem(new Title({ text: def ? def.name : widget.Type, level: "H5" }));
       (def ? def.builder : []).forEach((f) => {
-        const field = this._field(f, widget, { models, model, versions, actions: actions.filter((a) => widget.Binding && a.ModelId === widget.Binding.ModelId) });
+        const field = this._field(f, widget, { models, model, versions, multiActions, actions: actions.filter((a) => widget.Binding && a.ModelId === widget.Binding.ModelId) });
         if (field) {
           form.addItem(new Label({ text: f.label, design: "Bold" }).addStyleClass("sapUiSmallMarginTop"));
           form.addItem(field);
@@ -107,6 +108,13 @@ sap.ui.define([
           const sel = new Select({ width: "100%", selectedKey: val || "", forceSelection: false });
           sel.addItem(new Item({ key: "", text: "(none)" }));
           env.actions.forEach((a) => sel.addItem(new Item({ key: a.Id, text: a.Name })));
+          sel.attachChange((e) => this._set(f.key, e.getParameter("selectedItem").getKey()));
+          return sel;
+        }
+        case "multiaction": {
+          const sel = new Select({ width: "100%", selectedKey: val || "", forceSelection: false });
+          sel.addItem(new Item({ key: "", text: "(none)" }));
+          env.multiActions.forEach((a) => sel.addItem(new Item({ key: a.Id, text: a.Name })));
           sel.attachChange((e) => this._set(f.key, e.getParameter("selectedItem").getKey()));
           return sel;
         }

@@ -2,7 +2,7 @@ sap.ui.define([
   "./BaseController",
   "sap/m/Button", "sap/m/MenuButton", "sap/m/Menu", "sap/m/MenuItem", "sap/m/ToolbarSpacer", "sap/m/Title", "sap/m/Text", "sap/m/Label", "sap/m/Input", "sap/m/TextArea",
   "sap/m/Select", "sap/m/ComboBox", "sap/m/MultiComboBox", "sap/m/CheckBox", "sap/m/Switch", "sap/m/VBox", "sap/m/HBox", "sap/m/MessageStrip",
-  "sap/ui/core/Item", "sap/ui/core/Icon",
+  "sap/ui/core/Item", "sap/ui/core/Icon", "sap/m/List", "sap/m/StandardListItem",
   "zsac/lib/planning/MultiActionSchema",
   "zsac/lib/planning/DataActionRun",
   "zsac/lib/planning/ImportEngine",
@@ -10,7 +10,7 @@ sap.ui.define([
   "zsac/fiori/model/Csv",
   "zsac/lib/core/CsvParser"
 ], function (BaseController, Button, MenuButton, Menu, MenuItem, ToolbarSpacer, Title, Text, Label, Input, TextArea, Select, ComboBox, MultiComboBox, CheckBox, Switch,
-  VBox, HBox, MessageStrip, Item, Icon, Schema, Run, ImportEngine, Forecaster, Csv, CsvParser) {
+  VBox, HBox, MessageStrip, Item, Icon, List, StandardListItem, Schema, Run, ImportEngine, Forecaster, Csv, CsvParser) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -37,7 +37,14 @@ sap.ui.define([
       this._models = await p.listModels();
       this._versions = await p.listVersions();
       this._actions = await p.listDataActions();
+      this._usedIn = await this._findUsage(id);
       this._renderAll();
+    },
+
+    async _findUsage(id) {
+      const p = this._p;
+      const stories = await Promise.all((await p.listStories()).map((x) => p.getStory(x.Id).catch(() => null)));
+      return stories.filter((x) => x && (x.Widgets || []).some((w) => w.Type === "multiaction.trigger" && w.Props && w.Props.ActionId === id)).map((x) => "Story: " + x.Name);
     },
 
     // ---- lookups -------------------------------------------------------------------------------------------------------------------
@@ -228,6 +235,10 @@ sap.ui.define([
       this._field(edit, "Name", this._text(this._a, "Name"));
       this._field(edit, "Description", new TextArea({ value: this._a.Description, rows: 2, width: "100%", change: (e) => { this._a.Description = e.getParameter("value"); this._changed(false); } }));
       edit.addItem(new Text({ text: "Steps run in order and the first failing step stops the run; what earlier steps wrote stays written." }).addStyleClass("zsacSmall sapUiSmallMarginTop"));
+      edit.addItem(new Title({ text: "Used In", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      const list = new List({ noDataText: "Not used yet. Add it to a story with the multi action trigger widget.", showSeparators: "None" });
+      (this._usedIn || []).forEach((u) => list.addItem(new StandardListItem({ title: u })));
+      edit.addItem(list);
     },
 
     // parameters ------------------------------------------------------------------------------------------------------------------
@@ -422,7 +433,8 @@ sap.ui.define([
       const lines = Math.max(0, CsvParser.parse(s.Csv).length - 1);
       edit.addItem(new Text({ text: header.length + " columns, " + lines + " data lines. Comma, semicolon or tab separated." }).addStyleClass("zsacSmall"));
       edit.addItem(new Title({ text: "What each column is", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
-      const targets = [["", "Ignore"], ["VERSION", "Version"], ["PERIOD", "Period (2026-03)"], ["MEASURE", "Measure"], ["VALUE", "Value"]].concat((model.Dimensions || []).map((d) => [d.DimId, d.Label || d.DimId]));
+      const targets = [["", "Ignore"], ["VERSION", "Version"], ["PERIOD", "Period (2026-03)"], ["MEASURE", "Measure"], ["VALUE", "Value"]].concat((model.Dimensions || []).map((d) => [d.DimId, d.Label || d.DimId]))
+        .concat((model.Measures || []).map((m) => ["MEASURE:" + m.MeasureId, "Value of " + (m.Label || m.MeasureId)]));
       header.forEach((h) => {
         const row = new HBox({ alignItems: "Center", wrap: "Wrap" }).addStyleClass("zsacRow");
         row.addItem(new Text({ text: h, width: "10rem" }));
@@ -433,8 +445,9 @@ sap.ui.define([
       if (!mapped("VERSION")) {
         this._field(edit, "Import into version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, this._params("MEMBER", "VERSION"), this._members(s.ModelId, "VERSION")), "The file has no version column.");
       }
-      if (!mapped("MEASURE")) {
-        this._field(edit, "Measure of the values", this._combo((raw) => { s.MeasureId = raw; }, s.MeasureId, this._params("MEMBER", "MEASURE"), this._members(s.ModelId, "MEASURE")), "The file has no measure column.");
+      const wide = Object.keys(s.Mapping).some((c) => (s.Mapping[c] || "").indexOf("MEASURE:") === 0 && header.indexOf(c) >= 0);
+      if (!mapped("MEASURE") && !wide) {
+        this._field(edit, "Measure of the values", this._combo((raw) => { s.MeasureId = raw; }, s.MeasureId, this._params("MEMBER", "MEASURE"), this._members(s.ModelId, "MEASURE")), "The file has no measure column. Or map a column to \"Value of <measure>\" for each measure (one column per measure).");
       }
       this._field(edit, "Existing values", this._choice(s.Mode, [["UPDATE", "Replace the value of the same cell"], ["ADD", "Add to the value of the same cell"]], (v) => { s.Mode = v; }));
       this._field(edit, "Rows that cannot be imported", this._choice(s.OnError, [["FAIL", "Stop the step, import nothing"], ["SKIP", "Skip them and import the rest"]], (v) => { s.OnError = v; }),

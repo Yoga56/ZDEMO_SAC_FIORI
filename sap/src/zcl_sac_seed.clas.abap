@@ -53,6 +53,7 @@ CLASS zcl_sac_seed IMPLEMENTATION.
     DELETE FROM zsac_story   WHERE story_id IN ( 'STORY_SALES' ).
     DELETE FROM zsac_dastep  WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX', 'DA_FORECAST_CYCLE' ).
     DELETE FROM zsac_dataact WHERE action_id IN ( 'DA_FORECAST_FROM_ACT', 'DA_ALLOC_OPEX', 'DA_FORECAST_CYCLE' ).
+    DELETE FROM zsac_comment WHERE comment_id IN ( 'C1', 'C2', 'C3' ).
     DELETE FROM zsac_mastep  WHERE action_id IN ( 'MA_FORECAST_CYCLE', 'MA_CLOSE_VERSION', 'MA_STAT_FORECAST' ).
     DELETE FROM zsac_multiact WHERE action_id IN ( 'MA_FORECAST_CYCLE', 'MA_CLOSE_VERSION', 'MA_STAT_FORECAST' ).
     DELETE FROM zsac_file    WHERE file_id LIKE 'F\_%' ESCAPE '\' AND owner_id = 'SEED'.
@@ -257,6 +258,17 @@ CLASS zcl_sac_seed IMPLEMENTATION.
       ( action_id = 'DA_FORECAST_CYCLE' step_no = 10 step_type = 'EMBED' step_name = 'Run-rate forecast' description = 'Embedded data action with its own parameters' active = abap_true
         config = `{"ActionId":"DA_FORECAST_FROM_ACT","ParamMap":{"Uplift":1.1}}`
         local_last_changed_at = now ) ) ).
+
+    INSERT zsac_comment FROM TABLE @( VALUE #(
+      ( comment_id = 'C1' model_id = 'SALES_PLAN' version_id = 'BUD' period = '2026-07' measure = 'REVENUE'
+        dims_json = `{"REGION":"EMEA"}`
+        comment_text = 'Budget assumes the new partner programme starts in July' created_at = now last_changed_at = now local_last_changed_at = now )
+      ( comment_id = 'C2' model_id = 'SALES_PLAN' version_id = 'BUD' period = '2026-10' measure = 'REVENUE'
+        dims_json = `{"REGION":"EMEA"}`
+        comment_text = 'Q4 includes the price increase' created_at = now last_changed_at = now local_last_changed_at = now )
+      ( comment_id = 'C3' model_id = 'SALES_PLAN' version_id = 'FCT' period = '2026-10' measure = 'REVENUE'
+        dims_json = `{"REGION":"EMEA"}`
+        comment_text = 'Check the price increase assumption before publishing' created_at = now last_changed_at = now local_last_changed_at = now ) ) ).
 
     INSERT zsac_multiact FROM TABLE @( VALUE #(
       ( action_id = 'MA_FORECAST_CYCLE' action_name = 'Forecast cycle'

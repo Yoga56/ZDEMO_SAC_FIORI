@@ -32,7 +32,7 @@ sap.ui.define([
 
     get id() { return "mock"; }
 
-    get capabilities() { return { audit: true }; }
+    get capabilities() { return { audit: true, comments: true }; }
 
     static async create(options) {
       const seed = {};
@@ -193,18 +193,12 @@ sap.ui.define([
     async listComments(modelId, versionId) {
       return clone(this._db.comments.filter((c) => (!modelId || c.ModelId === modelId) && (!versionId || c.VersionId === versionId)));
     }
-    async copyComments(modelId, fromVersionId, toVersionId) {
-      const copies = this._db.comments.filter((c) => c.ModelId === modelId && c.VersionId === fromVersionId)
-        .map((c) => Object.assign(clone(c), { Id: "C" + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36), VersionId: toVersionId }));
-      this._db.comments.push(...copies);
-      this._save();
-      return copies.length;
+    async saveComment(comment) {
+      const c = Object.assign({ Author: "ME", At: new Date().toISOString() }, clone(comment));
+      this._upsert("comments", c, (x) => x.Id);
+      return clone(c);
     }
-    async deleteComments(modelId, versionId) {
-      const n = this._db.comments.filter((c) => c.ModelId === modelId && c.VersionId === versionId).length;
-      this._remove("comments", (c) => c.ModelId === modelId && c.VersionId === versionId);
-      return n;
-    }
+    async deleteComment(id) { this._remove("comments", (c) => c.Id === id); }
 
     /** The mock has no PaPM: the run is simulated so a multi action with a PaPM step can be tried out. */
     async runPapm(request) {

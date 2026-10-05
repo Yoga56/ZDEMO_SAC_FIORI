@@ -55,7 +55,7 @@ sap.ui.define([
 
     /** Widgets that only read (charts, KPIs, tables) follow the unpublished numbers; planning tables and inputs update themselves. */
     _refreshReaders() {
-      const own = new Set(["planning.table", "filter", "text", "dataaction.trigger"]);
+      const own = new Set(["planning.table", "filter", "text", "dataaction.trigger", "multiaction.trigger"]);
       this.getCards().forEach((c) => {
         const w = this._story && this._story.Widgets.find((x) => x.Id === c.getWidgetId());
         if (w && !own.has(w.Type)) { c.refresh(); }

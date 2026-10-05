@@ -59,5 +59,27 @@ sap.ui.define([], function () {
     }
   }
 
-  return { METHODS, forecast };
+  /** Months held back for a back-test: a quarter of the history, between 1 and 3. */
+  const holdoutFor = (n) => Math.max(1, Math.min(3, Math.floor(n / 4)));
+
+  /**
+   * Back-test of a method on one series: forecast the last `holdout` months from the months before them and compare with what happened.
+   * @returns {{abs:number, actual:number, n:number}|null} summed absolute error, summed absolute actuals, months compared; null when the series is too short
+   */
+  function backtest(history, method, opts, holdout) {
+    const n = history.length;
+    const h = holdout || holdoutFor(n);
+    const train = history.slice(0, n - h);
+    if (observed(train).length < 2) { return null; }
+    const predicted = forecast(train, Array.from({ length: h }, (_, i) => i + 1), method, opts);
+    let abs = 0; let actual = 0; let count = 0;
+    predicted.forEach((p, i) => {
+      const a = history[n - h + i];
+      if (p === null || a === undefined || a === null || !Number.isFinite(a)) { return; }
+      abs += Math.abs(p - a); actual += Math.abs(a); count++;
+    });
+    return count ? { abs, actual, n: count } : null;
+  }
+
+  return { METHODS, forecast, backtest, holdoutFor };
 });

@@ -133,9 +133,9 @@ test("comment step: copy and delete the comments of a version", async () => {
   await save(p, [{ StepType: "COMMENT", Name: "c", ModelId: "SALES_PLAN", Operation: "COPY", SourceVersion: "BUD", TargetVersion: "FCT" }]);
   const r = await p.runMultiAction("T", {});
   assert.strictEqual(r.Status, "S", r.Log.join("\n"));
-  assert.strictEqual((await p.listComments("SALES_PLAN", "FCT")).length, 2);
+  assert.strictEqual((await p.listComments("SALES_PLAN", "FCT")).length, 3);
   await save(p, [{ StepType: "COMMENT", Name: "d", ModelId: "SALES_PLAN", Operation: "DELETE", Version: "FCT" }]);
-  assert.strictEqual((await p.runMultiAction("T", {})).Steps[0].touched, 2);
+  assert.strictEqual((await p.runMultiAction("T", {})).Steps[0].touched, 3);
   assert.strictEqual((await p.listComments("SALES_PLAN", "FCT")).length, 0);
   assert.strictEqual((await p.listComments("SALES_PLAN", "BUD")).length, 2);
   await save(p, [{ StepType: "COMMENT", Name: "d", ModelId: "SALES_PLAN", Operation: "DELETE", Version: "ACT" }]);
@@ -161,4 +161,40 @@ test("validation of the import, predictive, API, PaPM and comment steps", async 
   }
   const ok = Schema.normalizeAction(await p.getMultiAction("MA_STAT_FORECAST"));
   assert.deepStrictEqual(Schema.validate(ok, await ctxOf(p)).filter((x) => x.severity === "Error"), []);
+});
+
+test("import step: one column per measure (wide format)", async () => {
+  const p = make();
+  const model = await p.getModel("SALES_PLAN");
+  const text = "Region;Product;Channel;Month;Revenue;Cost\nEMEA;Cloud ERP;Direct;2026-10;100;60\nEMEA;Cloud ERP;Direct;2026-11;;70\n";
+  const mapping = ImportEngine.guessMapping(model, ImportEngine.header(text));
+  assert.strictEqual(mapping.Revenue, "MEASURE:REVENUE");
+  assert.strictEqual(mapping.Cost, "MEASURE:COST");
+  await save(p, [{ StepType: "IMPORT", Name: "wide", ModelId: "SALES_PLAN", Csv: text, Mapping: mapping, TargetVersion: "FCT" }]);
+  const a = Schema.normalizeAction(await p.getMultiAction("T"));
+  assert.deepStrictEqual(Schema.validate(a, await ctxOf(p)).filter((x) => x.severity === "Error"), []);
+  const r = await p.runMultiAction("T", {});
+  assert.strictEqual(r.Status, "S", r.Log.join("\n"));
+  assert.strictEqual(r.Steps[0].touched, 3, "an empty cell gives no value");
+  const got = await p.readFacts("SALES_PLAN", { VERSION: ["FCT"], PERIOD: ["2026-10", "2026-11"], REGION: ["EMEA"], PRODUCT: ["Cloud ERP"], CHANNEL: ["Direct"] });
+  assert.strictEqual(got.find((f) => f.Period === "2026-10" && f.Measure === "COST").Value, 60);
+  assert.strictEqual(got.find((f) => f.Period === "2026-11" && f.Measure === "COST").Value, 70);
+  await save(p, [{ StepType: "IMPORT", Name: "mixed", ModelId: "SALES_PLAN", Csv: text, Mapping: Object.assign({}, mapping, { Cost: "VALUE" }), TargetVersion: "FCT" }]);
+  const msgs = Schema.validate(Schema.normalizeAction(await p.getMultiAction("T")), await ctxOf(p)).map((x) => x.message).join("\n");
+  assert.match(msgs, /either one Value column or one column per measure/);
+});
+
+test("forecaster back-test: a perfect line has no error, noise has", async () => {
+  const line = [10, 20, 30, 40, 50, 60, 70, 80];
+  const perfect = Forecaster.backtest(line, "LINEAR", {});
+  assert.strictEqual(perfect.abs, 0);
+  assert.strictEqual(perfect.n, 2);
+  const noisy = Forecaster.backtest([10, 20, 30, 40, 50, 60, 70, 40], "LINEAR", {}, 1);
+  assert.ok(noisy.abs > 0 && noisy.actual === 40);
+  assert.strictEqual(Forecaster.backtest([5, 6], "LINEAR", {}), null);
+  const p = make();
+  await p.writeFacts("SALES_PLAN", [1, 2, 3, 4, 5, 6, 7, 8, 9].map((m) => ({ VersionId: "ACT", Period: "2026-0" + m, Measure: "COST", Dim1: "ZZ", Dim2: "Line", Dim3: "Web", Value: m * 100 })));
+  await save(p, [{ StepType: "PREDICT", Name: "f", ModelId: "SALES_PLAN", MeasureId: "COST", SourceVersion: "ACT", TargetVersion: "FCT", HistoryFrom: "2026-01", HistoryTo: "2026-09", ForecastFrom: "2026-10", ForecastTo: "2026-12", Method: "LINEAR" }]);
+  const r = await p.runMultiAction("T", {});
+  assert.match(r.Steps[0].message, /Back-test on the last 2 months of the history: the forecast was off by \d+(\.\d)?% on average/);
 });

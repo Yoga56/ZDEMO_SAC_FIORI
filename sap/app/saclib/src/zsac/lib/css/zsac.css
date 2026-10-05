@@ -131,3 +131,7 @@ input.zsacFx:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); }
 .zsacDesignerEdit { flex: 1 1 auto; overflow: auto; padding: 1rem; min-width: 0; }
 .zsacRow { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .35rem; }
 .zsacFlowNode .sapMText { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12.5rem; }
+
+/* a cell with a comment: small corner marker */
+.zsacPlanGrid td.zsacHasComment { position: relative; }
+.zsacPlanGrid td.zsacHasComment::after { content: ""; position: absolute; top: 0; right: 0; border-top: .6rem solid var(--sapAccentColor6, #e9730c); border-left: .6rem solid transparent; pointer-events: none; }

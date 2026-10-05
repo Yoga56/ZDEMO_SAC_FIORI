@@ -87,6 +87,11 @@ ENTITIES = [
         ("STATUS", "CHAR 1"), ("CHANGED", "INT4"), ("DURATION_MS", "INT4"), ("USER_NAME", "CHAR 12"), ("STARTED_AT", "CHAR 30"),
         ("PARAMS_TEXT", "CHAR 255"), ("LOG_TEXT", "STRG"), ("STEPS_JSON", "STRG")]),
 
+    # comments on plan cells; author and time are the creation user and time of the row
+    dict(id="COMMENT", table="ZSAC_COMMENT", label="Cell Comment", set="CellComment", admin=ADMIN, fields=[
+        ("*COMMENT_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("VERSION_ID", "CHAR 12"), ("PERIOD", "CHAR 10"), ("MEASURE", "CHAR 20"),
+        ("DIMS_JSON", "STRG"), ("COMMENT_TEXT", "STRG")]),
+
     dict(id="CALTASK", table="ZSAC_CALTASK", label="Calendar Task", set="CalendarTask", admin=ADMIN, fields=[
         ("*TASK_ID", "CHAR 32"), ("TITLE", "CHAR 120"), ("MODEL_ID", "CHAR 20"), ("VERSION_ID", "CHAR 12"), ("ASSIGNEE", "CHAR 12"),
         ("DUE_DATE", "DATS"), ("STATUS", "CHAR 10"), ("APPROVER", "CHAR 12"), ("NOTES", "CHAR 255")]),

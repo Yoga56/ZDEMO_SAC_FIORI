@@ -12,8 +12,9 @@ sap.ui.define([
   "./PlanPublisher",
   "./DistributeDialog",
   "./VersionManager",
-  "./VersionHistory"
-], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory) {
+  "./VersionHistory",
+  "./CommentDialog"
+], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, CommentDialog) {
   "use strict";
 
   return Control.extend("zsac.lib.planning.PlanToolbar", {
@@ -40,9 +41,10 @@ sap.ui.define([
       this._paste = new Button({ icon: "sap-icon://paste", tooltip: "Paste at the selected cell (Ctrl+V)", type: "Transparent", enabled: false, press: () => this._doPaste() });
       this._fx = new ToggleButton({ text: "fx", tooltip: "Formula bar: type a value or a formula for the selected cells", type: "Transparent", pressed: false,
         press: (e) => { this._plan.formulaBar = e.getParameter("pressed"); this._plan.notifySelection(this._plan.active); } });
+      this._comment = new Button({ icon: "sap-icon://comment", tooltip: "Comments on the selected cell", type: "Transparent", enabled: false, press: () => this._doComment() });
       this._versions = new Button({ text: "Versions", icon: "sap-icon://documents", tooltip: "Version Management", type: "Transparent", press: () => this._openVersions() });
       this._historyBtn = new Button({ icon: "sap-icon://history", tooltip: "Version History", type: "Transparent", press: () => this._openHistory() });
-      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx,
+      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx, this._comment,
         this._versions, this._historyBtn, new ToolbarSpacer(), this._status] }));
       this._guard = (e) => { if (this._plan && this._plan.dirty) { e.preventDefault(); e.returnValue = ""; } };
       window.addEventListener("beforeunload", this._guard);
@@ -87,6 +89,23 @@ sap.ui.define([
       return g && g.getDomRef() && document.body.contains(g.getDomRef()) ? g : null;
     },
 
+    /** The one selected cell that a comment can be attached to, with its coordinates; null otherwise. */
+    _commentCell() {
+      const g = this._grid();
+      if (!g || !this._provider || !this._provider.capabilities.comments) { return null; }
+      const cells = g.getSelectedCells();
+      if (cells.length !== 1) { return null; }
+      const coords = g.cellCoords(cells[0].rk, cells[0].ck);
+      return coords ? { g, cell: cells[0], coords } : null;
+    },
+
+    _doComment() {
+      const t = this._commentCell();
+      if (!t) { return; }
+      CommentDialog.open({ provider: this._provider, coords: t.coords, label: t.g._cellLabel(t.cell.rk, t.cell.ck) + " \u00b7 " + t.coords.VersionId, comments: t.g.commentsAt(t.cell.rk, t.cell.ck),
+        onChange: (all) => t.g.setComments(all) });
+    },
+
     async _doCopy() {
       const g = this._grid();
       if (!g) { return; }
@@ -114,6 +133,7 @@ sap.ui.define([
       this._distribute.setEnabled(sel.editable > 0);
       this._copy.setEnabled(sel.count > 0);
       this._paste.setEnabled(sel.count > 0);
+      this._comment.setEnabled(!!this._commentCell());
       this._status.setText(p.dirty ? p.count + " unpublished change" + (p.count === 1 ? "" : "s") : "No unpublished changes");
     },
 

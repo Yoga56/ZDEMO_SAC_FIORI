@@ -15,8 +15,9 @@ sap.ui.define([
   "../core/QueryEngine",
   "./PlanEditor",
   "./GridText",
-  "./FormulaEngine"
-], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText, FormulaEngine) {
+  "./FormulaEngine",
+  "./CommentKey"
+], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText, FormulaEngine, CommentKey) {
   "use strict";
 
   const SEP = "\u0001";
@@ -49,10 +50,35 @@ sap.ui.define([
       if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); if (this._onSel) { this._ctx.plan.detachSelection(this._onSel); } }
       this._ctx = ctx;
       this._sel = null;
+      this._commentIndex = CommentKey.index(ctx.model, ctx.comments);
       this._base = new Map(ctx.facts.map((f) => [[f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|"), f.Value]));
       if (ctx.plan) { ctx.plan.attachChange(this._onPlan); this._onSel = this._onSel || (() => this._syncBar()); ctx.plan.attachSelection(this._onSel); }
       this.invalidate();
       return this;
+    },
+
+    /** Comments on cells (see CommentKey): the cells that have one get a marker and the text as tooltip. */
+    setComments(list) {
+      if (!this._ctx) { return; }
+      this._ctx.comments = list || [];
+      this._commentIndex = CommentKey.index(this._ctx.model, this._ctx.comments);
+      this.invalidate();
+    },
+
+    /** The coordinates a comment on this cell would get, or null when the cell does not fix a single version and measure. */
+    cellCoords(rk, ck) {
+      const c = this._ctx;
+      const ctx = { spec: c.spec };
+      const v = (d) => PlanEditor.valueFor(ctx, this._result, rk, ck, d);
+      if (!v("VERSION") || !v("MEASURE")) { return null; }
+      const dims = {};
+      (c.model.Dimensions || []).forEach((d) => { const m = v(d.DimId); if (m !== undefined) { dims[d.DimId] = m; } });
+      return { ModelId: c.model.ModelId, VersionId: v("VERSION"), Period: v("PERIOD") || "", Measure: v("MEASURE"), Dims: dims };
+    },
+
+    commentsAt(rk, ck) {
+      const coords = this._commentIndex && this.cellCoords(rk, ck);
+      return coords ? (this._commentIndex.get(CommentKey.keyOf(this._ctx.model, coords)) || []) : [];
     },
 
     /** Facts as the table shows them: stored facts with the unpublished changes applied. */
@@ -153,10 +179,14 @@ sap.ui.define([
           const aggregated = (info && info.hasChildren) || (r.colInfo && r.colInfo(ck).hasChildren);
           const dirty = r.cellFacts(rk, ck).some((f) => c.plan && c.plan.has(f));
           const text = v === undefined ? "" : Format.full(v, dec);
+          const notes = this.commentsAt(rk, ck);
+          const noted = notes.length ? " zsacHasComment" : "";
+          const noteTip = notes.length ? ' title="' + esc(notes.map((n) => (n.Author ? n.Author + ": " : "") + n.Text).join("\n")) + '"' : "";
           if (state.editable) {
-            h += '<td class="num" data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
+            h += '<td class="num' + noted + '"' + noteTip + ' data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
           } else {
-            h += '<td data-ri="' + ri + '" data-ci="' + ci + '" class="num' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + '"' + (o.editable && state.reason ? ' title="' + esc(state.reason) + '"' : "") + ">" + text + "</td>";
+            h += '<td data-ri="' + ri + '" data-ci="' + ci + '" class="num' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + noted + '"'
+              + (notes.length ? noteTip : (o.editable && state.reason ? ' title="' + esc(state.reason) + '"' : "")) + ">" + text + "</td>";
           }
         });
         if (totals) { h += '<td class="num total">' + Format.full(r.rowTotal(rk), dec) + "</td>"; }
