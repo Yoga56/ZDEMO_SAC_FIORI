@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+ <asx:values>
+  <DATA>
+   <MASTER_LANGUAGE>E</MASTER_LANGUAGE>
+   <STARTING_FOLDER>/sap/src/</STARTING_FOLDER>
+   <FOLDER_LOGIC>FULL</FOLDER_LOGIC>
+   <IGNORE>
+    <item>/.gitignore</item>
+    <item>/LICENSE</item>
+    <item>/README.md</item>
+    <item>/package.json</item>
+    <item>/sap/src/zui_sac_o4.srvb.xml</item>
+    <item>/sap/src/*.sco2.xml</item>
+    <item>/sap/src/*.sia1.xml</item>
+    <item>/sap/src/*.sia6.xml</item>
+    <item>/sap/src/*.sia7.xml</item>
+    <item>/sap/src/*.sush.xml</item>
+    <item>/sap/src/*.uiad.xml</item>
+    <item>/sap/src/*.wapa.xml</item>
+    <item>/sap/src/*.wapa.*.xml</item>
+   </IGNORE>
+  </DATA>
+ </asx:values>
+</asx:abap>
