@@ -135,3 +135,27 @@ input.zsacFx:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); }
 /* a cell with a comment: small corner marker */
 .zsacPlanGrid td.zsacHasComment { position: relative; }
 .zsacPlanGrid td.zsacHasComment::after { content: ""; position: absolute; top: 0; right: 0; border-top: .6rem solid var(--sapAccentColor6, #e9730c); border-left: .6rem solid transparent; pointer-events: none; }
+
+/* variance explainer */
+.zsacVSummary { display: flex; flex-wrap: wrap; gap: 1.5rem; margin: .5rem 0; }
+.zsacVSummary > div { display: flex; flex-direction: column; }
+.zsacVCap { font-size: .75rem; color: var(--sapContent_LabelColor, #6a6d70); }
+.zsacVBig { font-size: 1.35rem; font-weight: 600; }
+.zsacVText { margin: .25rem 0 .5rem; line-height: 1.4; }
+.zsacVMsg { padding: .75rem; color: var(--sapContent_LabelColor, #6a6d70); }
+.zsacV-good { color: var(--sapPositiveTextColor, #107e3e); }
+.zsacV-bad { color: var(--sapNegativeTextColor, #b00); }
+.zsacV-neutral { color: var(--sapContent_LabelColor, #6a6d70); }
+.zsacVBars { display: flex; flex-direction: column; gap: .3rem; margin-top: .5rem; }
+.zsacVRow { display: grid; grid-template-columns: 9rem 1fr 4.5rem 3rem; align-items: center; gap: .5rem; padding: .15rem .25rem; border-radius: .25rem; }
+.zsacVRow[data-m] { cursor: pointer; }
+.zsacVRow[data-m]:hover { background: var(--sapList_Hover_Background, #f5f5f5); }
+.zsacVLabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zsacVBarWrap { display: block; height: .9rem; background: var(--sapShell_Background, #f0f0f0); border-radius: .2rem; overflow: hidden; }
+.zsacVBar { display: block; height: 100%; border-radius: .2rem; }
+.zsacVb-good { background: var(--sapPositiveElementColor, #2b9f55); }
+.zsacVb-bad { background: var(--sapNegativeElementColor, #d03b3b); }
+.zsacVb-neutral { background: var(--sapNeutralElementColor, #8a8d90); }
+.zsacVNum { text-align: right; font-variant-numeric: tabular-nums; }
+.zsacVShare { text-align: right; color: var(--sapContent_LabelColor, #6a6d70); font-size: .8rem; }
+.zsacVRest { color: var(--sapContent_LabelColor, #6a6d70); }

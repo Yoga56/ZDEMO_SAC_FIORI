@@ -145,6 +145,19 @@ unlocked target; deleting a version deletes its facts; a story needs a name; a m
 * Data actions: see the next section.
 * Version: private = copy of a source; publish replaces the target version; revert copies the source again.
 
+### Variance explainer ("why did it change?")
+
+`VarianceEngine` (pure) takes the facts of a model and `{measure, base, compare, filters}`: two slices (for example `{VERSION: ["BUD"]}` and `{VERSION: ["ACT"]}`, or sets of months) and the filters common to
+both (the drill path and the page filters). It returns the totals, the change and, for every dimension the two sides do not differ in and that has more than one member, the members with base, compare,
+change, favorable or not (`lowerIsBetter` flips it) and `share`: the change of the member over the sum of all changes of the dimension taken without sign (-1 to 1, so it stays meaningful when changes cancel out).
+Dimensions are ranked by `topShare`, the biggest share without sign: the dimension where one member holds the most of the movement comes first. The narrative names the size of the change, says when it is small
+because increases and decreases cancel out, then the biggest driver and, inside it, the next (up to three levels, only while one member clearly leads: at least 40% of the movement and 25% more than the runner-up),
+and the member that moves the other way. Only measures that add up (aggregation SUM, no exception aggregation) can be explained. `commonPeriods` limits both sides to the months both have data for
+(actuals to September, budget to December would otherwise look like a loss); the dialog shows a note and a switch.
+`VarianceDialog` (measure, versions or months, summary, drill chips, one dimension at a time as bars, click a bar to drill) opens from the **Why?** link of KPI tiles that have a comparison version and from the
+**Variance explainer** widget (`variance`: headline, top five of the best dimension, "Explore the difference"). The facts are read once (`loadFilter`) and every drill step is an in-memory calculation.
+It works on any model, also a live CDS model, and uses published data.
+
 ### CDS sources
 
 `model.Source` (`ModelSchema`, stored as JSON in `ZSAC_MODEL.SOURCE_JSON`) maps an OData V4 entity set to the model: service URL, entity, period field and format, a field per dimension (and optional text field)

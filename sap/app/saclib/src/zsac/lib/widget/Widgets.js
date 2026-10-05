@@ -21,9 +21,14 @@ sap.ui.define([
   "../planning/PlanGrid",
   "../planning/PlanPublisher",
   "../planning/DataActionRun",
+  "../core/VarianceEngine",
+  "./VarianceView",
+  "./VarianceDialog",
+  "sap/ui/core/HTML",
+  "sap/m/Link",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine,
-  PlanGrid, PlanPublisher, DataActionRun, VBox, Button, MessageBox, MessageToast) {
+  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, HTML, Link, VBox, Button, MessageBox, MessageToast) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -150,8 +155,18 @@ sap.ui.define([
     ]),
     create(widget, ctx) {
       const tile = new KpiTile({ format: widget.Props.Format || "compact", lowerIsBetter: !!widget.Props.LowerIsBetter });
-      const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: tile });
+      // "Why?" opens the variance explainer for the comparison the tile shows: this tile's version against the version it is compared with
+      const why = new Link({ text: "Why?", visible: false, tooltip: "Explain the difference to the comparison version", press: () => {
+        const b = widget.Binding;
+        const filters = FilterEngine.merge(ctx.filters || {}, b.Filters || {});
+        const own = (filters.VERSION && filters.VERSION.length) ? filters.VERSION : null;
+        const common = Object.assign({}, filters); delete common.VERSION; delete common.MEASURE;
+        VarianceDialog.open({ provider: ctx.provider, modelId: b.ModelId, measure: b.Measure, base: { VERSION: [widget.Props.CompareVersion] },
+          compare: own ? { VERSION: own } : {}, filters: common, lowerIsBetter: !!widget.Props.LowerIsBetter });
+      } }).addStyleClass("zsacKpiWhy");
+      const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: new VBox({ items: [tile, why] }) });
       return wire(card, widget, async () => {
+        why.setVisible(!!widget.Props.CompareVersion);
         const result = await runQuery(widget, ctx);
         const measure = (result.model.Measures || []).find((m) => m.MeasureId === widget.Binding.Measure);
         tile.setValue(result.grand);
@@ -168,6 +183,48 @@ sap.ui.define([
         } else {
           tile.setCompare(null);
         }
+      });
+    }
+  });
+
+  WidgetRegistry.register("variance", {
+    name: "Variance explainer", icon: "sap-icon://compare", group: "Indicators", size: { w: 6, h: 4 },
+    defaults: { Binding: emptyBinding(), Props: { CompareVersion: "", BaseVersion: "", LowerIsBetter: false } },
+    builder: baseBuilder.concat([
+      { key: "Binding.Measure", label: "Measure", kind: "measure" },
+      { key: "Binding.Filters", label: "Filters", kind: "filters" },
+      { key: "Props.CompareVersion", label: "Explain version", kind: "version" },
+      { key: "Props.BaseVersion", label: "Against version", kind: "version" },
+      { key: "Props.LowerIsBetter", label: "Lower is better", kind: "bool" }
+    ]),
+    create(widget, ctx) {
+      const holder = new HTML({ content: "<div></div>" });
+      const open = () => {
+        const b = widget.Binding;
+        const filters = FilterEngine.merge(ctx.filters || {}, b.Filters || {});
+        const common = Object.assign({}, filters); delete common.VERSION; delete common.MEASURE;
+        VarianceDialog.open({ provider: ctx.provider, modelId: b.ModelId, measure: b.Measure, base: { VERSION: [widget.Props.BaseVersion] }, compare: { VERSION: [widget.Props.CompareVersion] },
+          filters: common, lowerIsBetter: !!widget.Props.LowerIsBetter });
+      };
+      const box = new VBox({ width: "100%", items: [holder, new Link({ text: "Explore the difference", press: open }).addStyleClass("sapUiTinyMarginTop")] });
+      const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: box });
+      return wire(card, widget, async () => {
+        const b = widget.Binding;
+        if (!b.Measure || !widget.Props.CompareVersion || !widget.Props.BaseVersion) { holder.setContent('<div class="zsacVMsg">Choose a measure and the two versions in the builder panel.</div>'); return; }
+        const model = await ctx.provider.getModel(b.ModelId);
+        const versions = await ctx.provider.listVersions(b.ModelId);
+        const filters = FilterEngine.merge(ctx.filters || {}, b.Filters || {});
+        const common = Object.assign({}, filters); delete common.VERSION; delete common.MEASURE;
+        const side = { base: { VERSION: [widget.Props.BaseVersion] }, compare: { VERSION: [widget.Props.CompareVersion] } };
+        const need = QueryEngine.expandFilters(model, VarianceEngine.loadFilter(Object.assign({ filters: common }, side)));
+        const facts = ctx.plan && ctx.plan.overlay ? ctx.plan.overlay(await ctx.provider.readFacts(b.ModelId, need)) : await ctx.provider.readFacts(b.ModelId, need);
+        const name = (id) => ((versions.find((v) => v.VersionId === id) || {}).Name) || id;
+        const labels = { base: name(widget.Props.BaseVersion), compare: name(widget.Props.CompareVersion) };
+        const aligned = VarianceEngine.commonPeriods(model, facts, Object.assign({ measure: b.Measure, filters: common }, side));
+        const r = VarianceEngine.explain(model, facts, Object.assign({ measure: b.Measure, filters: aligned.periods.length ? Object.assign({}, common, { PERIOD: aligned.periods }) : common,
+          lowerIsBetter: !!widget.Props.LowerIsBetter, labels }, side));
+        const measure = (model.Measures || []).find((m) => m.MeasureId === b.Measure);
+        holder.setContent("<div>" + (aligned.note ? '<div class="zsacVMsg">' + aligned.note + "</div>" : "") + VarianceView.summaryHtml(r, labels, measure && measure.UnitType !== "None" ? measure.Unit : "") + (r.dims[0] ? VarianceView.barsHtml(Object.assign({}, r.dims[0], { rows: r.dims[0].rows.slice(0, 5) }), 5).replace(/<div class="zsacVRow" data-m=/g, '<div class="zsacVRow" data-x=') : "") + "</div>");
       });
     }
   });

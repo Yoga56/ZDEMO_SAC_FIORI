@@ -180,6 +180,9 @@ def stories():
         {"Id": "W12", "Page": 2, "Type": "table", "Title": "Revenue by region (geography hierarchy)", "X": 0, "Y": 9, "W": 12, "H": 5,
          "Binding": {"ModelId": "SALES_PLAN", "Rows": ["REGION"], "Columns": ["VERSION"], "Measure": "REVENUE", "Filters": {"VERSION": ["ACT", "BUD"], "MEASURE": ["REVENUE"]},
                      "Hierarchies": {"REGION": "GEO"}}, "Props": {"ExpandLevel": 2}})
+    sales["Widgets"].append(
+        {"Id": "W13", "Page": 2, "Type": "variance", "Title": "Why is revenue off budget?", "X": 0, "Y": 14, "W": 12, "H": 6,
+         "Binding": {"ModelId": "SALES_PLAN", "Rows": [], "Columns": [], "Measure": "REVENUE", "Filters": {}}, "Props": {"CompareVersion": "ACT", "BaseVersion": "BUD", "LowerIsBetter": False}})
     opex = {
         "Id": "STORY_OPEX", "Name": "Opex Review", "Description": "Operating expense by department", "ModelId": "OPEX_PLAN",
         "Status": "D", "Pages": [{"Id": 1, "Title": "Opex"}], "Filters": {},
