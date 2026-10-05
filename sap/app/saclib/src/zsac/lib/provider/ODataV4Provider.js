@@ -48,13 +48,57 @@ sap.ui.define([
       return rows[0];
     }
 
-    /** Create or update by key: delete-and-create keeps the mapping simple and cascades children (compositions). */
+    // ---- writing ----------------------------------------------------------------------------
+    // Rows are written with plain requests, one POST per business object with its children inside (deep insert), because
+    //  - the server checks a business object when it is saved: a model without dimensions is refused, and a root created first and its children after would be;
+    //  - the UI5 model keeps a failed creation pending forever, which made Save look dead; here every failure is an exception with the message of the service.
+    async _token(fresh) {
+      if (!fresh && this._csrf) { return this._csrf; }
+      const fromModel = !fresh && this._m.getHttpHeaders && this._m.getHttpHeaders()["X-CSRF-Token"];
+      if (fromModel) { return (this._csrf = fromModel); }
+      const res = await fetch(this._m.getServiceUrl(), { method: "HEAD", headers: { "X-CSRF-Token": "Fetch" }, credentials: "same-origin" });
+      this._csrf = res.headers.get("x-csrf-token") || "";
+      return this._csrf;
+    }
+
+    async _errorText(res) {
+      let detail = "";
+      try {
+        const b = await res.json();
+        const m = b && b.error && b.error.message;
+        const more = ((b && b.error && b.error.details) || []).map((d) => d.message).filter(Boolean);
+        detail = [typeof m === "string" ? m : (m && m.value) || ""].concat(more).filter(Boolean).join(": ");
+      } catch (e) { /* not json */ }
+      return "The service answered " + res.status + (detail ? ": " + detail : "");
+    }
+
+    async _request(method, path, body, headers, retried) {
+      const url = this._m.getServiceUrl() + encodeURI(String(path).replace(/^\//, ""));
+      const h = Object.assign({ Accept: "application/json", "X-CSRF-Token": await this._token() }, body ? { "Content-Type": "application/json" } : {}, headers || {});
+      const res = await fetch(url, { method, headers: h, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+      if (res.status === 403 && res.headers.get("x-csrf-token") === "Required" && !retried) { await this._token(true); return this._request(method, path, body, headers, true); }
+      if (!res.ok) { throw Object.assign(new Error(await this._errorText(res)), { status: res.status }); }
+      return res;
+    }
+
+    _post(path, body) { return this._request("POST", path, body); }
+    _delete(keyPath) { return this._request("DELETE", keyPath, null, { "If-Match": "*" }); }
+
+    /** Create or replace by key: delete and create keeps the mapping simple and removes the children with the root (compositions). */
     async _replace(path, keyPath, entity) {
-      try { await this._invokeDelete(keyPath); } catch (e) { /* not there yet */ }
-      const binding = this._m.bindList(path);
-      const context = binding.create(entity, true);
-      await context.created();
-      return context.getObject();
+      await this._delete(keyPath).catch((e) => { if (!e || e.status !== 404) { throw e; } });
+      await this._post(path, entity);
+      return entity;
+    }
+
+    /** Same with children inside the payload; if the new object is refused the old one is put back (best effort) and the refusal is reported. */
+    async _replaceDeep(path, keyPath, payload, old) {
+      await this._delete(keyPath).catch((e) => { if (!e || e.status !== 404) { throw e; } });
+      try { await this._post(path, payload); } catch (e) {
+        if (old) { try { await this._post(path, old); } catch (x) { /* it could not be put back */ } }
+        throw e;
+      }
+      return payload;
     }
 
     /** Changes fields of an existing row with a PATCH (no delete, so determinations and dependants of a delete do not fire). Rejects when the row is missing. */
@@ -64,12 +108,7 @@ sap.ui.define([
       for (const k of Object.keys(values)) { await context.setProperty(k, values[k]); }
     }
 
-    async _invokeDelete(keyPath) {
-      const binding = this._m.bindContext(keyPath);
-      const context = binding.getBoundContext();
-      await context.requestObject();
-      await context.delete();
-    }
+    async _invokeDelete(keyPath) { return this._delete(keyPath); }
 
     async _action(path, params) {
       const op = this._m.bindContext(path);
@@ -96,22 +135,21 @@ sap.ui.define([
       return (await this._list("/Model", [], { $expand: "_Dimension,_Measure" })).map((e) => this._toModel(e));
     }
     async getModel(id) { return this._toModel(await this._one("/Model", ["ModelId", id], { $expand: "_Dimension,_Measure" })); }
-    async _putModel(m) {
-      const key = "/Model(ModelId=" + quote(m.ModelId) + ")";
-      await this._replace("/Model", key, {
+    _modelPayload(m) {
+      return {
         ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
         PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking,
-        DataAudit: !!m.DataAudit, DataSource: m.DataSource || "", SourceJson: m.Source ? str(m.Source) : ""
-      });
-      for (const d of m.Dimensions || []) {
-        await this._m.bindList(key + "/_Dimension").create({ ModelId: m.ModelId, DimId: d.DimId, DimLabel: d.Label, Slot: d.Slot, Members: str(d.Members || []),
-          DimType: d.Type || "GENERIC", Attributes: str(d.Attributes || []), Hierarchies: str(d.Hierarchies || []) }, true).created();
-      }
-      for (const x of m.Measures || []) {
-        await this._m.bindList(key + "/_Measure").create({ ModelId: m.ModelId, MeasureId: x.MeasureId, MeasureLabel: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM",
+        DataAudit: !!m.DataAudit, DataSource: m.DataSource || "", SourceJson: m.Source ? str(m.Source) : "",
+        _Dimension: (m.Dimensions || []).map((d) => ({ ModelId: m.ModelId, DimId: d.DimId, DimLabel: d.Label, Slot: d.Slot, Members: str(d.Members || []),
+          DimType: d.Type || "GENERIC", Attributes: str(d.Attributes || []), Hierarchies: str(d.Hierarchies || []) })),
+        _Measure: (m.Measures || []).map((x) => ({ ModelId: m.ModelId, MeasureId: x.MeasureId, MeasureLabel: x.Label, Unit: x.Unit || "", Aggregation: x.Aggregation || "SUM",
           DataType: x.DataType || "Decimal", UnitType: x.UnitType || "None", Scale: x.Scale || 1, Decimals: x.Decimals || 0,
-          ExceptionAgg: x.ExceptionAggregation || "", ExceptionDims: (x.ExceptionDims || []).join(",") }, true).created();
-      }
+          ExceptionAgg: x.ExceptionAggregation || "", ExceptionDims: (x.ExceptionDims || []).join(",") }))
+      };
+    }
+    async _putModel(m) {
+      const old = await this.getModel(m.ModelId).then((x) => this._modelPayload(x)).catch(() => null);
+      await this._replaceDeep("/Model", "/Model(ModelId=" + quote(m.ModelId) + ")", this._modelPayload(m), old);
       return m;
     }
     deleteModel(id) { return this._invokeDelete("/Model(ModelId=" + quote(id) + ")"); }
@@ -175,7 +213,7 @@ sap.ui.define([
         missing = true;
       }
       if (missing) {
-        await this._m.bindList("/Version").create(Object.assign({ ModelId: v.ModelId, VersionId: v.VersionId }, fields), true).created();
+        await this._post("/Version", Object.assign({ ModelId: v.ModelId, VersionId: v.VersionId }, fields));
       }
       return v;
     }
@@ -205,14 +243,16 @@ sap.ui.define([
     }
     async listStories() { return (await this._list("/Story")).map((e) => this._toStory(e, false)); }
     async getStory(id) { return this._toStory(await this._one("/Story", ["StoryId", id], { $expand: "_Widget" }), true); }
+    _storyPayload(s) {
+      return {
+        StoryId: s.Id, StoryName: s.Name, Description: s.Description || "", ModelId: s.ModelId || "", Status: s.Status || "D", PagesJson: str(s.Pages), Filters: str(s.Filters || {}),
+        _Widget: (s.Widgets || []).map((w) => ({ StoryId: s.Id, WidgetId: w.Id, PageNo: w.Page, WidgetKind: w.Type, Title: w.Title || "",
+          GridX: w.X, GridY: w.Y, GridW: w.W, GridH: w.H, Binding: str(w.Binding || {}), Props: str(w.Props || {}) }))
+      };
+    }
     async _putStory(s) {
-      const key = "/Story(StoryId=" + quote(s.Id) + ")";
-      await this._replace("/Story", key, { StoryId: s.Id, StoryName: s.Name, Description: s.Description || "", ModelId: s.ModelId || "",
-        Status: s.Status || "D", PagesJson: str(s.Pages), Filters: str(s.Filters || {}) });
-      for (const w of s.Widgets || []) {
-        await this._m.bindList(key + "/_Widget").create({ StoryId: s.Id, WidgetId: w.Id, PageNo: w.Page, WidgetKind: w.Type, Title: w.Title || "",
-          GridX: w.X, GridY: w.Y, GridW: w.W, GridH: w.H, Binding: str(w.Binding || {}), Props: str(w.Props || {}) }, true).created();
-      }
+      const old = await this.getStory(s.Id).then((x) => this._storyPayload(x)).catch(() => null);
+      await this._replaceDeep("/Story", "/Story(StoryId=" + quote(s.Id) + ")", this._storyPayload(s), old);
       return s;
     }
     deleteStory(id) { return this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); }
@@ -228,15 +268,19 @@ sap.ui.define([
     }
     async listDataActions() { return (await this._list("/DataAction", [], { $expand: "_Step" })).map((e) => this._toDataAction(e)); }
     async getDataAction(id) { return this._toDataAction(await this._one("/DataAction", ["ActionId", id], { $expand: "_Step" })); }
-    async _putDataAction(a) {
-      const key = "/DataAction(ActionId=" + quote(a.Id) + ")";
-      await this._replace("/DataAction", key, { ActionId: a.Id, ModelId: a.ModelId, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []) });
-      for (const s of a.Steps || []) {
+    _stepRows(a) {
+      return (a.Steps || []).map((s) => {
         const config = Object.assign({}, s);
         ["StepNo", "StepType", "Name", "Description", "Active"].forEach((k) => { delete config[k]; });
-        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, StepName: s.Name || "", Description: s.Description || "",
-          Active: s.Active !== false, Config: str(config) }, true).created();
-      }
+        return { ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, StepName: s.Name || "", Description: s.Description || "", Active: s.Active !== false, Config: str(config) };
+      });
+    }
+    _dataActionPayload(a) {
+      return { ActionId: a.Id, ModelId: a.ModelId, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []), _Step: this._stepRows(a) };
+    }
+    async _putDataAction(a) {
+      const old = await this.getDataAction(a.Id).then((x) => this._dataActionPayload(x)).catch(() => null);
+      await this._replaceDeep("/DataAction", "/DataAction(ActionId=" + quote(a.Id) + ")", this._dataActionPayload(a), old);
       return a;
     }
     deleteDataAction(id) { return this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); }
@@ -268,9 +312,9 @@ sap.ui.define([
     }
     async _putRun(r) {
       const id = "RUN" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
-      await this._m.bindList("/ActionRun").create({ RunId: id, ActionId: r.ActionId, ActionName: r.ActionName || "", ModelId: r.ModelId || "", RunKind: r.Kind,
+      await this._post("/ActionRun", { RunId: id, ActionId: r.ActionId, ActionName: r.ActionName || "", ModelId: r.ModelId || "", RunKind: r.Kind,
         Status: r.Status, Changed: r.Changed || 0, DurationMs: r.DurationMs || 0, UserName: "", StartedAt: new Date().toISOString(), ParamsText: String(r.ParamsText || "").slice(0, 255),
-        LogText: (r.Log || []).join("\n"), StepsJson: str(r.Steps || []) }, true).created();
+        LogText: (r.Log || []).join("\n"), StepsJson: str(r.Steps || []) });
     }
 
     // ---- multi actions ----------------------------------------------------------------------
@@ -283,15 +327,12 @@ sap.ui.define([
     }
     async listMultiActions() { return (await this._list("/MultiAction", [], { $expand: "_Step" })).map((e) => this._toMulti(e)); }
     async getMultiAction(id) { return this._toMulti(await this._one("/MultiAction", ["ActionId", id], { $expand: "_Step" })); }
+    _multiPayload(a) {
+      return { ActionId: a.Id, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []), _Step: this._stepRows(a) };
+    }
     async _putMultiAction(a) {
-      const key = "/MultiAction(ActionId=" + quote(a.Id) + ")";
-      await this._replace("/MultiAction", key, { ActionId: a.Id, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []) });
-      for (const s of a.Steps || []) {
-        const config = Object.assign({}, s);
-        ["StepNo", "StepType", "Name", "Description", "Active"].forEach((k) => { delete config[k]; });
-        await this._m.bindList(key + "/_Step").create({ ActionId: a.Id, StepNo: s.StepNo, StepType: s.StepType, StepName: s.Name || "", Description: s.Description || "",
-          Active: s.Active !== false, Config: str(config) }, true).created();
-      }
+      const old = await this.getMultiAction(a.Id).then((x) => this._multiPayload(x)).catch(() => null);
+      await this._replaceDeep("/MultiAction", "/MultiAction(ActionId=" + quote(a.Id) + ")", this._multiPayload(a), old);
       return a;
     }
     deleteMultiAction(id) { return this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); }
