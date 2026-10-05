@@ -1,0 +1,27 @@
+# Same as ui5.yaml, but the /sap backend is the destination my402225 (the system where the CDS data and the app backend live).
+specVersion: "3.1"
+metadata:
+  name: zsac.fiori
+type: application
+server:
+  customMiddleware:
+    - name: ui5-middleware-servestatic
+      afterMiddleware: compression
+      mountPath: /zsac/lib
+      configuration:
+        rootPath: ../saclib/src/zsac/lib
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertErrors: false
+        ui5:
+          path:
+            - /resources
+            - /test-resources
+          url: https://ui5.sap.com
+          version: 1.136.0
+        backend:
+          - path: /sap
+            destination: my402225
+    - name: fiori-tools-appreload
+      afterMiddleware: compression

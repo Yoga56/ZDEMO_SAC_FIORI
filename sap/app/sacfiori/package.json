@@ -5,10 +5,12 @@
   "private": true,
   "scripts": {
     "start": "ui5 serve --config ./ui5.yaml --open index.html",
+    "start-402225": "ui5 serve --config ./ui5-402225.yaml --open index.html",
     "start-local": "ui5 serve --config ./ui5-local.yaml --open index.html",
     "start-mock": "ui5 serve --config ./ui5-mock.yaml --open index.html",
     "build": "ui5 build --config ./ui5.yaml --clean-dest --dest dist --include-dependency zsac.lib",
-    "deploy": "npm run build && fiori deploy --config ./ui5-deploy.yaml"
+    "deploy": "npm run build && fiori deploy --config ./ui5-deploy.yaml",
+    "deploy-402225": "npm run build && fiori deploy --config ./ui5-deploy-402225.yaml"
   },
   "dependencies": {
     "zsac-lib": "file:../saclib"
