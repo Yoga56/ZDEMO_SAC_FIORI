@@ -31,7 +31,7 @@
     "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
   },
   "sap.ui5": {
-    "resourceRoots": { "zsac.lib": "./zsac/lib/" },
+    "resourceRoots": { "zsac.lib": "./resources/zsac/lib/" },
     "config": { "provider": "mock" },
     "dependencies": {
       "minUI5Version": "1.136.0",
