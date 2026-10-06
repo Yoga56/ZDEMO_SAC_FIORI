@@ -406,3 +406,6 @@ path.zsacCp { fill-opacity: .3; }
 .zsacVTPane.zsacVTGrab { cursor: grabbing; }
 .zsacVTPane .zsacVT { overflow: visible; display: inline-block; width: max-content; padding: .5rem; transform-origin: 0 0; will-change: transform; }
 .zsacVTPane input { cursor: text; }
+.zsacCpTarget { display: flex; align-items: center; gap: .4rem; }
+.zsacCpTarget input { flex: 1; min-width: 0; }
+.zsacCpOrMore { font-size: .75rem; font-weight: 400; color: var(--sapContent_LabelColor, #556b82); white-space: nowrap; }
