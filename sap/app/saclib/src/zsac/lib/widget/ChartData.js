@@ -1,5 +1,5 @@
 /** Shapes an aggregate query result into the data each chart builder expects (pure). */
-sap.ui.define(["../core/QueryEngine"], function (QueryEngine) {
+sap.ui.define(["../core/QueryEngine", "../core/GeoLocations"], function (QueryEngine, GeoLocations) {
   "use strict";
 
   const label = (key) => key.join(" / ");
@@ -56,6 +56,41 @@ sap.ui.define(["../core/QueryEngine"], function (QueryEngine) {
     return { steps };
   }
 
+  /** Rows by columns as a grid; a cell without data stays null so it can be drawn empty. */
+  function heatmap(result) {
+    const rows = result.rowKeys.map(label);
+    const cols = (result.colKeys.length ? result.colKeys : [[]]).map(label);
+    const cells = result.rowKeys.map((r) => (result.colKeys.length ? result.colKeys : [[]]).map((c) => { const v = result.cell(r, c); return v === undefined ? null : v; }));
+    const all = [].concat.apply([], cells).filter((v) => v !== null);
+    return { rows, cols, cells, min: all.length ? Math.min.apply(null, all) : 0, max: all.length ? Math.max.apply(null, all) : 0 };
+  }
+
+  /**
+   * One level (rows only) or two (rows are the groups, columns the members of a group). Values of zero or less have no area
+   * in a treemap; how many were left out is reported so the chart does not hide it.
+   */
+  function treemap(result) {
+    let skipped = 0;
+    const keep = (label_, v) => { if (v > 0) { return { label: label_, value: v }; } if (v) { skipped++; } return null; };
+    if (!result.colKeys.length) {
+      return { groups: [], items: result.rowKeys.map((r) => keep(label(r), result.rowTotal(r))).filter(Boolean), skipped };
+    }
+    const groups = result.rowKeys.map((r) => ({ label: label(r), items: result.colKeys.map((c) => keep(label(c), result.cell(r, c))).filter(Boolean) })).filter((g) => g.items.length);
+    return { groups, items: [], skipped };
+  }
+
+  /** Bubbles at the place of each member; members that cannot be placed are listed. places = own list (see GeoLocations.parseList). */
+  function geomap(result, options) {
+    const own = options && options.places;
+    const points = []; const unplaced = [];
+    result.rowKeys.forEach((r) => {
+      const v = result.rowTotal(r);
+      const at = GeoLocations.find(r[0], label(r), own);
+      if (at) { points.push({ label: label(r), value: v || 0, lat: at.lat, lon: at.lon }); } else { unplaced.push(label(r)); }
+    });
+    return { points, unplaced };
+  }
+
   function fromResult(type, result, measureLabel, level, options) {
     if (level && (result.rowInfo || result.colInfo)) { result = atLevel(result, level); }
     switch (type) {
@@ -64,9 +99,12 @@ sap.ui.define(["../core/QueryEngine"], function (QueryEngine) {
       case "chart.waterfall": return waterfall(categoriesAndTotals(result), !options || options.total !== false);
       case "chart.donut": case "chart.funnel": return categoriesAndTotals(result);
       case "chart.sankey": return sankey(result);
+      case "chart.heatmap": return heatmap(result);
+      case "chart.treemap": return treemap(result);
+      case "chart.geomap": return geomap(result, options);
       default: throw new Error("No chart data shape for " + type);
     }
   }
 
-  return { fromResult, waterfall, atLevel, categoriesAndSeries, categoriesAndTotals, sankey, QueryEngine };
+  return { fromResult, waterfall, heatmap, treemap, geomap, atLevel, categoriesAndSeries, categoriesAndTotals, sankey, QueryEngine };
 });

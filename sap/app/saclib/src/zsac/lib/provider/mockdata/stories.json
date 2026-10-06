@@ -513,6 +513,85 @@
         "Props": {
           "Stacked": true
         }
+      },
+      {
+        "Id": "W_HEAT",
+        "Page": 2,
+        "Type": "chart.heatmap",
+        "Title": "Revenue heatmap: region by product",
+        "X": 0,
+        "Y": 26,
+        "W": 6,
+        "H": 4,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [
+            "REGION"
+          ],
+          "Columns": [
+            "PRODUCT"
+          ],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {}
+      },
+      {
+        "Id": "W_TREE",
+        "Page": 2,
+        "Type": "chart.treemap",
+        "Title": "Revenue treemap: region and product",
+        "X": 6,
+        "Y": 26,
+        "W": 6,
+        "H": 4,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [
+            "REGION"
+          ],
+          "Columns": [
+            "PRODUCT"
+          ],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {}
+      },
+      {
+        "Id": "W_GEO",
+        "Page": 2,
+        "Type": "chart.geomap",
+        "Title": "Revenue by region on the map",
+        "X": 0,
+        "Y": 30,
+        "W": 12,
+        "H": 5,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [
+            "REGION"
+          ],
+          "Columns": [],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {}
       }
     ]
   },

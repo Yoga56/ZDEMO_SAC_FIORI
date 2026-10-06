@@ -25,6 +25,7 @@ sap.ui.define([
   "../core/VarianceEngine",
   "./VarianceView",
   "./VarianceDialog",
+  "../core/GeoLocations",
   "../core/ValueTree",
   "../core/WebContent",
   "./ValueTreeView",
@@ -32,7 +33,7 @@ sap.ui.define([
   "sap/m/Link",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
-  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, ValueTree, WebContent, ValueTreeView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
+  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ValueTreeView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -105,6 +106,7 @@ sap.ui.define([
       defaults: chartDefaults(["$FIRST_DIM"], type === "chart.sankey" ? ["$SECOND_DIM"] : []),
       builder: queryBuilder(rowsLabel, colsLabel, maxRows).concat([{ key: "Props.Level", label: "Hierarchy level shown (1 = top)", kind: "number", min: 1 }])
         .concat(type === "chart.bar" ? [{ key: "Props.Stacked", label: "Stack the series", kind: "bool" }] : [])
+        .concat(type === "chart.geomap" ? [{ key: "Props.Locations", label: "Own places, one per line: Name = latitude, longitude", kind: "textarea" }] : [])
         .concat(type === "chart.waterfall" ? [{ key: "Props.ShowTotal", label: "Show the total as the last bar", kind: "bool", default: true }] : []),
       create(widget, ctx) {
         const content = new SvgChart({ type });
@@ -112,7 +114,7 @@ sap.ui.define([
         return wire(card, widget, async () => {
           const result = await runQuery(widget, ctx);
           const measure = (result.model.Measures || []).find((m) => m.MeasureId === widget.Binding.Measure);
-          content.setData(ChartData.fromResult(type, result, measure && measure.Label, Object.keys(activeHierarchies(widget.Binding)).length ? Math.max(1, Number(widget.Props.Level) || 1) : 0, { stacked: !!widget.Props.Stacked, total: widget.Props.ShowTotal !== false }));
+          content.setData(ChartData.fromResult(type, result, measure && measure.Label, Object.keys(activeHierarchies(widget.Binding)).length ? Math.max(1, Number(widget.Props.Level) || 1) : 0, { stacked: !!widget.Props.Stacked, total: widget.Props.ShowTotal !== false, places: GeoLocations.parseList(widget.Props.Locations).places }));
         });
       }
     });
@@ -123,6 +125,9 @@ sap.ui.define([
   chart("chart.donut", "Donut chart", "sap-icon://donut-chart", { w: 4, h: 4 }, "Slices", null, 1);
   chart("chart.funnel", "Funnel chart", "sap-icon://upstacked-chart", { w: 4, h: 4 }, "Stages", null, 1);
   chart("chart.waterfall", "Waterfall chart", "sap-icon://vertical-waterfall-chart", { w: 6, h: 4 }, "Steps", null, 1);
+  chart("chart.heatmap", "Heatmap", "sap-icon://heatmap-chart", { w: 6, h: 4 }, "Rows", "Columns", 1);
+  chart("chart.treemap", "Treemap", "sap-icon://grid", { w: 6, h: 4 }, "Groups (or the tiles)", "Tiles inside a group", 1);
+  chart("chart.geomap", "Geo map", "sap-icon://map-2", { w: 6, h: 4 }, "Places", null, 1);
   chart("chart.sankey", "Sankey chart", "sap-icon://sankey-diagram", { w: 6, h: 4 }, "From", "To", 1);
 
   WidgetRegistry.register("chart.gauge", {

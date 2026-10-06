@@ -200,3 +200,10 @@ input.zsacFx:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); }
 .zsacShape-rounded { border-radius: 1rem; } .zsacShape-circle { border-radius: 50%; } .zsacShape-line { height: 4px; min-height: 4px; margin-top: calc(50% - 2px); }
 .zsacHeader { overflow: hidden; background: var(--zsacTone); color: var(--zsacOn); padding: .3rem 1rem; border-radius: .5rem; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; border: 1px solid var(--sapList_BorderColor, #c9d3de); }
 .zsacHeaderText { font-size: 1.5rem; font-weight: 600; line-height: 1.2; } .zsacHeaderSub { opacity: .85; }
+
+/* heatmap, treemap, geo map */
+.zsacTile, .zsacTileGroup { stroke: var(--sapBackgroundColor, #fff); stroke-width: 1; } .zsacTileGroup { fill-opacity: .55; }
+.zsacTileLeaf { fill: var(--sapTile_Background, #fff); fill-opacity: .72; }
+.zsacTileText { font-size: 11px; fill: var(--sapTextColor, #1d2d3e); font-weight: 600; pointer-events: none; } .zsacTileValue { font-weight: 400; }
+.zsacGeoSea { fill: var(--sapShell_Background, #eaf3fc); } .zsacGeoLand { fill: var(--sapList_BorderColor, #d9dde2); stroke: var(--sapBackgroundColor, #fff); stroke-width: 1; }
+.zsacGeoBubble { fill: var(--sapAccentColor6, #0a6ed1); fill-opacity: .55; stroke: var(--sapAccentColor6, #0a6ed1); } .zsacGeoNeg { fill: var(--sapNegativeColor, #b00); stroke: var(--sapNegativeColor, #b00); }

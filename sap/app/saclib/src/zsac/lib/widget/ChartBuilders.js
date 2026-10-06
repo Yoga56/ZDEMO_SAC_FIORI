@@ -4,7 +4,7 @@
  * which map to the theme's ordered chart colors. A VizFrame based widget can be registered under the same widget
  * types without touching anything else (see WidgetRegistry).
  */
-sap.ui.define(["../core/Format"], function (Format) {
+sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], function (Format, Treemap, GeoLocations) {
   "use strict";
 
   const { esc, compact, truncate, niceScale } = Format;
@@ -221,6 +221,81 @@ sap.ui.define(["../core/Format"], function (Format) {
       '<text class="zsacSvgMuted" x="' + cx + '" y="' + (cy + 12) + '" text-anchor="middle">' + esc(data.label || (compact(data.value) + " of " + compact(max))) + "</text>");
   }
 
+  const hex = (n) => ("0" + Math.round(n).toString(16)).slice(-2);
+  const mix = (a, b, t) => "#" + [0, 2, 4].map((i) => hex(parseInt(a.substr(1 + i, 2), 16) * (1 - t) + parseInt(b.substr(1 + i, 2), 16) * t)).join("");
+  const dark = (c) => (0.299 * parseInt(c.substr(1, 2), 16) + 0.587 * parseInt(c.substr(3, 2), 16) + 0.114 * parseInt(c.substr(5, 2), 16)) < 150;
+
+  /** Colour of a heatmap cell: light to blue; when the data has negatives, red below zero and blue above, white at zero. */
+  function heatColor(v, min, max) {
+    if (v === null || v === undefined) { return "#f5f6f7"; }
+    if (min < 0 && max > 0) { return v < 0 ? mix("#ffffff", "#bb0000", Math.min(1, v / min)) : mix("#ffffff", "#0a4a96", Math.min(1, v / max)); }
+    const span = max - min;
+    return mix("#eaf3fc", "#0a4a96", span ? (v - min) / span : 1);
+  }
+
+  function heatmap(data, w, h) {
+    if (!data.rows.length || !data.cols.length) { return empty(w, h); }
+    const lw = Math.min(130, Math.max(50, Math.max.apply(null, data.rows.map((r) => r.length)) * 6.4));
+    const m = { l: lw + 8, t: 30, r: 8, b: 8 };
+    const cw = (w - m.l - m.r) / data.cols.length; const ch = (h - m.t - m.b) / data.rows.length;
+    let out = "";
+    data.cols.forEach((c, j) => { out += '<text class="zsacSvgMuted" x="' + (m.l + cw * j + cw / 2).toFixed(1) + '" y="' + (m.t - 8) + '" text-anchor="middle">' + esc(truncate(c, Math.max(3, Math.floor(cw / 6.2)))) + "</text>"; });
+    data.rows.forEach((r, i) => {
+      out += '<text class="zsacSvgMuted" x="' + (m.l - 6) + '" y="' + (m.t + ch * i + ch / 2 + 4).toFixed(1) + '" text-anchor="end">' + esc(truncate(r, Math.floor(lw / 6.2))) + "</text>";
+      data.cols.forEach((c, j) => {
+        const v = data.cells[i][j]; const col = heatColor(v, data.min, data.max);
+        out += '<rect class="zsacHeat" x="' + (m.l + cw * j).toFixed(1) + '" y="' + (m.t + ch * i).toFixed(1) + '" width="' + Math.max(0, cw - 1).toFixed(1) + '" height="' + Math.max(0, ch - 1).toFixed(1) + '" fill="' + col + '"><title>' +
+          esc(r + " / " + c + ": " + (v === null ? "no data" : Format.full(v))) + "</title></rect>";
+        if (v !== null && cw > 38 && ch > 16) {
+          out += '<text x="' + (m.l + cw * j + cw / 2).toFixed(1) + '" y="' + (m.t + ch * i + ch / 2 + 4).toFixed(1) + '" text-anchor="middle" font-size="11" fill="' + (dark(col) ? "#ffffff" : "#1d2d3e") + '">' + compact(v) + "</text>";
+        }
+      });
+    });
+    return svg(w, h, out);
+  }
+
+  function treemap(data, w, h) {
+    const flat = !data.groups.length;
+    if (flat && !data.items.length) { return empty(w, h, "Nothing above zero to show"); }
+    const note = data.skipped ? '<text class="zsacSvgMuted" x="' + (w - 4) + '" y="' + (h - 4) + '" text-anchor="end">' + data.skipped + " value(s) of zero or less left out</text>" : "";
+    const box = (r, i, labelText, value, pad) => '<rect class="' + fill(i) + ' zsacTile" x="' + (r.x + pad).toFixed(1) + '" y="' + (r.y + pad).toFixed(1) + '" width="' + Math.max(0, r.w - 2 * pad).toFixed(1) + '" height="' + Math.max(0, r.h - 2 * pad).toFixed(1) +
+      '" rx="2"><title>' + esc(labelText + ": " + Format.full(value)) + "</title></rect>";
+    const tag = (r, labelText, value, pad) => {
+      if (r.w < 46 || r.h < 20) { return ""; }
+      return '<text class="zsacTileText" x="' + (r.x + pad + 5).toFixed(1) + '" y="' + (r.y + pad + 15).toFixed(1) + '">' + esc(truncate(labelText, Math.floor((r.w - 12) / 6.2))) + "</text>"
+        + (r.h > 38 ? '<text class="zsacTileText zsacTileValue" x="' + (r.x + pad + 5).toFixed(1) + '" y="' + (r.y + pad + 30).toFixed(1) + '">' + compact(value) + "</text>" : "");
+    };
+    let out = "";
+    if (flat) {
+      Treemap.layout(data.items, 0, 0, w, h).forEach((r, i) => { out += box(r, i, r.item.label, r.item.value, 1) + tag(r, r.item.label, r.item.value, 1); });
+    } else {
+      Treemap.nest(data.groups, w, h, 3, 20).forEach((g, gi) => {
+        out += '<rect class="' + fill(gi) + ' zsacTileGroup" x="' + g.x.toFixed(1) + '" y="' + g.y.toFixed(1) + '" width="' + Math.max(0, g.w - 1).toFixed(1) + '" height="' + Math.max(0, g.h - 1).toFixed(1) + '" rx="3"/>';
+        if (g.w > 40) { out += '<text class="zsacTileText" x="' + (g.x + 6).toFixed(1) + '" y="' + (g.y + 14).toFixed(1) + '">' + esc(truncate(g.group.label, Math.floor((g.w - 12) / 6.2))) + "</text>"; }
+        g.children.forEach((r) => { out += '<rect class="zsacTileLeaf" x="' + (r.x + 1).toFixed(1) + '" y="' + (r.y + 1).toFixed(1) + '" width="' + Math.max(0, r.w - 2).toFixed(1) + '" height="' + Math.max(0, r.h - 2).toFixed(1) + '" rx="2"><title>' +
+          esc(g.group.label + " / " + r.item.label + ": " + Format.full(r.item.value)) + "</title></rect>" + tag(r, r.item.label, r.item.value, 1); });
+      });
+    }
+    return svg(w, h, out + note);
+  }
+
+  function geomap(data, w, h) {
+    const mw = Math.min(w, h * 2); const mh = mw / 2; const ox = (w - mw) / 2; const oy = (h - mh) / 2;
+    let out = '<rect class="zsacGeoSea" x="' + ox.toFixed(1) + '" y="' + oy.toFixed(1) + '" width="' + mw.toFixed(1) + '" height="' + mh.toFixed(1) + '" rx="4"/>';
+    GeoLocations.WORLD.forEach((poly) => {
+      out += '<polygon class="zsacGeoLand" points="' + poly.map((pt) => { const q = GeoLocations.project(pt[1], pt[0], mw, mh); return (ox + q.x).toFixed(1) + "," + (oy + q.y).toFixed(1); }).join(" ") + '"/>';
+    });
+    const max = Math.max.apply(null, [1e-9].concat(data.points.map((p) => Math.abs(p.value))));
+    data.points.slice().sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).forEach((p, i) => {
+      const q = GeoLocations.project(p.lat, p.lon, mw, mh);
+      const r = 5 + (mh / 9) * Math.sqrt(Math.abs(p.value) / max);
+      out += '<circle class="zsacGeoBubble ' + (p.value < 0 ? "zsacGeoNeg" : "") + '" cx="' + (ox + q.x).toFixed(1) + '" cy="' + (oy + q.y).toFixed(1) + '" r="' + r.toFixed(1) + '"><title>' + esc(p.label + ": " + Format.full(p.value)) + "</title></circle>";
+      if (i < 6) { out += '<text class="zsacSvgText" x="' + (ox + q.x).toFixed(1) + '" y="' + (oy + q.y + 4).toFixed(1) + '" text-anchor="middle" font-size="11">' + esc(truncate(p.label, 12)) + "</text>"; }
+    });
+    if (data.unplaced.length) { out += '<text class="zsacSvgMuted" x="' + (w - 4) + '" y="' + (h - 4) + '" text-anchor="end">Not placed: ' + esc(truncate(data.unplaced.join(", "), 60)) + "</text>"; }
+    return svg(w, h, out);
+  }
+
   function sankey(data, w, h) {
     const nodes = data.nodes;
     const links = data.links.filter((l) => l.value > 0);
@@ -263,5 +338,5 @@ sap.ui.define(["../core/Format"], function (Format) {
     return svg(w, h, out);
   }
 
-  return { bar, line, donut, funnel, gauge, sankey, waterfall, empty };
+  return { bar, line, donut, funnel, gauge, sankey, waterfall, heatmap, treemap, geomap, heatColor, empty };
 });
