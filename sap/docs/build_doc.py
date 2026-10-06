@@ -229,33 +229,46 @@ P.append(table(["Script","Backend destination"],[
 P.append("""<h2>9.3 CDS source on another system</h2><p>Use a relative service URL so the proxy and the destination add host and login. The app and the CDS data can live on different destinations only for testing (second backend entry in <code>ui5.yaml</code>); a deployed app reads the system it is deployed on.</p>
 <h2>9.4 Data provider</h2><p>The provider is chosen by the URL parameter <code>?provider=odata</code> or <code>mock</code>, else by <code>sap.ui5/config/provider</code> of the manifest (mock). The header shows the active provider.</p>""")
 
-P.append("<h1>10. Verification status</h1><h2>10.1 Automated tests</h2><p><b>77 unit tests</b> run with <code>node --test</code> (engines, providers, schemas, planning, CDS source, variance, steps); all pass at the time of writing.</p><h2>10.2 Sample data (browser)</h2><p>All pages and dialogs shown in this document were exercised in the browser on the sample data.</p>")
-P.append("<h2>10.3 Real system (S/4HANA Cloud, OData V4 through Business Application Studio)</h2>")
-P.append(table(["Feature","Result"],[
- ["Backend reads: models, versions, stories, actions, files, runs","<span class='ok'>works</span>"],
- ["Live CDS model on the G/L view: query, story with 2 pages, filters","<span class='ok'>works</span>"],
- ["Save a model with dimensions and measure (deep insert), versions, Files entry","<span class='ok'>works</span>"],
- ["Import from the CDS view, 1 092 values","<span class='ok'>works</span> (11 s)"],
- ["Lock and unlock a version (PATCH), data kept","<span class='ok'>works</span>"],
- ["Data action with parameters, dry run and run (329 facts)","<span class='ok'>works</span>, result checked"],
- ["Multi action steps: Data Action, Data Locking, Predictive, Comment Management, Import from Source, Data Import","<span class='ok'>works</span> (8 steps in 85 s)"],
- ["Multi action steps: API (401 from the target, reported), PaPM (not connected, reported)","<span class='warn'>as designed</span>"],
- ["Cell comments: save, list, copy, delete","<span class='ok'>works</span>"],
- ["Planning edit in the buffer and publish","<span class='ok'>works</span>"],
- ["Variance explainer on versions of the imported model","<span class='ok'>works</span> after a fix"],
- ["Create private version (server action)","<span class='bad'>fails</span> until two ABAP lines are changed by hand, see chapter 11"],
- ["Publish, revert and delete of a private version","<span class='warn'>not tested</span> (needs the fix above)"]]))
-P.append("<p>Not tested on the real system: typing into the planning grid in the browser, trigger widgets, file upload, the Calendar.</p>")
+P.append("<h1>10. Verification status</h1><h2>10.1 Automated tests</h2><p><b>221 unit tests</b> in 31 files run with <code>node --test</code> (<code>npm test</code> in <code>sap/app/saclib</code>): engines, providers, schemas, planning, locking, sharing, CDS source, variance, steps, charts, story layout. All pass. The separate document <i>Unit Testing</i> (<code>sap/docs/SAC_Fiori_Unit_Testing.docx</code>) describes them.</p><h2>10.2 Sample data (browser)</h2><p>All pages and dialogs shown in this document were exercised in the browser on the sample data, also at phone width.</p>")
+P.append("<h2>10.3 End-to-end test on the real system</h2><p>The deployed app (S/4HANA Cloud, client 100, launchpad tile) was tested page by page with two accounts: the owner in one browser window and a second user in a private window. Everything created for the test is kept on the system as history data.</p>")
+P.append(table(["Area","Result"],[
+ ["Home, Files, Stories (create, edit, save, publish, duplicate), pages and filters","<span class='ok'>works</span>"],
+ ["All widget types on live CDS models (chart types, gauge, funnel, heatmap, treemap, variance, value driver tree, compass, KPI, table)","<span class='ok'>works</span> after fixes 1, 2 and 9"],
+ ["Data Analyser: builder, result, CSV export, input control filter","<span class='ok'>works</span> after fix 7"],
+ ["Datasets and Modeller: create, change currency and unit, refresh, delete","<span class='ok'>works</span> after fix 5"],
+ ["Planning: private version, edit cells, publish, revert, spread, comments, data locking, CSV export","<span class='ok'>works</span> after fixes 3, 4 and 8"],
+ ["Data actions and multi actions: dry run, run, large data and several currencies","<span class='ok'>works</span> (329 facts, 8 steps)"],
+ ["Live and import models on the business CDS views (service <code>ZUI_SAC_BIZ</code>)","<span class='ok'>works</span> after the new views"],
+ ["Calendar and reminders","<span class='ok'>works</span>"],
+ ["Sharing and security with two users (read, edit, no access, everyone, delete, unshare)","<span class='ok'>works</span> after fixes 5 and 6; the server refuses what the client hides"],
+ ["Phone layout (375 px): analyser, planning, designers, dialogs","<span class='ok'>works</span> after fix 10"],
+ ["Excel and CSV download of the analyser and planning table","<span class='ok'>works</span>, numbers rounded to six decimals"],
+ ["Multi action step PaPM","<span class='warn'>as designed</span>: validates, then reports that no PaPM is connected (the test system has none)"]]))
+P.append("<h2>10.4 Bugs found by the test and fixed</h2>")
+P.append(table(["No.","Found","Fix"],[
+ ["1","Explore pages failed with <i>500: No data retrieved from ABAP dictionary for entity ZI_SAC_GL_PERIOD</i> (the view was no longer active); several widgets stayed empty, gauge showed 0%","New business views and service <code>ZUI_SAC_BIZ</code> (<code>sap/data-cds</code>); the gauge shows the value or <i>No target set</i> instead of 0%; variance, value driver and compass get defaults from the model"],
+ ["2","<i>Not found: /Model ZTEST_PLAN</i> when a widget pointed at a deleted model","Plain error text in the widget; Planning and Analyser start with the first model that can be read"],
+ ["3","Publish of a private version: the server wanted a conditional request (<i>If-Match</i>)","The provider sends the action on the instance (<code>execute(undefined, true)</code>)"],
+ ["4","Planning: Export and Table Functions were disabled when the page opened","The table that was drawn is the active table (<code>plan.active</code>)"],
+ ["5","Delete of a model by a user who may only edit removed the data before the server refused; shares of the object stayed behind","The owner is checked first; shares are deleted with the object"],
+ ["6","Access was not enforced on the projections: a second user saw objects of the first","Projections are <code>#CHECK</code> and inherit the access controls of the entities (15 access controls, <code>sap/docs/adt-manual-access-controls.txt</code>)"],
+ ["7","Analyser CSV had numbers like 12345.600000000001","Rounded to six decimals"],
+ ["8","Planning CSV had the expand and collapse triangles in the headers","The triangles are removed on export"],
+ ["9","Modeller panel got a height of 500 033 px; dialogs were clipped","Flex basis and dialog content rules in CSS"],
+ ["10","Phone: planning chart card wider than the screen, designers and analyser side by side","Cards fit the screen; flow and settings stack"],
+ ["11","Chart text (legend, axes) dark on dark in the dark theme","Chart text inherited a dark stroke from the page and was drawn with an outline; chart text never has a stroke now, and has explicit light colours in dark mode"],
+ ["12","The header burger looked like the menu of the SAP shell bar and expanded to the full width on a phone","A floating action button opens the navigation: a drawer over the page on narrow screens"],
+ ["13","Side navigation: no icons on the items under <i>Apps</i>","The items are first level, so every item shows its icon"]]))
+P.append("<p>The abapGit pull on the test system failed (conversion error, lock); the access controls were created by hand in ADT following the manual in <code>sap/docs/adt-manual-access-controls.txt</code>.</p>")
 
 P.append("<h1>11. Known limits and open items</h1><h2>Open items</h2><ul>")
-P.append("<li><b>ABAP fix on the real system.</b> <code>my402225</code> has no abapGit pull. In <code>ZCL_SAC_FACT_WRITER</code>, method <code>apply</code>, replace both <code>CREATE SET FIELDS WITH creates</code> by <code>CREATE FIELDS ( ModelId VersionId Period Measure Dim1 Dim2 Dim3 Dim4 Dim5 Value ) WITH creates</code>; in <code>ZBP_R_SAC_VERSION</code>, method <code>createprivate</code>, replace <code>CREATE SET FIELDS WITH VALUE #(</code> by <code>CREATE FIELDS ( ModelId VersionId VersionName Category Locked OwnerId SourceVersion Status ) WITH VALUE #(</code>. The repository already has the fix (commit bfdb5d4).</li>")
-P.append("<li>The ABAP seed class registers no file entry for its story; the seeded story does not show in Files.</li><li>Authorization is open to every user of the service (no owner or sharing rules, no DCL).</li></ul><h2>Limits</h2><ul>")
-for t in ["Data actions run in one browser: large models read all facts of the model, there is no server job.","The step flow of data and multi actions is linear (no branches or loops); Advanced Formulas, Currency Conversion and cross-model copy are not included.",
+P.append("<li>Versions and cell comments are not owned objects; the run history is not filtered on the server (see <code>sharing-and-security.md</code>).</li><li>The ABAP seed class registers no file entry for its story.</li><li>No real PaPM connection (see below).</li></ul><h2>Limits</h2><ul>")
+for t in ["Data actions run in one browser: large models read all facts of the model, there is no server job.","The step flow of data and multi actions is linear (no branches or loops); cross-model copy is not included.",
 "Predictive is a plain statistical forecast (four methods, one back-test figure for the whole step), not SAP Smart Predict.","The API step runs in the browser: CORS applies, no cookies or stored credentials; headers are stored with the step and must not hold secrets.",
-"PaPM is only simulated by the sample data source; a real connection means overriding <code>runPapm</code> in a provider.","Locking is per version, not per slice of data.",
-"CDS: members are read once when the dialog is confirmed; amounts of different currencies in one cell add up unless the currency is a dimension; the sum of all G/L accounts is zero because entries balance; hierarchies, texts and attributes are defined in the Modeller, not read from the view.",
-"Comments belong to cell coordinates (no replies or resolve state) and exist for the planning table only.","Modeller: no calculated measures (Calculations view is a placeholder), one hierarchy per dimension in a widget, no undo in the Modeller.",
-"Not included: Predictive Scenarios, Compass, Just Ask, prompt insight widget, scripting, server side aggregation of the sample data."]:
+"PaPM is only simulated by the sample data source; a real connection means overriding <code>runPapm</code> in a provider. An own calculation engine is possible with the data and multi actions (allocations, formulas) or as ABAP, but it is not SAP PaPM.","Data Locking works by regions (slices of versions, periods and members); private versions are not locked.",
+"CDS: members are read once when the dialog is confirmed; amounts of different currencies in one cell add up unless the currency is a dimension; the sum of all G/L accounts is zero because entries balance.",
+"Comments belong to cell coordinates (no replies or resolve state) and exist for the planning table only.",
+"Not included: Predictive Scenarios, Compass as a page, Just Ask, prompt insight widget, scripting, server side aggregation of the sample data."]:
     P.append(f"<li>{t}</li>")
 P.append("</ul>")
 
@@ -267,6 +280,7 @@ sap/app/sacfiori/           UI5 app zsac.fiori (webapp, ui5*.yaml, uiad json)
 sap/tools/                  sac_spec.py, gen_rap.py, abapgit_meta.py, make_mock_data.py
 sap/docs/                   specifications and this document</pre>
 <h2>Further documents</h2><ul><li><code>sap/docs/technical-specification.md</code>: details of every engine and the backend</li><li><code>sap/docs/cds-sources.md</code>: exposing and connecting CDS views</li>
+<li><code>sap/docs/SAC_Fiori_Unit_Testing.docx</code>: the unit tests and end-to-end checks (built by <code>sap/tools/build_unit_testing_doc.py</code>)</li>
 <li><code>sap/docs/widget-authoring.md</code>, <code>provider-authoring.md</code>: how to add a widget or a data source</li><li><code>sap/docs/SAC_Overview_and_PowerBI_Comparison.md</code>: SAC and Power BI compared</li></ul>
 <h2>Glossary</h2>""")
 P.append(table(["Term","Meaning"],[
