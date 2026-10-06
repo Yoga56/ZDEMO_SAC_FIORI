@@ -3,6 +3,7 @@
  * for the selected values. Used by the builder panel, data action steps and data action parameters.
  *
  *   FilterEditor.build({ model, versions, filters, onChange(newFilters), periodNodes })  ->  sap.m.VBox
+ *     skip: dimension ids to leave out (for example ["VERSION"] when the page fixes the version)
  *     periodNodes: also offer the years and quarters (a lock region over "2026-Q1")
  */
 sap.ui.define([
@@ -41,7 +42,7 @@ sap.ui.define([
     const sets = [
       { id: "VERSION", label: "Version", members: (opts.versions || []).map((v) => ({ Id: v.VersionId, Text: v.Name })) },
       { id: "PERIOD", label: "Period", members: periods(model, opts.periodNodes) }
-    ].concat(model.Dimensions.map((d) => ({ id: d.DimId, label: d.Label, members: d.Members || [] })));
+    ].concat(model.Dimensions.map((d) => ({ id: d.DimId, label: d.Label, members: d.Members || [] }))).filter((x) => (opts.skip || []).indexOf(x.id) < 0);
 
     sets.forEach((s) => {
       box.addItem(new Text({ text: s.label }).addStyleClass("zsacSmall"));

@@ -455,6 +455,7 @@ sap.ui.define([
       { key: "Props.Scale", label: "Scale (1, 1000, 1000000)", kind: "number", default: 1 },
       { key: "Props.Decimals", label: "Decimals (empty: from the measure)", kind: "number" },
       { key: "Props.VarianceVs", label: "Variance to version (id, empty: none)", kind: "text" },
+      { key: "Props.Calcs", label: "Calculations, for example Growth % = BUD/ACT-1", kind: "text" },
       { key: "Props.Thresholds", label: "Thresholds, for example < 0 : bad; >= 100 : good", kind: "text" }
     ]),
     create(widget, ctx) {
@@ -471,7 +472,7 @@ sap.ui.define([
         const lock = { compiled: LockEngine.compile(model), user: await ctx.provider.currentUser() };
         const p = widget.Props;
         const view = Object.assign({ suppressZero: !!p.SuppressZero, swap: !!p.Swap, scale: Number(p.Scale) || 1, decimals: p.Decimals === undefined || p.Decimals === "" ? -1 : p.Decimals,
-          variance: p.VarianceVs ? { vs: p.VarianceVs, mode: "ABS" } : null, thresholds: GridView.parseThresholds(p.Thresholds) }, p.View);
+          variance: p.VarianceVs ? { vs: p.VarianceVs, mode: "ABS" } : null, thresholds: GridView.parseThresholds(p.Thresholds), calcs: GridView.parseCalcs(p.Calcs) }, p.View);
         grid.setContext({ model, facts, versions, plan: ctx.plan, comments, lock, view,
           readReference: (versionId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }))),
           spec: { rows: b.Rows || [], columns: b.Columns || [], filters, hierarchies: activeHierarchies(b) },

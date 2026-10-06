@@ -6,7 +6,7 @@ const GridView = req("zsac/lib/planning/GridView");
 
 test("normalize fills every property and drops what makes no sense", () => {
   const d = GridView.normalize(null);
-  assert.deepStrictEqual(d, { suppressZero: false, scale: 1, decimals: -1, sort: null, thresholds: [], variance: null, swap: false });
+  assert.deepStrictEqual(d, { suppressZero: false, scale: 1, decimals: -1, sort: null, thresholds: [], variance: null, swap: false, calcs: [] });
   assert.ok(GridView.isDefault({}));
   const n = GridView.normalize({ scale: 7, decimals: "2", sort: { col: ["2026-01"], dir: "up" }, variance: { vs: "ACT", mode: "x" },
     thresholds: [{ Op: "<", Value: "0", Level: "BAD" }, { Op: "??", Value: 1, Level: "BAD" }, { Op: "between", Value: 1, Level: "GOOD" }, { Op: "between", Value: 1, Value2: 5, Level: "GOOD" }] });
@@ -55,4 +55,20 @@ test("thresholds as text for the builder panel", () => {
   assert.deepStrictEqual(list, [{ Op: "<", Value: 0, Level: "BAD" }, { Op: "between", Value: 0, Value2: 10, Level: "CRITICAL" }, { Op: ">=", Value: 100, Level: "GOOD" }]);
   assert.strictEqual(GridView.formatThresholds(list), "< 0 : bad; 0..10 : critical; >= 100 : good");
   assert.deepStrictEqual(GridView.parseThresholds(GridView.formatThresholds(list)), list);
+});
+
+test("calculations as text, validated, with the versions they need", () => {
+  const list = GridView.parseCalcs("Growth % = BUD/ACT-1; Gap = BUD - ACT; broken = BUD +; no equals sign");
+  assert.deepStrictEqual(list, [{ Name: "Growth", Formula: "BUD/ACT-1", Percent: true }, { Name: "Gap", Formula: "BUD - ACT", Percent: false }]);
+  assert.strictEqual(GridView.formatCalcs(list), "Growth % = BUD/ACT-1; Gap = BUD - ACT");
+  assert.deepStrictEqual(GridView.calcVersions({ calcs: list }).sort(), ["ACT", "BUD"]);
+  assert.strictEqual(GridView.isDefault({ calcs: list }), false);
+  assert.strictEqual(GridView.describe({ calcs: list }), "Growth, Gap");
+  assert.deepStrictEqual(GridView.normalize({ calcs: [{ Name: "", Formula: "1" }, { Name: "x", Formula: "=current*2" }] }).calcs.length, 1);
+});
+
+test("export to CSV keeps what is shown, fills spans, guards formulas", () => {
+  const GridExport = req("zsac/lib/planning/GridExport");
+  const out = GridExport.csv([[{ text: "Region" }, { text: "2026", span: 3 }], [{ text: "=cmd()" }, { text: "-5" }, { text: "-x" }, { text: 'say "hi", ok' }]]);
+  assert.strictEqual(out, "﻿Region,2026,,\r\n'=cmd(),-5,'-x,\"say \"\"hi\"\", ok\"");
 });

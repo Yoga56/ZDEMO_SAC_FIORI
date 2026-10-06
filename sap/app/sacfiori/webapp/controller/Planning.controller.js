@@ -9,12 +9,13 @@ sap.ui.define([
   "zsac/lib/core/EventBus",
   "zsac/lib/core/HierarchyEngine",
   "zsac/lib/core/Bookmarks",
+  "zsac/lib/core/QueryEngine",
   "zsac/lib/planning/PlanBuffer",
   "zsac/lib/planning/PlanEditor",
   "zsac/lib/planning/PlanPublisher",
   "zsac/lib/widget/Widgets"
 ], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, HBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor,
-  WidgetRegistry, EventBus, HierarchyEngine, Bookmarks, PlanBuffer, PlanEditor, PlanPublisher) {
+  WidgetRegistry, EventBus, HierarchyEngine, Bookmarks, QueryEngine, PlanBuffer, PlanEditor, PlanPublisher) {
   "use strict";
 
   const CATEGORY = { ACTUAL: "Actual", BUDGET: "Budget", FORECAST: "Forecast", PRIVATE: "Private" };
@@ -58,7 +59,7 @@ sap.ui.define([
     // ---- bookmarks -----------------------------------------------------------------------
     _bookmarkState() {
       return { model: this._model.ModelId, version: this.byId("version").getSelectedKey(), measure: this.byId("measure").getSelectedKey(),
-        hier: this.byId("hier").getSelectedKey(), compare: this.byId("compare").getSelectedKey(), view: this._view || {} };
+        hier: this.byId("hier").getSelectedKey(), compare: this.byId("compare").getSelectedKey(), view: this._view || {}, filters: this._filters || {} };
     },
 
     async _applyBookmark(b) {
@@ -69,6 +70,7 @@ sap.ui.define([
       const pick = (id, key) => { const sel = this.byId(id); if (sel.getItems().some((i) => i.getKey() === key)) { sel.setSelectedKey(key); } };
       pick("measure", s.measure); pick("hier", s.hier); pick("compare", s.compare);
       this._view = s.view || {};
+      this._filters = s.filters || {};
       await this._reload();
     },
 
@@ -108,7 +110,7 @@ sap.ui.define([
     },
 
     async _setModel(id, versionId) {
-      if (!this._model || this._model.ModelId !== id) { this._view = {}; }       // table functions belong to a model
+      if (!this._model || this._model.ModelId !== id) { this._view = {}; this._filters = {}; }       // table functions belong to a model
       this._model = this._models.find((m) => m.ModelId === id);
       const m = this._model;
       const measure = this.byId("measure");
@@ -161,7 +163,7 @@ sap.ui.define([
       // the page is a planning table widget: every dimension on rows (the hierarchical one first), months on columns
       const rows = m.Dimensions.map((d) => d.DimId).sort((a, b) => (b === dimId) - (a === dimId));
       const widget = { Id: "PLAN_PAGE", Type: "planning.table", Title: "", Page: 1, X: 0, Y: 0, W: 12, H: 8,
-        Binding: { ModelId: m.ModelId, Rows: rows, Columns: ["PERIOD"], Measure: measure, Filters: { VERSION: [v.VersionId], MEASURE: [measure] },
+        Binding: { ModelId: m.ModelId, Rows: rows, Columns: ["PERIOD"], Measure: measure, Filters: Object.assign({}, this._filters || {}, { VERSION: [v.VersionId], MEASURE: [measure] }),
           Hierarchies: Object.assign({ PERIOD: "TIME" }, hdim ? { [dimId]: hierId } : {}) },
         Props: { Editable: !v.Locked && !off, ExpandRows: 3, ExpandCols: 2, ShowTotals: true, View: this._view || {} } };
       this._widget = widget;
@@ -189,7 +191,8 @@ sap.ui.define([
       const v = this._cur();
       const measure = this.byId("measure").getSelectedKey();
       const unit = (m.Measures.find((x) => x.MeasureId === measure) || {}).Unit || "";
-      const cur = this._plan.overlay(this._facts).filter((f) => f.ModelId === m.ModelId && f.VersionId === v.VersionId && f.Measure === measure);
+      const prompts = this._filters || {};
+      const cur = QueryEngine.applyFilters(m, this._plan.overlay(this._facts).filter((f) => f.ModelId === m.ModelId && f.VersionId === v.VersionId && f.Measure === measure), prompts);
       const total = cur.reduce((a, f) => a + f.Value, 0);
       const cmpKey = this.byId("compare").getSelectedKey();
       const kpi = this.byId("kpi");
@@ -197,7 +200,7 @@ sap.ui.define([
       this.byId("kpiCard").setTitle("Total " + v.VersionId);
       let cmp = [];
       if (cmpKey && cmpKey !== v.VersionId) {
-        cmp = await this._p.readFacts(m.ModelId, { VERSION: [cmpKey], MEASURE: [measure] });
+        cmp = QueryEngine.applyFilters(m, await this._p.readFacts(m.ModelId, { VERSION: [cmpKey], MEASURE: [measure] }), prompts);
         kpi.setCompare(cmp.reduce((a, f) => a + f.Value, 0)); kpi.setCompareLabel(cmpKey);
       } else { kpi.setCompare(null); }
       const periods = HierarchyEngine.monthRange(m.PeriodFrom, m.PeriodTo);
@@ -205,6 +208,16 @@ sap.ui.define([
       const series = [{ name: v.VersionId, values: sum(cur) }];
       if (cmp.length) { series.push({ name: cmpKey, values: sum(cmp) }); }
       this.byId("chart").setData({ categories: periods, series });
+    },
+
+    /** Edit Prompts: the members the table is limited to. Version and measure are the page's own pickers. */
+    onPrompts() {
+      let filters = JSON.parse(JSON.stringify(this._filters || {}));
+      const holder = new VBox({ width: "100%" });
+      const build = () => { holder.destroyItems(); holder.addItem(FilterEditor.build({ model: this._model, versions: this._versionList, filters, skip: ["VERSION"], periodNodes: true, onChange: (f) => { filters = f; }, onRebuild: build })); };
+      build();
+      this._dialog("Edit Prompts", [new Text({ text: "Limit the table, the total and the chart to these members. Empty means all." }), new ScrollContainer({ height: "22rem", vertical: true, content: [holder] })],
+        "Apply", async () => { this._filters = filters; this.byId("prompts").setType(Object.keys(filters).length ? "Emphasized" : "Default"); await this._reload(); });
     },
 
     onModel(e) { this._setModel(e.getParameter("selectedItem").getKey()).catch((x) => this.fail(x)); },

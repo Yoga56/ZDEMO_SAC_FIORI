@@ -2,7 +2,10 @@
  * How a planning table shows its numbers (pure): the table functions of SAC's planning table. They change the view, never the data.
  *
  *   view = { suppressZero, scale, decimals, sort: { col: [member path of a column], dir: "asc" | "desc" } | null,
- *            thresholds: [{ Op, Value, Value2, Level }], variance: { vs: versionId, mode: "ABS" | "PCT" | "BOTH" } | null, swap }
+ *            thresholds: [{ Op, Value, Value2, Level }], variance: { vs: versionId, mode: "ABS" | "PCT" | "BOTH" } | null, swap,
+ *            calcs: [{ Name, Formula, Percent }] }
+ *   A calculation is a column per table column worked out from the cell's own value (`current`) and the same cell in other versions
+ *   (their ids): for example  Growth % = BUD/ACT-1  (Percent shows the result as a percentage). See FormulaEngine for the formula language.
  *
  *   GridView.normalize(view)                           every property filled, bad values dropped
  *   GridView.isDefault(view)                           nothing changed
@@ -12,9 +15,11 @@
  *   GridView.level(thresholds, value)                  GOOD | CRITICAL | BAD | "" for a displayed value
  *   GridView.variance(current, reference, mode)        { abs, pct } (pct is null without a reference to divide by)
  *   GridView.describe(view)                            short text for the table's status line
+ *   GridView.parseCalcs(text) / formatCalcs(list)    "Growth % = BUD/ACT-1; Gap = BUD-ACT" (a % after the name makes it a percentage)
+ *   GridView.calcVersions(view)                      the version ids the calculations need
  *   GridView.parseThresholds(text) / formatThresholds(list)   "< 0 : bad; 0..10 : critical; >= 100 : good" (for the builder panel)
  */
-sap.ui.define([], function () {
+sap.ui.define(["./FormulaEngine"], function (FormulaEngine) {
   "use strict";
 
   const SCALES = { 1: "", 1000: "K", 1000000: "M", 1000000000: "B" };
@@ -34,13 +39,15 @@ sap.ui.define([], function () {
       sort: v.sort && Array.isArray(v.sort.col) && (v.sort.dir === "asc" || v.sort.dir === "desc") ? { col: v.sort.col.map(String), dir: v.sort.dir } : null,
       thresholds: rules,
       variance: v.variance && v.variance.vs ? { vs: String(v.variance.vs), mode: MODES[v.variance.mode] ? v.variance.mode : "ABS" } : null,
-      swap: !!v.swap
+      swap: !!v.swap,
+      calcs: (Array.isArray(v.calcs) ? v.calcs : []).map((c) => ({ Name: String(c.Name || "").trim(), Formula: String(c.Formula || "").trim(), Percent: !!c.Percent }))
+        .filter((c) => c.Name && c.Formula && !FormulaEngine.compile(c.Formula[0] === "=" ? c.Formula : "=" + c.Formula).error)
     };
   }
 
   function isDefault(view) {
     const n = normalize(view);
-    return !n.suppressZero && n.scale === 1 && n.decimals === -1 && !n.sort && !n.thresholds.length && !n.variance && !n.swap;
+    return !n.suppressZero && n.scale === 1 && n.decimals === -1 && !n.sort && !n.thresholds.length && !n.variance && !n.swap && !n.calcs.length;
   }
 
   /**
@@ -104,6 +111,7 @@ sap.ui.define([], function () {
     if (n.scale !== 1) { parts.push("in " + (suffix(n.scale) === "K" ? "thousands" : suffix(n.scale) === "M" ? "millions" : "billions")); }
     if (n.variance) { parts.push("variance to " + n.variance.vs); }
     if (n.thresholds.length) { parts.push(n.thresholds.length + (n.thresholds.length === 1 ? " threshold" : " thresholds")); }
+    if (n.calcs.length) { parts.push(n.calcs.map((c) => c.Name).join(", ")); }
     if (n.swap) { parts.push("rows and columns swapped"); }
     return parts.join(", ");
   }
@@ -124,5 +132,23 @@ sap.ui.define([], function () {
     return (list || []).map((t) => (t.Op === "between" ? t.Value + ".." + t.Value2 : t.Op + " " + t.Value) + " : " + t.Level.toLowerCase()).join("; ");
   }
 
-  return { parseThresholds, formatThresholds, SCALES, OPS, LEVELS, MODES, normalize, isDefault, sortRows, suppress, scaled, suffix, level, variance, describe };
+  /** "Growth % = BUD/ACT-1; Gap = BUD-ACT" -> calculations; entries that cannot be read are left out. */
+  function parseCalcs(text) {
+    const out = [];
+    String(text || "").split(/[;\n]/).forEach((part) => {
+      const m = /^\s*([^=%]+?)\s*(%?)\s*=\s*(.+?)\s*$/.exec(part);
+      if (m) { out.push({ Name: m[1], Formula: m[3], Percent: !!m[2] }); }
+    });
+    return normalize({ calcs: out }).calcs;
+  }
+
+  function formatCalcs(list) { return (list || []).map((c) => c.Name + (c.Percent ? " %" : "") + " = " + c.Formula).join("; "); }
+
+  function calcVersions(view) {
+    const out = new Set();
+    normalize(view).calcs.forEach((c) => FormulaEngine.compile(c.Formula[0] === "=" ? c.Formula : "=" + c.Formula).names.forEach((n) => out.add(n)));
+    return Array.from(out);
+  }
+
+  return { parseCalcs, formatCalcs, calcVersions, parseThresholds, formatThresholds, SCALES, OPS, LEVELS, MODES, normalize, isDefault, sortRows, suppress, scaled, suffix, level, variance, describe };
 });

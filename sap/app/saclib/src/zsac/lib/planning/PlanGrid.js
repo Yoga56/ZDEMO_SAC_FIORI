@@ -71,20 +71,38 @@ sap.ui.define([
       return (this._cols || []).map((k) => ({ key: k, label: k.map((m, i) => (this._spec().columns[i] === "PERIOD" ? Format.period(m) : m)).join(" / ") }));
     },
 
-    /** Reads the reference version of the variance columns. */
+    /** Reads the other versions that the variance columns and the calculations refer to. */
     _loadRef() {
       const c = this._ctx;
       const v = this.getView();
       const token = (this._refToken = (this._refToken || 0) + 1);
       this._ref = null;
+      this._refs = {};
       const own = c && c.spec.filters && (c.spec.filters.VERSION || []).length === 1 ? c.spec.filters.VERSION[0] : "";
-      if (!v.variance || !c.readReference || !own) { return Promise.resolve(); }
-      return c.readReference(v.variance.vs).then((facts) => {
-        if (token !== this._refToken) { return; }
+      const known = ((c && c.versions) || []).map((x) => x.VersionId);
+      const ids = new Set();
+      if (v.variance) { ids.add(v.variance.vs); }
+      GridView.calcVersions(v).forEach((n) => { const id = known.find((k) => k.toUpperCase() === n.toUpperCase()); if (id) { ids.add(id); } });
+      if (!ids.size || !c.readReference || !own) { return Promise.resolve(); }
+      return Promise.all(Array.from(ids).map((id) => c.readReference(id).then((facts) => {
         const spec = this._spec();
-        this._ref = { vs: v.variance.vs, result: QueryEngine.aggregate(c.model, facts.map((f) => Object.assign({}, f, { VersionId: own })), { rows: spec.rows, columns: spec.columns, filters: spec.filters, hierarchies: spec.hierarchies }) };
+        return [id, QueryEngine.aggregate(c.model, facts.map((f) => Object.assign({}, f, { VersionId: own })), { rows: spec.rows, columns: spec.columns, filters: spec.filters, hierarchies: spec.hierarchies })];
+      }))).then((entries) => {
+        if (token !== this._refToken) { return; }
+        entries.forEach(([id, result]) => { this._refs[id] = result; });
+        if (v.variance) { this._ref = { vs: v.variance.vs, result: this._refs[v.variance.vs] }; }
         this.invalidate();
       }).catch(() => {});
+    },
+
+    /** The table as the planner sees it, as rows of { text, span } (see GridExport). */
+    exportRows() {
+      const table = this.getDomRef() && this.getDomRef().querySelector("table");
+      if (!table) { return []; }
+      return Array.from(table.rows).map((tr) => Array.from(tr.cells).map((td) => {
+        const input = td.querySelector("input");
+        return { text: (input ? input.value : td.textContent).trim(), span: td.colSpan };
+      }));
     },
 
     setContext(ctx) {
@@ -169,7 +187,25 @@ sap.ui.define([
       const shown = (v) => (v === undefined || v === null ? v : GridView.scaled(v, view.scale));
       const ref = view.variance && this._ref && this._ref.vs === view.variance.vs ? this._ref.result : null;
       const modes = ref ? (view.variance.mode === "BOTH" ? ["ABS", "PCT"] : [view.variance.mode]) : [];
-      const calcCount = ref ? cols.length * modes.length : 0;
+      const varCount = ref ? cols.length * modes.length : 0;
+      // calculations: a column per table column and calculation, from the cell's value and the same cell in other versions
+      const known = (c.versions || []).map((x) => x.VersionId);
+      const calcs = view.calcs.map((k) => {
+        const f = FormulaEngine.compile(k.Formula[0] === "=" ? k.Formula : "=" + k.Formula);
+        return { k, f, ids: f.names.map((n) => known.find((x) => x.toUpperCase() === n.toUpperCase())) };
+      });
+      const calcReady = calcs.length && calcs.every((x) => x.ids.every((id) => !id || (this._refs && this._refs[id])));
+      const calcCount = calcReady ? cols.length * calcs.length : 0;
+      const calcCell = (cur, getRef, x) => {
+        if (x.ids.some((id) => !id)) { return '<td class="num zsacCalc2">#NAME</td>'; }
+        try {
+          const env = { current: cur === undefined ? 0 : cur, refs: {} };
+          x.f.names.forEach((n, i) => { const rv = getRef(x.ids[i]); env.refs[n] = rv === undefined ? 0 : rv; });
+          const val = x.f.evaluate(env);
+          if (!Number.isFinite(val)) { return '<td class="num zsacCalc2"></td>'; }
+          return '<td class="num zsacCalc2' + (val < 0 ? " zsacVarNeg" : "") + '">' + (x.k.Percent ? Format.full(Math.round(val * 1000) / 10, 1) + "%" : Format.full(shown(val), dec)) + "</td>";
+        } catch (e) { return '<td class="num zsacCalc2"></td>'; }
+      };
       const sign = (n, d) => (n > 0 ? "+" : "") + Format.full(n, d);
       const varCell = (cur, rv, mode, cls) => {
         const x = GridView.variance(cur, rv);
@@ -219,10 +255,18 @@ sap.ui.define([
           n += span;
         }
         if (ref) {
-          if (i < kc - 1) { h += '<th class="num zsacCalcHdr" colspan="' + calcCount + '">' + (i === 0 ? esc("Variance to " + view.variance.vs) : "") + "</th>"; } else {
+          if (i < kc - 1) { h += '<th class="num zsacCalcHdr" colspan="' + varCount + '">' + (i === 0 ? esc("Variance to " + view.variance.vs) : "") + "</th>"; } else {
             cols.forEach((ck) => modes.forEach((m) => {
               const label = ck.map((x, j) => member(spec.columns[j], x)).slice(kc > 1 ? kc - 1 : 0).join(" ");
               h += '<th class="num zsacCalcHdr">' + (kc > 1 ? "" : "\u0394 ") + esc(label) + (modes.length > 1 ? (m === "ABS" ? " abs" : " %") : m === "PCT" ? " %" : "") + "</th>";
+            }));
+          }
+        }
+        if (calcReady) {
+          if (i < kc - 1) { h += '<th class="num zsacCalcHdr" colspan="' + calcCount + '">' + (i === 0 ? "Calculations" : "") + "</th>"; } else {
+            cols.forEach((ck) => calcs.forEach((x) => {
+              const label = ck.map((m, j) => member(spec.columns[j], m)).slice(kc > 1 ? kc - 1 : 0).join(" ");
+              h += '<th class="num zsacCalcHdr">' + esc(x.k.Name) + (kc > 1 && cols.length === 1 ? "" : " " + esc(label)) + "</th>";
             }));
           }
         }
@@ -266,6 +310,7 @@ sap.ui.define([
           }
         });
         if (ref) { cols.forEach((ck) => modes.forEach((m) => { h += varCell(r.cell(rk, ck), ref.cell(rk, ck), m, ""); })); }
+        if (calcReady) { cols.forEach((ck) => calcs.forEach((x) => { h += calcCell(r.cell(rk, ck), (id) => this._refs[id].cell(rk, ck), x); })); }
         if (totals) { h += '<td class="num total">' + Format.full(shown(r.rowTotal(rk)), dec) + "</td>"; }
         h += "</tr>";
       });
@@ -273,6 +318,7 @@ sap.ui.define([
         h += '<tr class="grand"><td colspan="' + lead + '">Total</td>';
         cols.forEach((ck) => { h += '<td class="num">' + Format.full(shown(r.colTotal(ck)), dec) + "</td>"; });
         if (ref) { cols.forEach((ck) => modes.forEach((m) => { h += varCell(r.colTotal(ck), ref.colTotal(ck), m, ""); })); }
+        if (calcReady) { cols.forEach((ck) => calcs.forEach((x) => { h += calcCell(r.colTotal(ck), (id) => this._refs[id].colTotal(ck), x); })); }
         h += '<td class="num total">' + Format.full(shown(r.grand), dec) + "</td></tr>";
       }
       return h + "</tbody></table>";

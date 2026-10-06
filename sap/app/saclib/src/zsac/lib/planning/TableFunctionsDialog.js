@@ -18,6 +18,7 @@ sap.ui.define([
     const columns = grid.getColumnChoices();
     const references = grid.getReferenceVersions();
     const rules = view.thresholds.map((t) => Object.assign({}, t));
+    const calcs = view.calcs.map((c) => Object.assign({}, c));
 
     const swap = new CheckBox({ text: "Swap rows and columns", selected: view.swap });
     const zero = new CheckBox({ text: "Hide rows where every value is zero or empty", selected: view.suppressZero });
@@ -53,6 +54,19 @@ sap.ui.define([
     }
     renderRules();
 
+    const calcBox = new VBox({ width: "100%" });
+    function renderCalcs() {
+      calcBox.destroyItems();
+      calcs.forEach((c, i) => {
+        const name = new Input({ width: "7rem", value: c.Name, placeholder: "Name", liveChange: () => { c.Name = name.getValue(); } });
+        const f = new Input({ width: "11rem", value: c.Formula, placeholder: "BUD/ACT-1", liveChange: () => { c.Formula = f.getValue(); } });
+        const pct = new CheckBox({ text: "%", selected: c.Percent, select: () => { c.Percent = pct.getSelected(); } });
+        calcBox.addItem(new HBox({ alignItems: "Center", class: "sapUiTinyMarginBottom", items: [name.addStyleClass("sapUiTinyMarginEnd"), new Text({ text: "=" }).addStyleClass("sapUiTinyMarginEnd"), f, pct,
+          new Button({ icon: "sap-icon://delete", type: "Transparent", press: () => { calcs.splice(i, 1); renderCalcs(); } })] }));
+      });
+    }
+    renderCalcs();
+
     const section = (title) => new Title({ text: title, level: "H5" }).addStyleClass("sapUiSmallMarginTop");
     const dlg = new Dialog({
       title: "Table Functions", contentWidth: "30rem", contentHeight: "34rem",
@@ -62,6 +76,8 @@ sap.ui.define([
         section("Numbers"), new Label({ text: "Scale" }), scale, new Label({ text: "Decimals" }), decimals,
         new Text({ text: "Typing into a scaled table means the scaled number: 1.5 in thousands plans 1,500." }).addStyleClass("zsacSmall"),
         section("Variance"), new Label({ text: "Show the difference to version" }), vs, mode,
+        section("Calculations"), new Text({ text: "A column per table column from the cell's own value (current) and the same cell in other versions (their ids), for example Growth = BUD/ACT-1. Tick % to show a percentage." }).addStyleClass("zsacSmall"), calcBox,
+        new Button({ text: "Add calculation", icon: "sap-icon://add", press: () => { calcs.push({ Name: "", Formula: "", Percent: false }); renderCalcs(); } }),
         section("Thresholds"), new Text({ text: "The first rule that matches colours the cell." }).addStyleClass("zsacSmall"), ruleBox,
         new Button({ text: "Add threshold", icon: "sap-icon://add", press: () => { rules.push({ Op: "<", Value: "0", Level: "BAD" }); renderRules(); } })
       ] }).addStyleClass("sapUiSmallMargin")] })],
@@ -70,7 +86,7 @@ sap.ui.define([
           swap: swap.getSelected(), suppressZero: zero.getSelected(),
           sort: sortCol.getSelectedKey() ? { col: (columns.find((c) => colKey(c.key) === sortCol.getSelectedKey()) || { key: [] }).key, dir: sortDir.getSelectedKey() } : null,
           scale: Number(scale.getSelectedKey()), decimals: decimals.getValue(),
-          variance: vs.getSelectedKey() ? { vs: vs.getSelectedKey(), mode: mode.getSelectedKey() } : null, thresholds: rules
+          variance: vs.getSelectedKey() ? { vs: vs.getSelectedKey(), mode: mode.getSelectedKey() } : null, thresholds: rules, calcs
         });
         grid.setView(next);
         if (opts && opts.onApply) { opts.onApply(next); }
