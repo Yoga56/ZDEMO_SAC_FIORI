@@ -41,8 +41,7 @@
         "sap.tnt": {},
         "sap.ui.core": {},
         "sap.ui.layout": {},
-        "sap.ui.unified": {},
-        "zsac.lib": {}
+        "sap.ui.unified": {}
       }
     },
     "rootView": { "viewName": "zsac.fiori.view.App", "type": "XML", "id": "app", "async": true },
