@@ -140,6 +140,7 @@ CLASSES = {
     "ZCL_SAC_VERSION_ENGINE": ("SAC: version publish and revert", None),
     "ZCL_SAC_SEED": ("SAC: sample models, plan data, stories", None),
     "ZCL_SAC_ACCESS": ("SAC: who may open and edit a story or model", None),
+    "ZCL_SAC_DATA_RULES": ("SAC: data locking and validation on write", None),
     "ZCL_SAC_CLAIM_OWNERS": ("SAC: give existing content to its creators", None),
 }
 

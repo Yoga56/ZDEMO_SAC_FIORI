@@ -63,6 +63,30 @@ CLASS zcl_sac_version_engine IMPLEMENTATION.
       RETURN.
     ENDIF.
     DATA(facts) = zcl_sac_fact_writer=>read_version( model_id = model_id version_id = source ).
+    " data locking and validation look at what the publish changes in the target: new and changed values, and values that disappear
+    DATA(current) = zcl_sac_fact_writer=>read_version( model_id = model_id version_id = target ).
+    DATA changed TYPE zcl_sac_fact_writer=>ty_facts.
+    DATA removed TYPE zcl_sac_fact_writer=>ty_facts.
+    LOOP AT facts INTO DATA(new_fact).
+      new_fact-version_id = target.
+      READ TABLE current INTO DATA(old_fact) WITH KEY period = new_fact-period measure = new_fact-measure
+        dim1 = new_fact-dim1 dim2 = new_fact-dim2 dim3 = new_fact-dim3 dim4 = new_fact-dim4 dim5 = new_fact-dim5.
+      IF sy-subrc <> 0 OR old_fact-fact_value <> new_fact-fact_value.
+        APPEND new_fact TO changed.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT current INTO old_fact.
+      READ TABLE facts TRANSPORTING NO FIELDS WITH KEY period = old_fact-period measure = old_fact-measure
+        dim1 = old_fact-dim1 dim2 = old_fact-dim2 dim3 = old_fact-dim3 dim4 = old_fact-dim4 dim5 = old_fact-dim5.
+      IF sy-subrc <> 0.
+        APPEND old_fact TO removed.
+      ENDIF.
+    ENDLOOP.
+    DATA(refused) = zcl_sac_data_rules=>check( facts = changed deletes = removed ).
+    IF refused IS NOT INITIAL.
+      result-message = refused.
+      RETURN.
+    ENDIF.
     zcl_sac_fact_writer=>replace( model_id = model_id version_id = target new_facts = facts ).
     result = VALUE #( ok = abap_true count = lines( facts ) ).
   ENDMETHOD.

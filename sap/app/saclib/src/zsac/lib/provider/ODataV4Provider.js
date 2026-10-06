@@ -13,16 +13,37 @@ sap.ui.define([
   "../core/DataProvider",
   "../core/Access",
   "../core/ModelSchema",
+  "../core/QueryEngine",
+  "../planning/LockEngine",
+  "../planning/ValidationEngine",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
   "./LiveSource"
-], function (DataProvider, Access, ModelSchema, Filter, FilterOperator, LiveSource) {
+], function (DataProvider, Access, ModelSchema, QueryEngine, LockEngine, ValidationEngine, Filter, FilterOperator, LiveSource) {
   "use strict";
 
   const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
   const PAGE = 10000;
   const json = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch (e) { return fallback; } };
   const str = (o) => JSON.stringify(o === undefined ? null : o);
+
+  // Data locking and validation rules are stored as {"regions": [...]} / {"rules": [...]} for the client and, next to it, "srv": the same rules
+  // in the form the ABAP class ZCL_SAC_DATA_RULES reads (lower case names, every slice resolved to the members it covers).
+  const FIELD = { Period: "period", VersionId: "version_id", Measure: "measure", Dim1: "dim1", Dim2: "dim2", Dim3: "dim3", Dim4: "dim4", Dim5: "dim5" };
+  const unpack = (doc, key) => (Array.isArray(doc) ? doc : (doc && doc[key]) || []);
+  const slices = (model, filter) => {
+    const x = QueryEngine.expandFilters(model, filter || {});
+    return Object.keys(x).map((d) => ({ fname: FIELD[QueryEngine.fieldOf(model, d)], members: x[d] }));
+  };
+  const packLocks = (m) => {
+    const regions = LockEngine.normalize(m.LockRegions);
+    return str({ regions, srv: regions.map((r) => ({ id: r.Id, name: r.Name, state: r.State, owners: r.Owners, slices: slices(m, r.Filter) })) });
+  };
+  const packRules = (m) => {
+    const rules = ValidationEngine.normalize(m.ValidationRules);
+    return str({ rules, srv: rules.map((r) => ({ id: r.Id, name: r.Name, measure: r.Measure, level: r.Level, message: r.Message,
+      min_value: r.Min === null ? "" : String(r.Min), max_value: r.Max === null ? "" : String(r.Max), slices: slices(m, r.Filter) })) });
+  };
   const quote = (v) => "'" + String(v).replace(/'/g, "''") + "'";
   /** Filters travel as "REGION=APAC,EMEA;PERIOD=2026-01" in the filter columns and action parameters of the backend. */
   const strip = (o) => { const c = Object.assign({}, o); Object.keys(c).forEach((k) => { if (k.startsWith("@") || k.startsWith("_")) { delete c[k]; } }); return c; };
@@ -189,7 +210,7 @@ sap.ui.define([
     _toModel(e) {
       return ModelSchema.normalize({
         ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency, Owner: e.OwnerId || "",
-        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking, LockDefault: e.LockDefault || "OPEN", LockRegions: json(e.LockJson, []), ValidationRules: json(e.ValidJson, []),
+        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking, LockDefault: e.LockDefault || "OPEN", LockRegions: unpack(json(e.LockJson, []), "regions"), ValidationRules: unpack(json(e.ValidJson, []), "rules"),
         DataAudit: !!e.DataAudit, DataSource: e.DataSource, Source: json(e.SourceJson, null),
         Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.DimLabel, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
           Attributes: json(d.Attributes, undefined), Hierarchies: json(d.Hierarchies, []) }))
@@ -212,7 +233,7 @@ sap.ui.define([
     _modelPayload(m) {
       return {
         ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
-        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking, LockDefault: m.LockDefault || "OPEN", LockJson: str(m.LockRegions || []), ValidJson: str(m.ValidationRules || []),
+        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking, LockDefault: m.LockDefault || "OPEN", LockJson: packLocks(m), ValidJson: packRules(m),
         DataAudit: !!m.DataAudit, DataSource: m.DataSource || "", SourceJson: m.Source ? str(m.Source) : "",
         _Dimension: (m.Dimensions || []).map((d) => ({ ModelId: m.ModelId, DimId: d.DimId, DimLabel: d.Label, Slot: d.Slot, Members: str(d.Members || []),
           DimType: d.Type || "GENERIC", Attributes: str(d.Attributes || []), Hierarchies: str(d.Hierarchies || []) })),

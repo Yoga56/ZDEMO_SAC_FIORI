@@ -98,3 +98,25 @@ test("odata calendar events: every field is read and written, the older columns 
   const post = fresh.find((c) => c[0] === "POST");
   assert.strictEqual(post[1], "/CalendarTask"); assert.strictEqual(post[2].Title.length, 120);
 });
+
+test("odata model payload: lock regions and validation rules go out with a server copy (lower case, slices resolved), and come back as they were", () => {
+  const p = provider([]);
+  const model = { ModelId: "M", Name: "M", PeriodFrom: "2026-01", PeriodTo: "2026-12", DataLocking: true, LockDefault: "OPEN",
+    Dimensions: [{ DimId: "REGION", Label: "Region", Slot: 1, Members: [{ Id: "A" }, { Id: "B" }, { Id: "ALL" }], Hierarchies: [{ Id: "H", Parents: { A: "ALL", B: "ALL" } }] }],
+    Measures: [{ MeasureId: "X", Label: "X" }],
+    LockRegions: [{ Id: "R1", Name: "Q1 closed", State: "LOCKED", Owners: [], Filter: { PERIOD: ["2026-Q1"], REGION: ["ALL"] } }],
+    ValidationRules: [{ Id: "V1", Name: "No negatives", Measure: "X", Min: 0, Level: "ERROR" }] };
+  const out = p._modelPayload(model);
+  const lock = JSON.parse(out.LockJson);
+  assert.deepStrictEqual(lock.srv[0].slices.find((s) => s.fname === "period").members, ["2026-01", "2026-02", "2026-03"]);
+  assert.deepStrictEqual(lock.srv[0].slices.find((s) => s.fname === "dim1").members.sort(), ["A", "ALL", "B"]);
+  assert.strictEqual(lock.srv[0].state, "LOCKED");
+  const rule = JSON.parse(out.ValidJson).srv[0];
+  assert.deepStrictEqual([rule.min_value, rule.max_value, rule.level, rule.measure], ["0", "", "ERROR", "X"]);
+  const back = p._toModel(Object.assign({ ModelId: "M", ModelName: "M", _Dimension: [], _Measure: [] }, { DataLocking: true, LockJson: out.LockJson, ValidJson: out.ValidJson }));
+  assert.strictEqual(back.LockRegions[0].Name, "Q1 closed");
+  assert.deepStrictEqual(back.LockRegions[0].Filter, { PERIOD: ["2026-Q1"], REGION: ["ALL"] });
+  assert.strictEqual(back.ValidationRules[0].Min, 0);
+  // an older client stored a plain list
+  assert.strictEqual(p._toModel({ ModelId: "M", ModelName: "M", LockJson: JSON.stringify([{ Id: "X", Name: "n", State: "LOCKED" }]), _Dimension: [], _Measure: [] }).LockRegions[0].Id, "X");
+});

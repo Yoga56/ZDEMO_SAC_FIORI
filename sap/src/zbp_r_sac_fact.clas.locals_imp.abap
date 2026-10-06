@@ -67,6 +67,13 @@ CLASS lhc_fact IMPLEMENTATION.
                                                       text     = |Version { locked } is locked| ) ) TO reported-fact.
         CONTINUE.
       ENDIF.
+      DATA(refused) = zcl_sac_data_rules=>check( facts = facts ).
+      IF refused IS NOT INITIAL.
+        APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
+        APPEND VALUE #( %cid = key-%cid
+                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error text = refused ) ) TO reported-fact.
+        CONTINUE.
+      ENDIF.
       zcl_sac_fact_writer=>upsert( facts = facts local_mode = abap_true ).
     ENDLOOP.
   ENDMETHOD.
@@ -89,6 +96,13 @@ CLASS lhc_fact IMPLEMENTATION.
         APPEND VALUE #( %cid = key-%cid
                         %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
                                                       text     = |Version { locked } is locked| ) ) TO reported-fact.
+        CONTINUE.
+      ENDIF.
+      DATA(refused) = zcl_sac_data_rules=>check( facts = VALUE #( ) deletes = facts ).
+      IF refused IS NOT INITIAL.
+        APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
+        APPEND VALUE #( %cid = key-%cid
+                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error text = refused ) ) TO reported-fact.
         CONTINUE.
       ENDIF.
       zcl_sac_fact_writer=>remove( facts = facts local_mode = abap_true ).
