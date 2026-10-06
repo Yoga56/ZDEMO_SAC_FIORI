@@ -28,14 +28,22 @@ sap.ui.define(["./WidgetRegistry"], function (WidgetRegistry) {
     return { X: 0, Y: 0 };
   }
 
-  /** After a drag or resize: if the widget lands on another one, push it down to the first free row at its column. */
+  /**
+   * After a drag or resize: the widget keeps the place the planner put it, and the widgets it lands on are pushed down, one after the
+   * other in reading order (a pushed widget pushes the ones below it), until nothing overlaps. Widgets that are not in the way stay where they are.
+   * @returns {boolean} true when another widget had to move
+   */
   function settle(story, widget) {
-    const others = story.Widgets.filter((x) => x.Page === widget.Page && x.Id !== widget.Id);
-    const hit = (y) => others.some((i) => widget.X < i.X + i.W && widget.X + widget.W > i.X && y < i.Y + i.H && y + widget.H > i.Y);
-    let y = widget.Y;
-    while (hit(y) && y < 500) { y++; }
-    const moved = y !== widget.Y;
-    widget.Y = y;
+    const others = story.Widgets.filter((x) => x.Page === widget.Page && x.Id !== widget.Id).sort((a, b) => a.Y - b.Y || a.X - b.X);
+    const placed = [widget];
+    const hit = (o, y) => placed.some((i) => o.X < i.X + i.W && o.X + o.W > i.X && y < i.Y + i.H && y + o.H > i.Y);
+    let moved = false;
+    others.forEach((o) => {
+      let y = o.Y;
+      while (hit(o, y) && y < 1000) { y++; }
+      if (y !== o.Y) { o.Y = y; moved = true; }
+      placed.push(o);
+    });
     return moved;
   }
 
