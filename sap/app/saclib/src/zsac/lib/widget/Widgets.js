@@ -423,7 +423,7 @@ sap.ui.define([
           + '<button type="button" data-a="new" title="A new scenario starts from the settings of this one">+ New</button>'
           + (scenarios.length > 1 ? '<button type="button" data-a="delete" title="Delete this scenario">Delete</button>' : "") + "</div>"
           + '<div class="zsacCpGroup">' + (others.length ? '<label>Compare <select data-a="compare">' + opt(-1, "(none)", compareWith < 0) + others.map((x) => opt(x.i, x.s.name, x.i === compareWith)).join("") + "</select></label>" : "")
-          + '<select data-a="mode" title="Precision: how many calculations the simulation makes">' + [["preview", "Preview \u00b7 1,000"], ["medium", "Medium \u00b7 10,000"], ["high", "High \u00b7 100,000"]].map((m) => opt(m[0], m[1], m[0] === mode)).join("") + "</select>"
+          + '<select data-a="mode" title="Precision: how many times the simulation draws random values for the drivers and works out the target. More runs give steadier percentages and take longer.">' + [["preview", "Preview \u00b7 1,000 runs"], ["medium", "Medium \u00b7 10,000 runs"], ["high", "High \u00b7 100,000 runs"]].map((m) => opt(m[0], m[1], m[0] === mode)).join("") + "</select>"
           + '<button type="button" class="zsacCpRun" data-a="run"' + (busy ? " disabled" : "") + ">" + (busy ? "Running..." : "\u25B6 Run simulation") + "</button></div></div>"
           + '<details class="zsacCpDet"' + (sc.result ? "" : " open") + '><summary>Drivers <span class="zsacCpSub">' + drivers.length + " \u00b7 " + uncertain + " with a range</span></summary>"
           + CompassView.driversHtml(drivers, sc.settings, unit()) + "</details>";
