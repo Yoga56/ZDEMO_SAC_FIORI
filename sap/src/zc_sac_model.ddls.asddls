@@ -18,6 +18,8 @@ define root view entity ZC_SAC_MODEL
   DataSource,
   SourceJson,
   OwnerId,
+  LockDefault,
+  LockJson,
   CreatedBy,
   CreatedAt,
   LastChangedBy,

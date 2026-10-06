@@ -201,6 +201,7 @@ sap.ui.define([
     async writeFacts(modelId, rows) {
       await this._assertWritable(modelId);
       await this._assertEditable(modelId);
+      await this._assertUnlocked(modelId, this._changed(modelId, rows));
       const model = this._db.models.find((x) => x.ModelId === modelId);
       const audit = !!(model && model.DataAudit);
       const at = new Date().toISOString();
@@ -219,9 +220,20 @@ sap.ui.define([
       this._save();
       return rows.length;
     }
+    /** The rows that change the stored data (a new fact, or another value): data locking only looks at changes. */
+    _changed(modelId, rows) {
+      const m = this._db.models.find((x) => x.ModelId === modelId);
+      if (!m || !m.DataLocking) { return rows; }
+      const have = new Map(this._db.facts.filter((f) => f.ModelId === modelId).map((f) => [DataActionEngine.keyOf(f), f.Value]));
+      return rows.filter((r) => {
+        const k = DataActionEngine.keyOf(Object.assign({ Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r, { ModelId: modelId }));
+        return !have.has(k) || have.get(k) !== r.Value;
+      });
+    }
     async deleteFacts(modelId, rows) {
       await this._assertWritable(modelId);
       await this._assertEditable(modelId);
+      await this._assertUnlocked(modelId, rows);
       const keys = new Set(rows.map((r) => DataActionEngine.keyOf(Object.assign({ ModelId: modelId, Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r))));
       this._remove("facts", (f) => keys.has(DataActionEngine.keyOf(f)));
       return rows.length;
@@ -254,6 +266,13 @@ sap.ui.define([
       if (target.Locked) { throw new Error("Version " + targetId + " is locked"); }
       const own = this._db.facts.filter((f) => f.ModelId === modelId);
       const after = VersionEngine.publish(own, privateId, targetId);
+      // data locking looks at what the publish changes in the target: new and changed values, and values that disappear
+      const was = new Map(own.filter((f) => f.VersionId === targetId).map((f) => [DataActionEngine.keyOf(f), f]));
+      const now = after.filter((f) => f.VersionId === targetId);
+      const nowKeys = new Set(now.map((f) => DataActionEngine.keyOf(f)));
+      await this._assertEditable(modelId);
+      await this._assertUnlocked(modelId, now.filter((f) => !was.has(DataActionEngine.keyOf(f)) || was.get(DataActionEngine.keyOf(f)).Value !== f.Value)
+        .concat(Array.from(was.values()).filter((f) => !nowKeys.has(DataActionEngine.keyOf(f)))));
       this._db.facts = this._db.facts.filter((f) => f.ModelId !== modelId).concat(after);
       this._save();
       return { Published: after.filter((f) => f.VersionId === targetId).length };

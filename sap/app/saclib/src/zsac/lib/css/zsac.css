@@ -298,3 +298,12 @@ body.zsacResizing { user-select: none; cursor: col-resize; } body.zsacResizing i
 .zsacCalGDrag:hover .zsacCalGH { background: rgba(0,0,0,.18); }
 .zsacCalDay.zsacCalDrop { background: var(--sapList_SelectionBackgroundColor, #e5f0fa); }
 .zsacCalFilters { display: flex; flex-wrap: wrap; gap: .4rem; padding: .35rem .75rem; align-items: center; border-bottom: 1px solid var(--sapList_BorderColor, #e0e0e0); }
+
+/* data locking: cells in a locked region are hatched, restricted ones are tinted, a cell over both is striped */
+.zsacPlanGrid td.zsacLockLOCKED, .zsacPlanGrid td.zsacLockLOCKED input { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--sapNeutralBackground, #eaecee) 5px 8px); color: var(--sapContent_LabelColor, #556b82); }
+.zsacPlanGrid td.zsacLockRESTRICTED, .zsacPlanGrid td.zsacLockRESTRICTED input { background: var(--sapWarningBackground, #fef7e1); }
+.zsacPlanGrid td.zsacLockMIXED, .zsacPlanGrid td.zsacLockMIXED input { background: repeating-linear-gradient(135deg, var(--sapWarningBackground, #fef7e1) 0 5px, transparent 5px 8px); }
+.zsacLockChip { display: inline-block; border-radius: .75rem; padding: 0 .5rem; font-size: .75rem; line-height: 1.4rem; margin-right: .25rem; border: 1px solid var(--sapList_BorderColor, #d9d9d9); }
+.zsacLockChipLOCKED { background: var(--sapNeutralBackground, #eaecee); }
+.zsacLockChipRESTRICTED { background: var(--sapWarningBackground, #fef7e1); }
+.zsacLockChipOPEN { background: var(--sapSuccessBackground, #f1fdf6); }

@@ -1,10 +1,11 @@
 /**
  * Rules for typing into a cell of a planning table (pure): is the cell editable, and which facts change when a value is entered.
  *
- * ctx = { model, spec: { rows, columns, filters, hierarchies }, versions: [{VersionId, Locked, Category}], editable }
+ * ctx = { model, spec: { rows, columns, filters, hierarchies }, versions: [{VersionId, Locked, Category}], editable, lock: { compiled, user } }
+ * lock (optional) is LockEngine.compile(model) and the user: cells in locked or restricted regions are not editable.
  * result = QueryEngine.aggregate(...) of the facts the table shows (unpublished changes already applied)
  */
-sap.ui.define(["../core/QueryEngine", "./Spreader"], function (QueryEngine, Spreader) {
+sap.ui.define(["../core/QueryEngine", "./Spreader", "./LockEngine"], function (QueryEngine, Spreader, LockEngine) {
   "use strict";
 
   /** The single member a coordinate has in this cell: from the row or column key, else from a one-member filter. */
@@ -32,7 +33,16 @@ sap.ui.define(["../core/QueryEngine", "./Spreader"], function (QueryEngine, Spre
     if (!spec) { return no("Unknown measure " + measure); }
     if (spec.Aggregation === "COUNT") { return no("A count cannot be planned"); }
     if (spec.ExceptionAggregation) { return no("A measure with an exception aggregation cannot be planned"); }
-    return { editable: true, version, measure, measureSpec: spec };
+    const out = { editable: true, version, measure, measureSpec: spec, lock: "OPEN" };
+    if (ctx.lock && ctx.lock.compiled && ctx.lock.compiled.enabled && v.Category !== "PRIVATE") {
+      // the facts below the cell, or the fact a new value would create
+      const scope = result.cellFacts(r, c);
+      const facts = scope.length ? scope : [template(ctx, result, r, c, out)].filter(Boolean);
+      const l = LockEngine.cellState(ctx.lock.compiled, facts, ctx.lock.user);
+      out.lock = l.state;
+      if (!l.ok) { return Object.assign(no(l.reason), { lock: l.state }); }
+    }
+    return out;
   }
 
   /** The fact a new value would create when the cell has no facts yet: every dimension needs one leaf member. */

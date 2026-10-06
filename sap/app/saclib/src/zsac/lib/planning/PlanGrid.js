@@ -175,12 +175,12 @@ sap.ui.define([
         prev = rk;
         cols.forEach((ck, ci) => {
           const v = r.cell(rk, ck);
-          const state = o.editable ? PlanEditor.cellState({ model: c.model, spec, versions: c.versions, editable: true }, r, rk, ck) : { editable: false };
+          const state = o.editable ? PlanEditor.cellState({ model: c.model, spec, versions: c.versions, editable: true, lock: c.lock }, r, rk, ck) : { editable: false };
           const aggregated = (info && info.hasChildren) || (r.colInfo && r.colInfo(ck).hasChildren);
           const dirty = r.cellFacts(rk, ck).some((f) => c.plan && c.plan.has(f));
           const text = v === undefined ? "" : Format.full(v, dec);
           const notes = this.commentsAt(rk, ck);
-          const noted = notes.length ? " zsacHasComment" : "";
+          const noted = (notes.length ? " zsacHasComment" : "") + (state.lock && state.lock !== "OPEN" ? " zsacLock" + state.lock : "");
           const noteTip = notes.length ? ' title="' + esc(notes.map((n) => (n.Author ? n.Author + ": " : "") + n.Text).join("\n")) + '"' : "";
           if (state.editable) {
             h += '<td class="num' + noted + '"' + noteTip + ' data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
@@ -380,7 +380,7 @@ sap.ui.define([
 
     _stateOf(rk, ck) {
       const c = this._ctx;
-      return PlanEditor.cellState({ model: c.model, spec: c.spec, versions: c.versions, editable: !!(this._o && this._o.editable) }, this._result, rk, ck);
+      return PlanEditor.cellState({ model: c.model, spec: c.spec, versions: c.versions, editable: !!(this._o && this._o.editable), lock: c.lock }, this._result, rk, ck);
     },
 
     /** @returns {{ri, ci, rk, ck, value, state}[]} the selected cells in reading order */
@@ -492,7 +492,7 @@ sap.ui.define([
      */
     applyCellValues(items, label) {
       const c = this._ctx;
-      const ctx = { model: c.model, spec: c.spec, versions: c.versions, editable: true };
+      const ctx = { model: c.model, spec: c.spec, versions: c.versions, editable: true, lock: c.lock };
       const changes = new Map();
       let cells = 0; let skipped = 0; let reason = "";
       items.forEach((it) => {
@@ -522,7 +522,7 @@ sap.ui.define([
         return;
       }
       const value = num(input.value);
-      const out = PlanEditor.edit({ model: c.model, spec: c.spec, versions: c.versions, editable: true }, this._result, rk, ck, value);
+      const out = PlanEditor.edit({ model: c.model, spec: c.spec, versions: c.versions, editable: true, lock: c.lock }, this._result, rk, ck, value);
       if (out.error) {
         MessageToast.show(out.error);
         this.fireRejected({ reason: out.error });

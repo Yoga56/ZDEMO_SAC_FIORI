@@ -20,6 +20,7 @@ sap.ui.define([
   "../core/HierarchyEngine",
   "../core/Format",
   "../planning/PlanGrid",
+  "../planning/LockEngine",
   "../planning/PlanPublisher",
   "../planning/DataActionRun",
   "../core/VarianceEngine",
@@ -39,7 +40,7 @@ sap.ui.define([
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast",
   "sap/ui/core/Icon"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
-  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ButtonAction, Feed, CommentThread, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast, Icon) {
+  PlanGrid, LockEngine, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ButtonAction, Feed, CommentThread, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast, Icon) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -460,7 +461,8 @@ sap.ui.define([
         if (b.Measure && !(filters.MEASURE && filters.MEASURE.length)) { filters.MEASURE = [b.Measure]; }
         const facts = await ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, filters));
         const comments = ctx.provider.capabilities.comments ? await ctx.provider.listComments(b.ModelId) : [];
-        grid.setContext({ model, facts, versions, plan: ctx.plan, comments,
+        const lock = { compiled: LockEngine.compile(model), user: await ctx.provider.currentUser() };
+        grid.setContext({ model, facts, versions, plan: ctx.plan, comments, lock,
           readReference: (versionId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }))),
           spec: { rows: b.Rows || [], columns: b.Columns || [], filters, hierarchies: activeHierarchies(b) },
           options: { editable: widget.Props.Editable !== false, expandRows: Math.max(1, Number(widget.Props.ExpandRows) || 3), expandCols: Math.max(1, Number(widget.Props.ExpandCols) || 2),

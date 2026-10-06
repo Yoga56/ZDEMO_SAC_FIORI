@@ -6,7 +6,7 @@
  * A subclass implements the underscore-free primitives below (all return promises). `query`, `saveStory`,
  * `saveModel` ... are composed here from those primitives so every provider behaves the same.
  */
-sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource"], function (QueryEngine, Access, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource) {
+sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource", "../planning/LockEngine"], function (QueryEngine, Access, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource, LockEngine) {
   "use strict";
 
   const abstract = (name) => function () { return Promise.reject(new Error(this.constructor.name + " does not implement " + name)); };
@@ -78,6 +78,22 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
     async testSource(model) {
       const facts = await LiveSource.readFacts(model, {}, this.sourceFetch().json);
       return { Count: facts.length, Sample: facts.slice(0, 5) };
+    }
+
+    /**
+     * Data locking: refuses the rows (facts to write or to delete) that lie in a locked region, or in a restricted one the current user
+     * does not own. Private versions are not locked. Nothing is written when any row is refused.
+     */
+    async _assertUnlocked(modelId, rows) {
+      const model = await this.getModel(modelId);
+      if (!model.DataLocking || !rows.length) { return; }
+      const user = await this.currentUser();
+      let priv = null;
+      const first = LockEngine.blocked(model, rows, user, null);
+      if (!first.length) { return; }
+      priv = new Set((await this.listVersions(modelId)).filter((v) => v.Category === "PRIVATE").map((v) => v.VersionId));
+      const list = first.filter((b) => !priv.has(b.fact.VersionId));
+      if (list.length) { throw new Error(LockEngine.message(list)); }
     }
 
     /** Models with a live source are read only. */

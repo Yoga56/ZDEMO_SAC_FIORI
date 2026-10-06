@@ -189,7 +189,7 @@ sap.ui.define([
     _toModel(e) {
       return ModelSchema.normalize({
         ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency, Owner: e.OwnerId || "",
-        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking,
+        PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking, LockDefault: e.LockDefault || "OPEN", LockRegions: json(e.LockJson, []),
         DataAudit: !!e.DataAudit, DataSource: e.DataSource, Source: json(e.SourceJson, null),
         Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.DimLabel, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
           Attributes: json(d.Attributes, undefined), Hierarchies: json(d.Hierarchies, []) }))
@@ -212,7 +212,7 @@ sap.ui.define([
     _modelPayload(m) {
       return {
         ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
-        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking,
+        PeriodFrom: m.PeriodFrom || "", PeriodTo: m.PeriodTo || "", PlanningEnabled: m.PlanningEnabled !== false, DataLocking: !!m.DataLocking, LockDefault: m.LockDefault || "OPEN", LockJson: str(m.LockRegions || []),
         DataAudit: !!m.DataAudit, DataSource: m.DataSource || "", SourceJson: m.Source ? str(m.Source) : "",
         _Dimension: (m.Dimensions || []).map((d) => ({ ModelId: m.ModelId, DimId: d.DimId, DimLabel: d.Label, Slot: d.Slot, Members: str(d.Members || []),
           DimType: d.Type || "GENERIC", Attributes: str(d.Attributes || []), Hierarchies: str(d.Hierarchies || []) })),
@@ -257,12 +257,14 @@ sap.ui.define([
     }
     async writeFacts(modelId, rows) {
       await this._assertWritable(modelId);
+      await this._assertUnlocked(modelId, rows);
       rows = rows.map((r) => Object.assign({}, r, { ModelId: modelId }));
       await this._action("/Fact/" + NS + "WriteFacts(...)", { Payload: this._payload(rows) });
       return rows.length;
     }
     async deleteFacts(modelId, rows) {
       await this._assertWritable(modelId);
+      await this._assertUnlocked(modelId, rows);
       rows = rows.map((r) => Object.assign({}, r, { ModelId: modelId }));
       await this._action("/Fact/" + NS + "DeleteFacts(...)", { Payload: this._payload(rows) });
       return rows.length;

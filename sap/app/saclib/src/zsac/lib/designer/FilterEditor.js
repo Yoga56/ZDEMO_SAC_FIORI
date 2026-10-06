@@ -2,7 +2,8 @@
  * Reusable filter editor: one multi select per dimension (plus Version and Period) and a search-and-replace row
  * for the selected values. Used by the builder panel, data action steps and data action parameters.
  *
- *   FilterEditor.build({ model, versions, filters, onChange(newFilters) })  ->  sap.m.VBox
+ *   FilterEditor.build({ model, versions, filters, onChange(newFilters), periodNodes })  ->  sap.m.VBox
+ *     periodNodes: also offer the years and quarters (a lock region over "2026-Q1")
  */
 sap.ui.define([
   "sap/ui/core/Item", "sap/m/VBox", "sap/m/HBox", "sap/m/Label", "sap/m/Input", "sap/m/Select", "sap/m/MultiComboBox",
@@ -19,6 +20,18 @@ sap.ui.define([
     return out;
   }
 
+  function periods(model, nodes) {
+    const list = months(model.PeriodFrom, model.PeriodTo);
+    const out = list.map((p) => ({ Id: p, Text: p }));
+    if (!nodes) { return out; }
+    const extra = [];
+    new Set(list.map((p) => p.slice(0, 4))).forEach((y) => {
+      extra.push({ Id: y, Text: y + " (year)" });
+      [1, 2, 3, 4].forEach((q) => { if (list.some((p) => p.slice(0, 4) === y && Math.ceil(Number(p.slice(5)) / 3) === q)) { extra.push({ Id: y + "-Q" + q, Text: y + "-Q" + q + " (quarter)" }); } });
+    });
+    return extra.concat(out);
+  }
+
   function build(opts) {
     const model = opts.model;
     const box = new VBox({ width: "100%" });
@@ -27,7 +40,7 @@ sap.ui.define([
     const emit = () => opts.onChange(JSON.parse(JSON.stringify(filters)));
     const sets = [
       { id: "VERSION", label: "Version", members: (opts.versions || []).map((v) => ({ Id: v.VersionId, Text: v.Name })) },
-      { id: "PERIOD", label: "Period", members: months(model.PeriodFrom, model.PeriodTo).map((p) => ({ Id: p, Text: p })) }
+      { id: "PERIOD", label: "Period", members: periods(model, opts.periodNodes) }
     ].concat(model.Dimensions.map((d) => ({ id: d.DimId, label: d.Label, members: d.Members || [] })));
 
     sets.forEach((s) => {

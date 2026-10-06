@@ -13,8 +13,9 @@ sap.ui.define([
   "./DistributeDialog",
   "./VersionManager",
   "./VersionHistory",
+  "./LockDialog",
   "./CommentDialog"
-], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, CommentDialog) {
+], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, LockDialog, CommentDialog) {
   "use strict";
 
   return Control.extend("zsac.lib.planning.PlanToolbar", {
@@ -43,9 +44,10 @@ sap.ui.define([
         press: (e) => { this._plan.formulaBar = e.getParameter("pressed"); this._plan.notifySelection(this._plan.active); } });
       this._comment = new Button({ icon: "sap-icon://comment", tooltip: "Comments on the selected cell", type: "Transparent", enabled: false, press: () => this._doComment() });
       this._versions = new Button({ text: "Versions", icon: "sap-icon://documents", tooltip: "Version Management", type: "Transparent", press: () => this._openVersions() });
+      this._locks = new Button({ icon: "sap-icon://locked", tooltip: "Data Locking: who can change which data", type: "Transparent", press: () => LockDialog.open({ provider: this._provider, modelId: this._modelId(), onChange: () => this._onChange() }) });
       this._historyBtn = new Button({ icon: "sap-icon://history", tooltip: "Version History", type: "Transparent", press: () => this._openHistory() });
       this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx, this._comment,
-        this._versions, this._historyBtn, new ToolbarSpacer(), this._status] }));
+        this._versions, this._locks, this._historyBtn, new ToolbarSpacer(), this._status] }));
       this._guard = (e) => { if (this._plan && this._plan.dirty) { e.preventDefault(); e.returnValue = ""; } };
       window.addEventListener("beforeunload", this._guard);
     },

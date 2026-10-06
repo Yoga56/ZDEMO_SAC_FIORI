@@ -2,7 +2,7 @@
  * Model definition helpers (pure): defaults for measure properties, normalisation of models coming from any
  * provider, and the validation the Modeller runs before saving.
  *
- * model   = { ModelId, Name, Description, Currency, PeriodFrom, PeriodTo, PlanningEnabled, DataLocking, DataAudit, DataSource,
+ * model   = { ModelId, Name, Description, Currency, PeriodFrom, PeriodTo, PlanningEnabled, DataLocking, LockDefault, LockRegions, DataAudit, DataSource,
  *             Dimensions: [{ DimId, Label, Slot, Type, Attributes: [{Id, Label}], Members: [{Id, Text, Props}],
  *                            Hierarchies: [{Id, Label, Parents: {childId: parentId}}] }],
  *             Measures:   [{ MeasureId, Label, DataType, Aggregation, ExceptionAggregation, ExceptionDims, UnitType, Unit, Scale, Decimals }],
@@ -52,7 +52,8 @@ sap.ui.define(["./HierarchyEngine", "../provider/LiveSource"], function (Hierarc
   function normalize(model) {
     const source = model.Source ? LiveSource.defaults(model.Source) : null;
     const live = !!source && source.Mode === "LIVE";
-    return Object.assign({ Description: "", Currency: "", PlanningEnabled: true, DataLocking: false, DataAudit: false, DataSource: "" }, model, {
+    return Object.assign({ Description: "", Currency: "", PlanningEnabled: true, DataLocking: false, LockDefault: "OPEN", DataAudit: false, DataSource: "" }, model, {
+      LockRegions: Array.isArray(model.LockRegions) ? model.LockRegions : [],
       Dimensions: (model.Dimensions || []).map(normalizeDimension),
       Measures: (model.Measures || []).map(normalizeMeasure),
       Source: source
