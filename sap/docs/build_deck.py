@@ -21,22 +21,30 @@ def close(eyebrow, t, lead, decision, points): S.append(dict(k="close", e=eyebro
 DECK = "Analytics and planning on Fiori"
 
 # ------------------------------------------------------------------ content (plain, calm, three points a slide)
-cover("Analytics and planning on Fiori", "System design, and how it compares with SAP Analytics Cloud",
-      "Prepared for Wilmar  ·  6 October 2026  ·  Working on sample data and on a real S/4HANA Cloud system")
+cover("Analytics and planning on Fiori", "System design, features, test results, and how it compares with SAP Analytics Cloud",
+      "Prepared for Wilmar  ·  7 October 2026  ·  Working on sample data and on a real S/4HANA Cloud system")
 
 need("Why we built it", "One system for plan and data", [
  ("The need", "Planning and analysis on S/4HANA data today means a second product with its own license, connections and security."),
  ("The question", "How much of the SAC working model can run inside the ERP landscape, under the ERP's own authorizations?"),
- ("The answer so far", "Stories, models, planning with versions, data actions, multi actions, CDS sources and variance analysis, tested on a real system.")])
+ ("The answer so far", "Stories, models, planning with locking and rules, data and multi actions, a calendar, CDS sources and sharing, tested end to end on a real system with two users.")])
 
-table("Current release", "What it does", ["Area", "Capability"], [
- ["Stories", "Pages, designer, charts, KPIs, tables, filters"],
- ["Models", "Measures, dimensions, hierarchies, CSV and CDS sources"],
- ["Planning", "Editable table, spreading, versions, publish, comments"],
- ["Data actions", "Copy, allocate, scale, delete; validate, trace, run"],
- ["Multi actions", "Ten step types: lock, forecast, import, API"],
- ["CDS sources", "Any CDS view as a live or an import source"],
- ["Variance", "Why a measure changed, by every dimension"]],
+table("Current release · 1 of 2", "Build, analyse and see", ["Area", "Capability"], [
+ ["Stories", "Pages on a grid; eleven chart types, KPI, tables, input controls, text, images, web pages, feeds, comments, buttons"],
+ ["Data Analyser", "Free analysis with rows, columns and filters; calculated measures; CSV and Excel export"],
+ ["Models", "Measures with exception aggregation, hierarchies, Date hierarchy, currencies, CSV and CDS sources"],
+ ["Insight", "Variance explainer, value driver tree, Compass simulation (Monte Carlo)"],
+ ["Navigation", "A floating button opens a menu in the order of the work; usable on a phone"],
+ ["Story layout", "Resize from every edge, arrow keys, Tidy up, saved views of tables"]],
+ [360, 1304])
+
+table("Current release · 2 of 2", "Plan, automate and share", ["Area", "Capability"], [
+ ["Planning", "Editable table, spreading, formulas, copy and paste, versions, publish, history, comments"],
+ ["Control", "Data Locking by region, validation rules (error or warning), audit log"],
+ ["Data actions", "Seven step types: copy, allocation, formula, currency conversion, scale, delete, embedded"],
+ ["Multi actions", "Eleven step types: data action, publish, versions, locking, import, forecast, API, PaPM, comments, copy to model, CDS import"],
+ ["Calendar", "Processes and tasks, dependencies, approvals, reminders, Gantt, month, week, day and list views"],
+ ["Sharing", "Owner, view, edit and everyone, enforced by the server for stories, models, actions and events"]],
  [360, 1304])
 
 diagram("System design", "The big picture", "diagrams/architecture.png", maxh=610)
@@ -50,78 +58,105 @@ diagram("Data", "Live and import sources", "diagrams/sources.png",
         lead="The service aggregates with $apply; if it cannot, the app reads the rows and aggregates itself.")
 
 table("Backend", "ABAP RAP at a glance", ["Part", "Design"], [
- ["Tables", "Fifteen ZSAC_* tables: files, stories, models, versions, facts, actions, runs"],
+ ["Tables", "ZSAC_* tables for files, stories, models, versions, facts, actions, runs, shares and calendar events"],
  ["Business objects", "Managed, strict(2); one request writes a root and its children"],
  ["Actions", "Version: create private, publish, revert. Facts: bulk write and delete"],
- ["Server rules", "Locked versions refuse writes; model structure is checked on save"],
- ["Generated", "One spec produces CDS, behavior, projections and abapGit files"],
- ["Service", "ZUI_SAC_O4 for the app, ZUI_SAC_GL for the G/L view"]],
+ ["Server rules", "Locked versions refuse writes; model structure is checked on save; only the owner shares"],
+ ["Access control", "Owner, shared with me and everyone on every projection; the server refuses what the client hides"],
+ ["Services", "ZUI_SAC_O4 for the app, ZUI_SAC_BIZ with business views (G/L, sales) as live sources"]],
  [360, 1304])
 
 diagram("Delivery", "Landscape and delivery", "diagrams/landscape.png",
         lead="The same code runs on mock data, in Business Application Studio and deployed to the system.")
 
 status("Operations", "Security and operations", [
- ("ok", "In place", "Calls run under the user's own session; CDS access control applies to every read."),
- ("ok", "In place", "Locked versions refuse writes on the server and in every engine."),
+ ("ok", "In place", "Calls run under the user's own session; access controls apply to every read, also on the projections."),
+ ("ok", "In place", "Owner, view, edit and everyone for stories, models, actions and events; checked with two users."),
+ ("ok", "In place", "Locked versions, locking regions and validation rules refuse writes on the server and in every engine."),
  ("ok", "In place", "Every action run is recorded: status, counts, duration, user."),
- ("caution", "Open", "No owner or sharing rules for stories and models yet."),
- ("caution", "Open", "No row level security on plan data; actions run in the browser."),
- ("caution", "Open", "Content moves only through abapGit and the seed class.")])
+ ("caution", "Open", "No row level security on plan data; actions run in the browser, not as a server job."),
+ ("caution", "Open", "Versions and cell comments are not owned; content moves only through abapGit and the seed class.")])
+
+shot("Navigation", "The floating menu", "No side bar. A button opens the menu above or below it, wherever there is room; it can be dragged out of the way. Pages are grouped in the order of the work: prepare data, plan, report.", "nav-menu-open.jpg")
 
 shot("Real system · G/L", "Live G/L analysis", "A story on the G/L CDS view with 1,092 rows, read live from the S/4HANA Cloud system.", "gl-01-story-overview.jpg", "Story G/L Analysis, page 1, on system my402225")
-shot("Real system · G/L", "Company codes", "The second page breaks the same live data down by company code.", "gl-02-story-company-codes.jpg", "Story G/L Analysis, page 2")
-shot("Real system · G/L", "The model on a CDS view", "The live model maps fields of the service to dimensions and measures. The source panel shows the service, entity and mapping.", "gl-03-model.jpg", "Model GL_LIVE in the Modeller")
-shot("Real system · G/L", "Files and folders", "Models and stories are files. The G/L model, plan model and story sit in their own folder.", "gl-04-files-folder.jpg", "Files: Finance and G/L Analysis folders")
+shot("Real system · G/L", "The model on a CDS view", "The live model maps fields of the service to dimensions and measures. The source panel shows the service, entity and mapping.", "01-modeller-live-cds-source.jpg", "Modeller: live CDS source on the sales view")
+shot("Real system · planning", "Versions and edits", "A planner works in a private copy of the budget. Nothing is public until it is published.", "06-planning-versions-dialog.jpg", "Planning: versions dialog")
+shot("Real system · planning", "Validation rules", "A limit for plan values. An error refuses the value; a warning lets it through and says so.", "08-planning-validation-rule.jpg", "Rule: max 100 per cell, error")
+shot("Real system · planning", "Data locking", "A region locks part of the data. The locked cells are marked in the table.", "10-planning-lock-region-dialog.jpg", "Data Locking dialog")
+shot("Real system · actions", "A lock stops the run", "The multi action stops at the failing publish step and says why; the earlier step stays done.", "13-multi-action-lock-stops-run.jpg", "Multi action: data locking stops the publish")
 
 shot("Sample data", "Stories and charts", "Charts, KPIs and input controls on one page, built in the designer.", "03-story-overview.png")
-shot("Sample data", "Planning", "Edit, spread, comment and publish. The orange corner marks a cell with a comment.", "06-planning-story.png")
 shot("Sample data", "Data actions", "The step flow on the left, the step editor on the right. Validate, trace and run from the toolbar.", "11-data-action-designer.png")
 shot("Sample data", "Why did it change?", "A headline, the named drivers and ranked dimensions, with bars to drill into.", "05-variance-explainer.png")
 
-table("Real system", "What was tested", ["Feature", "Result"], [
- ["Reads, live CDS model, story with filters", "Works"],
- ["Save model, versions, import of 1,092 values", "Works"],
- ["Lock and unlock a version, data kept", "Works"],
- ["Data action with parameters, 329 facts", "Works"],
- ["Multi action, eight steps, 85 seconds", "Works"],
- ["Planning edit, publish, comments, variance", "Works"],
- ["Create private version (server action)", "Needs two ABAP lines"],
- ["API and PaPM steps", "As designed"]],
- [1180, 484], pills={1: ["ok", "ok", "ok", "ok", "ok", "ok", "caution", "neutral"]})
+cards("Quality", "How it was tested", [
+ ("221 unit tests", "Engines, providers, sharing, locking, calendar, charts and story layout run in Node in about a second. All pass."),
+ ("28 end-to-end checks", "Every page on the real system with two accounts, plus phone layout, exports and interface checks. Screenshots for each."),
+ ("14 defects fixed", "Found by the checks, not by users: data loss on delete, missing access rules, export noise, dark-on-dark charts, navigation.")])
 
-table("Compared with SAC", "Capability against SAC", ["Capability", "This app", "Real SAC"], [
- ["Stories, analysis, models", "Core set", "Complete and mature"],
- ["Planning with versions", "Yes", "Plus workflows, approvals"],
- ["Data actions", "Five step kinds", "Plus currency, cross-model"],
- ["Multi actions", "Ten step types", "Similar, more connectors"],
- ["Predictive and insights", "Forecast, variance", "Smart Predict, Just Ask"],
- ["Scripting, custom widgets", "Widget registry", "Analytics Designer"],
- ["Mobile, Excel add-in", "No", "Yes"],
- ["Data connections", "CDS over OData V4", "Many, including BW"]],
+table("Real system", "What was tested", ["Feature", "Result"], [
+ ["Live CDS models, stories with filters, all widget types", "Works"],
+ ["Planning: private version, edit, publish, revert, comments", "Works"],
+ ["Data locking, validation rules, audit", "Works"],
+ ["Data and multi actions; 329 facts; several currencies", "Works"],
+ ["Sharing and security with two users", "Works, after fixes"],
+ ["CSV and Excel export, input control filter, phone layout", "Works, after fixes"],
+ ["Import of 1,092 values in 11 seconds", "Works"],
+ ["PaPM step (the system has no PaPM)", "As designed"]],
+ [1180, 484], pills={1: ["ok", "ok", "ok", "ok", "ok", "ok", "ok", "neutral"]})
+
+table("Compared with SAC · 1 of 2", "Capability against SAC", ["Capability", "This app", "Real SAC"], [
+ ["Stories, analysis, models", "Wide set, eleven charts", "Complete and mature"],
+ ["Planning with versions", "Yes, with locking and rules", "Plus broader workflows"],
+ ["Data actions", "Seven step kinds, currency conversion", "Plus cross-model, richer allocation"],
+ ["Multi actions", "Eleven step types", "Similar, more connectors"],
+ ["Value driver tree, Compass", "Yes", "Yes, with more options"],
+ ["Calendar and approvals", "Yes, with Gantt and reminders", "Yes, with email notices"],
+ ["Sharing and roles", "Owner, view, edit, everyone", "Teams, roles, row level rules"]],
+ [620, 520, 524])
+
+table("Compared with SAC · 2 of 2", "Where SAC goes further", ["Capability", "This app", "Real SAC"], [
+ ["Predictive and insights", "Four forecast methods, variance", "Smart Predict, smart insights, Just Ask"],
+ ["Scripting, custom widgets", "Widget registry (code)", "Analytics Designer scripting"],
+ ["Mobile and Office", "Phone layout; CSV and Excel files", "Mobile app, offline, Excel add-in"],
+ ["Output", "CSV and Excel", "PDF, PowerPoint, publications, schedules"],
+ ["Data connections", "CDS over OData V4", "Many, including BW and Datasphere"],
+ ["Scale", "Browser calculations", "In-memory engine and server jobs"],
+ ["Transport and governance", "abapGit and seed class", "Content Network, transport, audit tools"]],
  [620, 520, 524])
 
 cards("Compared with SAC", "Where this app is stronger", [
  ("Inside the landscape", "No extra product, license or tenant. It runs in S/4HANA and the Fiori launchpad, on the user's own authorizations."),
  ("Plan data stays in the ERP", "No replication. Same transport and backup path, close to the source."),
- ("Open to change", "Every step, widget and rule can be adapted in days. CDS sources and variance analysis were built for this use.")])
+ ("Open to change", "Every step, widget and rule can be adapted in days. CDS sources, variance analysis and the calendar tied to planning were built for this use.")])
 
 cards("Compared with SAC", "Where SAC is stronger", [
- ("Wider scope", "Smart Predict, Just Ask, mobile app, Excel add-in and subscriptions are not here. Planning has no workflows or currency conversion."),
+ ("Wider scope", "Smart Predict, Just Ask, a mobile app, the Excel add-in, scripting and PDF or PowerPoint output are not here."),
  ("Scale and speed", "Calculations run in the browser. Eight steps on 1,092 rows took 85 seconds; large models will be slower."),
- ("Support and governance", "We own the code and its upgrades. Sharing rules, row level plan security and content transport are basic.")])
+ ("Support and governance", "We own the code and its upgrades. Plan data has no row level security, and content transport is basic.")])
+
+table("Gaps", "What it would take to close the gaps", ["Gap to SAC", "Effort", "Approach"], [
+ ["Server side data action jobs", "Large", "Run the engine as an ABAP job; keep the browser run for small models"],
+ ["Row level security on plan data", "Medium", "Access control on facts by dimension member"],
+ ["PDF and PowerPoint output, publications", "Medium", "Server rendering of stories; scheduled mail"],
+ ["More data connections", "Medium each", "A source adapter per system behind the provider contract"],
+ ["Excel add-in", "Large", "Office add-in on the same OData service"],
+ ["Predictive and natural language", "Large", "Connect an AI service; the widget slots exist"],
+ ["Content transport", "Medium", "Export and import of stories and models as files"]],
+ [620, 220, 824], pills={1: ["caution", "caution", "caution", "caution", "caution", "caution", "caution"]})
 
 cards("Decision", "When to use which", [
- ("Use this app", "Data in S/4HANA CDS views, modest planning, no second license, and a fast tailored pilot."),
- ("Use real SAC", "Enterprise planning with workflows, many users and large volumes, or many source systems."),
- ("Use real SAC", "Predictive, natural language, mobile and Excel needs, with SAP support and a product roadmap.")])
+ ("Use this app", "Data in S/4HANA CDS views, planning with locking and rules, no second license, and a fast tailored pilot."),
+ ("Use real SAC", "Enterprise planning with many users and large volumes, many source systems, or PDF, Excel and mobile needs."),
+ ("Use real SAC", "Predictive, natural language and scripting needs, with SAP support and a product roadmap.")])
 
 close("Next steps", "Pilot on the G/L model",
-      "The feature set is complete on sample data and verified on a real system, except one ABAP fix.",
+      "The feature set is complete on sample data and verified end to end on a real system with two users.",
       "Decision for Wilmar: run a pilot with one finance team on the G/L model, then decide against SAC from what the users miss.",
-      [("1", "Apply the ABAP fix and test private versions end to end."),
-       ("2", "Decide who sees which story and model, then add authorization."),
-       ("3", "Measure with real volumes and decide if actions need a server job.")])
+      [("1", "Pick the pilot team and the stories and models they share."),
+       ("2", "Measure with real volumes and decide if actions need a server job."),
+       ("3", "Choose which gaps matter first: row level security, output, connections.")])
 
 # ------------------------------------------------------------------ HTML
 e = lambda s: html.escape(s).replace("\n", "<br>")
