@@ -157,10 +157,11 @@ sap.ui.define([
 
     async _invokeDelete(keyPath) { return this._delete(keyPath); }
 
-    async _action(path, params) {
+    /** Runs an action. `onInstance`: the action is bound to one row, which the service changes under an ETag: the request says "whatever the version of the row" (If-Match: *). */
+    async _action(path, params, onInstance) {
       const op = this._m.bindContext(path);
       Object.keys(params || {}).forEach((k) => op.setParameter(k, params[k]));
-      await op.execute();
+      await op.execute(undefined, !!onInstance);
       return op.getBoundContext().getObject();
     }
 
@@ -337,11 +338,11 @@ sap.ui.define([
       return this._toVersion(r);
     }
     publishVersion(modelId, privateId, targetId) {
-      return this._action("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(privateId) + ")/" + NS + "Publish(...)", { TargetVersion: targetId })
+      return this._action("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(privateId) + ")/" + NS + "Publish(...)", { TargetVersion: targetId }, true)
         .then((r) => ({ Published: r && r.Published }));
     }
     revertVersion(modelId, privateId) {
-      return this._action("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(privateId) + ")/" + NS + "Revert(...)", {});
+      return this._action("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(privateId) + ")/" + NS + "Revert(...)", {}, true);
     }
     deleteVersion(modelId, versionId) { return this._invokeDelete("/Version(ModelId=" + quote(modelId) + ",VersionId=" + quote(versionId) + ")"); }
 

@@ -442,3 +442,6 @@ path.zsacCp { fill-opacity: .3; }
 /* cards: softer edges and shadow, a lift when the pointer is over them */
 .zsacCard { border-radius: 1rem; border-color: var(--sapTile_BorderColor, #e8ebee); box-shadow: 0 1px 2px rgba(16, 38, 64, .06), 0 6px 18px rgba(16, 38, 64, .05); transition: box-shadow .2s; }
 .zsacCanvas:not(.zsacEditable) .zsacCard:hover { box-shadow: 0 2px 4px rgba(16, 38, 64, .08), 0 10px 26px rgba(16, 38, 64, .09); }
+
+/* a dialog body made of a VBox of width 100% with the small margin would stick out of the dialog by the margin: keep it inside */
+.sapMDialog .sapMDialogScrollCont > .sapMVBox.sapUiSmallMargin { box-sizing: border-box; max-width: calc(100% - 2rem); }

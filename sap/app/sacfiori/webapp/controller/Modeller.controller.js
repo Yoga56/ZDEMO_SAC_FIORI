@@ -306,6 +306,12 @@ sap.ui.define([
         this._m.setProperty("/DataSource", (src.Mode === "LIVE" ? "Live from CDS " : "Import from CDS ") + src.Entity);
         if (src.Mode === "LIVE") {
           this._m.setProperty("/PlanningEnabled", false); this._m.setProperty("/DataLocking", false); this._m.setProperty("/DataAudit", false);
+          if (src.CurrencyField) {
+            this._m.setProperty("/Currency", "");
+            const ms = this._m.getProperty("/Measures") || [];
+            ms.forEach((x) => { if (x.UnitType === "Currency") { x.UnitType = "None"; x.Unit = ""; } });
+            this._m.setProperty("/Measures", ms);
+          }   // the amounts carry their own currency: a model currency would label them wrongly
         }
         const found = result.Found;
         if (found) {
@@ -316,6 +322,7 @@ sap.ui.define([
             found.Members[d.DimId].forEach((x) => { if (!have.has(x.Id)) { d.Members.push({ Id: x.Id, Text: x.Text || x.Id, Props: {} }); } });
           });
           this._m.setProperty("/Dimensions", dims);
+          this._m.refresh(true);   // the members were added to the same arrays: the member counts of the grid are worked out again
           if (found.PeriodFrom && (src.Mode === "LIVE" || !this._m.getProperty("/PeriodFrom"))) {
             this._m.setProperty("/PeriodFrom", found.PeriodFrom); this._m.setProperty("/PeriodTo", found.PeriodTo);
           }
