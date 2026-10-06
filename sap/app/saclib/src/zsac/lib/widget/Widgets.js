@@ -17,6 +17,7 @@ sap.ui.define([
   "./PivotTable",
   "./ChartData",
   "../core/ModelSchema",
+  "../core/CalcMeasures",
   "../core/HierarchyEngine",
   "../core/Format",
   "../planning/PlanGrid",
@@ -40,7 +41,7 @@ sap.ui.define([
   "sap/m/Link",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast",
   "sap/ui/core/Icon"
-], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
+], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, CalcMeasures, HierarchyEngine, Format,
   PlanGrid, LockEngine, GridView, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ButtonAction, Feed, CommentThread, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast, Icon) {
   "use strict";
 
@@ -281,9 +282,19 @@ sap.ui.define([
     const values = await read(null);
     const compare = widget.Props.CompareVersion ? await read(widget.Props.CompareVersion) : null;
     const ver = versions.find((v) => v.VersionId === widget.Props.CompareVersion);
-    const m = (model.Measures || []).find((x) => x.MeasureId === b.Measure);
-    return { tree: parsed.tree, values, compare, errors: problems, compareLabel: ver ? ver.Name || ver.VersionId : widget.Props.CompareVersion,
-      unit: m && m.UnitType !== "None" && leaves.every((l) => !l.measure) ? m.Unit : "", model };
+    // the unit of the numbers: the one unit all the leaves share (a leaf takes its own measure or the widget's). A product or ratio node
+    // changes what the number means, so then no unit is shown. A scaled leaf (scale=1000) is in another unit, so it is left out too.
+    const unitOf = (id) => {
+      const m = (model.Measures || []).find((x) => x.MeasureId === id);
+      if (m) { return m.UnitType === "None" ? "" : (m.Unit || ""); }
+      const c = CalcMeasures.find(model, id);
+      return c ? (c.Percent ? "%" : c.Unit || "") : "";
+    };
+    const units = new Set(leaves.map((l) => (l.scale && l.scale !== 1 ? "" : unitOf(l.measure || b.Measure))));
+    let mixes = false;
+    (function walk(n) { if (n.op === "product" || n.op === "ratio") { mixes = true; } n.children.forEach(walk); })(parsed.tree);
+    const unit = !mixes && units.size === 1 ? Array.from(units)[0] : "";
+    return { tree: parsed.tree, values, compare, errors: problems, compareLabel: ver ? ver.Name || ver.VersionId : widget.Props.CompareVersion, unit, model };
   }
 
   WidgetRegistry.register("valuetree", {
