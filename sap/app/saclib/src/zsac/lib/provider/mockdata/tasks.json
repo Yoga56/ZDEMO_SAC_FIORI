@@ -1,1 +1,279 @@
-[{"Id":"T1","Title":"Submit Q4 forecast","ModelId":"SALES_PLAN","VersionId":"FCT","Assignee":"ME","DueDate":"2026-10-15","Status":"OPEN","Approver":"CFO","Notes":"Regional leads submit by Oct 12"},{"Id":"T2","Title":"Review budget 2027 assumptions","ModelId":"SALES_PLAN","VersionId":"BUD","Assignee":"ME","DueDate":"2026-10-31","Status":"OPEN","Approver":"CFO","Notes":""},{"Id":"T3","Title":"Approve opex forecast","ModelId":"OPEX_PLAN","VersionId":"FCT","Assignee":"CFO","DueDate":"2026-10-20","Status":"IN_REVIEW","Approver":"CFO","Notes":"Waiting for R&D"},{"Id":"T4","Title":"Close September actuals","ModelId":"SALES_PLAN","VersionId":"ACT","Assignee":"ME","DueDate":"2026-10-05","Status":"DONE","Approver":"","Notes":""}]
+[
+  {
+    "Id": "T1",
+    "Title": "Submit Q4 forecast",
+    "ModelId": "SALES_PLAN",
+    "VersionId": "FCT",
+    "Assignee": "ME",
+    "DueDate": "2026-10-15",
+    "Status": "OPEN",
+    "Approver": "CFO",
+    "Notes": "Regional leads submit by Oct 12"
+  },
+  {
+    "Id": "T2",
+    "Title": "Review budget 2027 assumptions",
+    "ModelId": "SALES_PLAN",
+    "VersionId": "BUD",
+    "Assignee": "ME",
+    "DueDate": "2026-10-31",
+    "Status": "OPEN",
+    "Approver": "CFO",
+    "Notes": ""
+  },
+  {
+    "Id": "T3",
+    "Title": "Approve opex forecast",
+    "ModelId": "OPEX_PLAN",
+    "VersionId": "FCT",
+    "Assignee": "CFO",
+    "DueDate": "2026-10-20",
+    "Status": "IN_REVIEW",
+    "Approver": "CFO",
+    "Notes": "Waiting for R&D"
+  },
+  {
+    "Id": "T4",
+    "Title": "Close September actuals",
+    "ModelId": "SALES_PLAN",
+    "VersionId": "ACT",
+    "Assignee": "ME",
+    "DueDate": "2026-10-05",
+    "Status": "DONE",
+    "Approver": "",
+    "Notes": ""
+  },
+  {
+    "Id": "P_BUD",
+    "Type": "PROCESS",
+    "Title": "Budget 2027",
+    "StartDate": "2026-10-05",
+    "EndDate": "2026-11-20",
+    "Status": "ACTIVE",
+    "Progress": 0,
+    "ModelId": "",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "",
+    "Notes": "Input, review and lock the 2027 budget",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {}
+  },
+  {
+    "Id": "P_BUD1",
+    "Type": "GENERAL",
+    "Title": "Input budget",
+    "StartDate": "2026-10-05",
+    "EndDate": "2026-10-23",
+    "Status": "ACTIVE",
+    "Progress": 40,
+    "ModelId": "SALES_PLAN",
+    "VersionId": "BUD",
+    "Approver": "",
+    "ParentId": "P_BUD",
+    "Notes": "",
+    "People": {
+      "Owners": [
+        "ME"
+      ],
+      "Assignees": [
+        "ME"
+      ],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {}
+  },
+  {
+    "Id": "P_BUD2",
+    "Type": "REVIEW",
+    "Title": "Review budget",
+    "StartDate": "2026-10-26",
+    "EndDate": "2026-10-30",
+    "Status": "OPEN",
+    "Progress": 0,
+    "ModelId": "SALES_PLAN",
+    "VersionId": "BUD",
+    "Approver": "CFO",
+    "ParentId": "P_BUD",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {
+      "After": [
+        "P_BUD1"
+      ]
+    }
+  },
+  {
+    "Id": "P_BUD3",
+    "Type": "LOCK",
+    "Title": "Lock budget",
+    "StartDate": "2026-11-02",
+    "EndDate": "2026-11-02",
+    "Status": "OPEN",
+    "Progress": 0,
+    "ModelId": "SALES_PLAN",
+    "VersionId": "BUD",
+    "Approver": "",
+    "ParentId": "P_BUD",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {
+      "After": [
+        "P_BUD2"
+      ]
+    }
+  },
+  {
+    "Id": "P_FC",
+    "Type": "PROCESS",
+    "Title": "Q4 forecast",
+    "StartDate": "2026-10-01",
+    "EndDate": "2026-10-16",
+    "Status": "ACTIVE",
+    "Progress": 0,
+    "ModelId": "",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {}
+  },
+  {
+    "Id": "P_FC1",
+    "Type": "DATAACTION",
+    "Title": "Forecast Q4 from run-rate",
+    "StartDate": "2026-10-01",
+    "EndDate": "2026-10-02",
+    "Status": "DONE",
+    "Progress": 100,
+    "ModelId": "SALES_PLAN",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "P_FC",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {
+      "ActionId": "DA_FORECAST_FROM_ACT"
+    }
+  },
+  {
+    "Id": "P_FC2",
+    "Type": "MULTIACTION",
+    "Title": "Forecast cycle",
+    "StartDate": "2026-10-05",
+    "EndDate": "2026-10-07",
+    "Status": "ACTIVE",
+    "Progress": 50,
+    "ModelId": "",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "P_FC",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {
+      "ActionId": "MA_FORECAST_CYCLE",
+      "After": [
+        "P_FC1"
+      ]
+    }
+  },
+  {
+    "Id": "P_FC3",
+    "Type": "LOCK",
+    "Title": "Lock forecast",
+    "StartDate": "2026-10-16",
+    "EndDate": "2026-10-16",
+    "Status": "OPEN",
+    "Progress": 0,
+    "ModelId": "SALES_PLAN",
+    "VersionId": "FCT",
+    "Approver": "",
+    "ParentId": "P_FC",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {
+      "After": [
+        "P_FC2"
+      ]
+    }
+  },
+  {
+    "Id": "E_CLOSE",
+    "Type": "GENERAL",
+    "Title": "Close September actuals (data check)",
+    "StartDate": "2026-09-28",
+    "EndDate": "2026-10-02",
+    "Status": "DONE",
+    "Progress": 100,
+    "ModelId": "",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {}
+  },
+  {
+    "Id": "E_HOLD",
+    "Type": "GENERAL",
+    "Title": "Agree 2027 price list",
+    "StartDate": "2026-09-15",
+    "EndDate": "2026-10-30",
+    "Status": "ON_HOLD",
+    "Progress": 20,
+    "ModelId": "",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "",
+    "Notes": "Waiting for the pricing committee",
+    "People": {
+      "Owners": [],
+      "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {}
+  }
+]

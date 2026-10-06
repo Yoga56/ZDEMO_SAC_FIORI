@@ -1,86 +1,213 @@
 sap.ui.define([
   "./BaseController",
-  "sap/ui/model/json/JSONModel",
   "sap/ui/core/Item",
-  "sap/m/GroupHeaderListItem",
-  "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/VBox", "sap/m/DatePicker",
-  "zsac/lib/core/StorySchema"
-], function (BaseController, JSONModel, Item, GroupHeaderListItem, Dialog, Button, Input, Select, Label, VBox, DatePicker, StorySchema) {
+  "sap/ui/core/IconPool",
+  "sap/m/MenuItem",
+  "zsac/lib/calendar/CalendarEngine",
+  "zsac/lib/calendar/CalendarView",
+  "zsac/lib/core/StorySchema",
+  "../model/EventPanel",
+  "../model/EventWizard"
+], function (BaseController, Item, IconPool, MenuItem, Engine, View, StorySchema, EventPanel, EventWizard) {
   "use strict";
 
-  const STATUS = { OPEN: ["Open", "Information"], IN_REVIEW: ["In review", "Warning"], DONE: ["Done", "Success"] };
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const today = () => new Date().toISOString().slice(0, 10);
 
-  /** Planning calendar: tasks and approvals tied to a model and version (submit, approve, reject). */
+  /**
+   * Planning calendar, as in SAC: a Calendar workspace (day, week and month) and a List workspace (a tree of events and processes with a
+   * timeline); events open in a panel on the right. The data is in zsac.lib/calendar (CalendarEngine and CalendarView).
+   */
   return BaseController.extend("zsac.fiori.controller.Calendar", {
     onInit() {
-      this._model = new JSONModel({ items: [] });
-      this._filter = "ALL";
-      this.getView().setModel(this._model, "view");
+      this._space = "list";
+      this._zoom = { calendar: "month", list: "month" };
+      this._cursor = today();
+      this._collapsed = new Set();
+      this._selected = "";
+      this._q = ""; this._status = ""; this._mine = false;
+      this._events = [];
+      const menu = this.byId("newItems");
+      [["GENERAL", 0], ["REVIEW", 0], ["COMPOSITE", 0], ["PROCESS", 0], ["TEMPLATE", 0], ["LOCK", 1], ["DATAACTION", 0], ["MULTIACTION", 0], ["WIZARD", 1]].forEach(([key, section]) => {
+        const label = key === "TEMPLATE" ? "Process from Template" : key === "WIZARD" ? "Generate Events with Wizard" : Engine.TYPES[key].label;
+        const icon = key === "TEMPLATE" ? "sap-icon://process" : key === "WIZARD" ? "sap-icon://wizard" : Engine.TYPES[key].icon;
+        menu.addItem(new MenuItem({ text: label, icon, startsSection: !!section }).data("t", key));
+      });
+      const status = this.byId("statusFilter");
+      status.addItem(new Item({ key: "", text: "All statuses" }));
+      Object.keys(Engine.STATUSES).forEach((k) => status.addItem(new Item({ key: k, text: Engine.STATUSES[k].label })));
+      this.getView().addEventDelegate({ onAfterRendering: () => this._bind() }, this);
       this.onRoute("calendar", () => this._load());
     },
 
-    groupHeader: (g) => new GroupHeaderListItem({ title: /^\d{4}-\d{2}$/.test(g.key) ? new Date(g.key + "-01").toLocaleDateString("en", { month: "long", year: "numeric" }) : g.key }),
-
+    // ---- data -------------------------------------------------------------------------------------------------------------------------
     async _load() {
       this._p = await this.provider();
-      this._tasks = await this._p.listTasks();
+      [this._events, this._models, this._versions, this._me] = await Promise.all([this._p.listTasks(), this._p.listModels(), this._p.listVersions(), this._p.currentUser()])
+        .then(([e, m, v, u]) => [e.map(Engine.normalize), m, v, u]);
+      if (this._selected && !this._events.some((e) => e.Id === this._selected)) { this._selected = ""; this._hidePanel(); }
       this._render();
     },
 
-    _render() {
-      const today = new Date().toISOString().slice(0, 10);
-      const items = this._tasks.filter((t) => this._filter === "ALL" || (this._filter === "MINE" ? t.Assignee === "ME" : t.Status === this._filter)).map((t) => Object.assign({}, t, {
-        month: t.DueDate ? t.DueDate.slice(0, 7) : "No date",
-        statusText: (STATUS[t.Status] || [t.Status])[0], statusState: (STATUS[t.Status] || [0, "None"])[1],
-        dueState: t.Status !== "DONE" && t.DueDate && t.DueDate < today ? "Error" : "None"
-      }));
-      this._model.setProperty("/items", items);
+    _rows() {
+      const built = Engine.build(this._events, today());
+      return Engine.filterRows(built.rows, { q: this._q, status: this._status, mine: this._mine, user: this._me });
     },
 
-    _t(e) { const o = e.getSource().getBindingContext("view").getObject(); return this._tasks.find((t) => t.Id === o.Id); },
+    _icon(name) {
+      const info = IconPool.getIconInfo(name);
+      return info ? '<span class="zsacCalIco" style="font-family:\'' + info.fontFamily + '\'">' + info.content + "</span>" : "";
+    },
 
-    async _set(e, status) { const t = this._t(e); t.Status = status; await this._p.saveTask(t); this._render(); },
+    // ---- drawing -------------------------------------------------------------------------------------------------------------------------
+    _render() {
+      const rows = this._rows();
+      const t = today();
+      const zoom = this._zoom[this._space];
+      const opts = { selected: this._selected, icon: (n) => this._icon(n), today: t };
+      let html;
+      if (this._space === "list") {
+        this._gantt = Engine.gantt(rows, { zoom, today: t });
+        html = View.listHtml(rows, Object.assign({ collapsed: this._collapsed, gantt: this._gantt }, opts));
+      } else if (zoom === "month") {
+        const [y, m] = this._cursor.split("-").map(Number);
+        html = View.gridHtml(Engine.monthGrid(rows, y, m, t), Object.assign({ mode: "month" }, opts));
+      } else if (zoom === "week") {
+        html = View.gridHtml([Engine.weekDays(rows, this._cursor, t)], Object.assign({ mode: "week" }, opts));
+      } else {
+        html = View.dayHtml(Engine.weekDays(rows, this._cursor, t).find((d) => d.date === this._cursor), opts);
+      }
+      this.byId("main").setContent("<div>" + html + "</div>");
+      this.byId("space").setSelectedKey(this._space);
+      this.byId("zoom").setSelectedKey(zoom);
+      this.byId("yearItem").setVisible(this._space === "list");
+      this.byId("period").setText(new Date(Engine.toDay(this._cursor) * 86400000).toLocaleDateString("en", zoom === "day" ? { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" } : { month: "long", year: "numeric", timeZone: "UTC" }));
+      const sel = this._events.find((e) => e.Id === this._selected);
+      this.byId("copy").setEnabled(!!sel);
+      this.byId("del").setEnabled(!!sel && sel.Access !== "READ");
+    },
 
-    onFilter(e) { this._filter = e.getParameter("item").getKey(); this._render(); },
-    onSubmit: function (e) { this.guard(() => this._set(e, "IN_REVIEW"))(e); },
-    onApprove: function (e) { this.guard(async () => { await this._set(e, "DONE"); this.toast("Approved"); })(e); },
-    onReject: function (e) { this.guard(() => this._set(e, "OPEN"))(e); },
-    onOpenPlan(e) { const t = this._t(e); this.router().navTo("planning", { query: { model: t.ModelId, version: t.VersionId } }); },
+    /** One listener for the whole page: the content is replaced at every draw. */
+    _bind() {
+      const el = this.byId("mainScroll").getDomRef();
+      if (!el || el.__zsacCal) { return; }
+      el.__zsacCal = true;
+      el.addEventListener("click", (e) => {
+        const tog = e.target.closest("[data-tog]");
+        if (tog) { const id = tog.getAttribute("data-tog"); if (this._collapsed.has(id)) { this._collapsed.delete(id); } else { this._collapsed.add(id); } this._render(); return; }
+        const more = e.target.closest(".zsacCalMore");
+        if (more) { this._cursor = more.getAttribute("data-date"); this._zoom.calendar = "day"; this._render(); return; }
+        const hit = e.target.closest("[data-id]");
+        if (hit) { this._select(hit.getAttribute("data-id")); }
+      });
+    },
 
-    onDelete: function (e) {
-      this.guard(async () => {
-        const t = this._t(e);
-        if (!(await this.confirm("Delete task " + t.Title + "?", "Delete"))) { return; }
-        await this._p.deleteTask(t.Id);
+    _scrollToCursor() {
+      if (this._space !== "list" || !this._gantt) { return; }
+      setTimeout(() => {
+        const left = this.byId("main").getDomRef() && this.byId("main").getDomRef().querySelector(".zsacCalLeft");
+        const x = (Engine.toDay(this._cursor) - Engine.toDay(this._gantt.from)) * this._gantt.ppd + (left ? left.offsetWidth : 0) - 360;
+        this.byId("mainScroll").scrollTo(Math.max(0, x), 0, 150);
+      }, 0);
+    },
+
+    // ---- toolbar ---------------------------------------------------------------------------------------------------------------------
+    onSpace(e) { this._space = e.getParameter("item").getKey(); this._render(); this._scrollToCursor(); },
+    onZoom(e) { this._zoom[this._space] = e.getParameter("item").getKey(); this._render(); this._scrollToCursor(); },
+    onSearch(e) { this._q = e.getParameter("newValue") || ""; this._render(); },
+    onStatusFilter(e) { this._status = e.getParameter("selectedItem").getKey(); this._render(); },
+    onMine(e) { this._mine = e.getSource().getPressed(); this._render(); },
+    onRefresh: function () { this.guard(() => this._load())(); },
+
+    _shift(dir) {
+      const z = this._zoom[this._space];
+      if (this._space === "calendar") {
+        this._cursor = z === "month" ? Engine.addMonths(this._cursor, dir) : Engine.addDays(this._cursor, z === "week" ? 7 * dir : dir);
+      } else {
+        this._cursor = Engine.addDays(this._cursor, dir * { day: 7, week: 28, month: 90, year: 365 }[z]);
+      }
+      this._render(); this._scrollToCursor();
+    },
+    onPrev() { this._shift(-1); },
+    onNext() { this._shift(1); },
+    onToday() { this._cursor = today(); this._render(); this._scrollToCursor(); },
+
+    // ---- the panel -------------------------------------------------------------------------------------------------------------------
+    _hidePanel() { const p = this.byId("panel"); p.destroyItems(); p.setVisible(false); },
+
+    _showPanel(event, isNew) {
+      const panel = this.byId("panel");
+      const children = this._events.some((e) => e.ParentId === event.Id);
+      EventPanel.show(panel, {
+        event, isNew, events: this._events.filter((e) => e.Id !== event.Id || !isNew), models: this._models, versions: this._versions, hasChildren: children,
+        canEdit: event.Access !== "READ", canDelete: event.Access === "OWNER" || !event.Owner,
+        onSave: (e, o) => this._save(e, isNew, o), onDelete: (e) => this._deleteEvent(e), onClose: () => { this._selected = ""; this._hidePanel(); this._render(); },
+        onOpenPlan: (e) => this.router().navTo("planning", { query: { model: e.ModelId, version: e.VersionId } })
+      });
+      panel.setVisible(true);
+    },
+
+    _select(id) {
+      const e = this._events.find((x) => x.Id === id);
+      if (!e) { return; }
+      this._selected = id;
+      this._showPanel(e, false);
+      this._render();
+    },
+
+    async _save(event, isNew, opts) {
+      try {
+        await this._p.saveTask(Engine.toRecord(event));
         await this._load();
+        this._selected = event.Id;
+        this._showPanel(this._events.find((e) => e.Id === event.Id) || event, false);
+        this._render();
+        this.toast(isNew ? "Event created" : "Saved");
+      } catch (e) { this.fail(e); }
+      void opts;
+    },
+
+    // ---- new, copy, delete ------------------------------------------------------------------------------------------------------------
+    onNewItem(e) {
+      const key = e.getParameter("item").data("t");
+      this.guard(async () => {
+        const sel = this._events.find((x) => x.Id === this._selected);
+        const parentId = sel && Engine.TYPES[sel.Type].container ? sel.Id : (sel ? sel.ParentId : "");
+        if (key === "WIZARD" || key === "TEMPLATE") {
+          const made = await (key === "WIZARD" ? EventWizard.generate : EventWizard.fromTemplate)({ models: this._models, versions: this._versions, parentId });
+          if (!made) { return; }
+          for (const ev of made) { await this._p.saveTask(Engine.toRecord(ev)); }
+          this._cursor = made[0].StartDate;
+          await this._load();
+          this._selected = made[0].Id; this._showPanel(this._events.find((x) => x.Id === made[0].Id), false); this._render(); this._scrollToCursor();
+          this.toast(made.length + " events created");
+          return;
+        }
+        const start = today();
+        const days = Engine.TYPES[key].container ? 13 : key === "LOCK" ? 0 : 6;
+        const draft = Engine.normalize({ Id: EventWizard.newId(), Type: key, Title: "", Status: "OPEN", StartDate: start, EndDate: Engine.addDays(start, days), ParentId: key === "PROCESS" ? "" : parentId });
+        this._selected = ""; this._showPanel(draft, true); this._render();
       })();
     },
 
-    onNew: function () {
+    onCopy() {
+      const sel = this._events.find((x) => x.Id === this._selected);
+      if (!sel) { return; }
+      const copy = Engine.normalize(Object.assign(clone(sel), { Id: EventWizard.newId(), Title: sel.Title + " (copy)", Status: "OPEN", Progress: 0, Owner: undefined, Access: undefined }));
+      this._selected = ""; this._showPanel(copy, true); this._render();
+    },
+
+    onDelete() { const sel = this._events.find((x) => x.Id === this._selected); if (sel) { this._deleteEvent(sel); } },
+
+    _deleteEvent(event) {
       this.guard(async () => {
-        const models = await this._p.listModels();
-        const versions = await this._p.listVersions();
-        const title = new Input({ width: "100%" });
-        const model = new Select({ width: "100%", forceSelection: false });
-        const version = new Select({ width: "100%", forceSelection: false });
-        const fill = () => { version.destroyItems(); versions.filter((v) => v.ModelId === model.getSelectedKey()).forEach((v) => version.addItem(new Item({ key: v.VersionId, text: v.Name + " (" + v.VersionId + ")" }))); };
-        models.forEach((m) => model.addItem(new Item({ key: m.ModelId, text: m.Name })));
-        model.attachChange(fill); fill();
-        const due = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd", displayFormat: "medium" });
-        const who = new Input({ width: "100%", value: "ME" });
-        const approver = new Input({ width: "100%", placeholder: "CFO" });
-        const notes = new Input({ width: "100%" });
-        const dlg = new Dialog({ title: "New task",
-          content: [this._margin({ width: "24rem", items: [new Label({ text: "Title", required: true }), title, new Label({ text: "Plan" }), model, new Label({ text: "Version" }), version,
-            new Label({ text: "Due" }), due, new Label({ text: "Assignee" }), who, new Label({ text: "Approver" }), approver, new Label({ text: "Notes" }), notes] })],
-          beginButton: new Button({ text: "Create", type: "Emphasized", press: this.guard(async () => {
-            if (!title.getValue().trim()) { throw new Error("Enter a title"); }
-            await this._p.saveTask({ Id: StorySchema.uid("T"), Title: title.getValue().trim(), ModelId: model.getSelectedKey(), VersionId: version.getSelectedKey(), Assignee: who.getValue(),
-              DueDate: due.getValue() || null, Status: "OPEN", Approver: approver.getValue(), Notes: notes.getValue() });
-            dlg.close(); await this._load();
-          }) }),
-          endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
-        dlg.open();
+        const below = Array.from(Engine.descendants(this._events, event.Id));
+        const text = "Delete \"" + event.Title + "\"" + (below.length ? " and the " + below.length + " event" + (below.length > 1 ? "s" : "") + " inside it" : "") + "?";
+        if (!(await this.confirm(text, "Delete"))) { return; }
+        for (const id of below.reverse()) { await this._p.deleteTask(id); }
+        await this._p.deleteTask(event.Id);
+        this._selected = ""; this._hidePanel();
+        await this._load();
       })();
     }
   });

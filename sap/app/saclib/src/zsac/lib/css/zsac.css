@@ -230,3 +230,42 @@ path.zsacCp { fill-opacity: .35; } .zsacCpDot { display: inline-block; width: .7
 .zsacCmWhere { background: var(--sapShell_Background, #eaf3fc); border-radius: .5rem; padding: 0 .4rem; margin-left: .25rem; } .zsacCmDel { float: right; font-size: .75rem; } .zsacCmBody { white-space: pre-wrap; margin-top: .15rem; }
 .zsacCmNew { margin-top: .6rem; display: flex; flex-direction: column; gap: .35rem; } .zsacCmText { font: inherit; width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--sapField_BorderColor, #89919a); border-radius: .25rem; resize: vertical; }
 .zsacCmAdd { align-self: flex-end; font: inherit; padding: 4px 12px; border: 0; border-radius: .25rem; cursor: pointer; background: var(--sapButton_Emphasized_Background, #0a6ed1); color: #fff; } .zsacCmAdd[disabled] { opacity: .5; cursor: default; }
+
+/* planning calendar: list with timeline, month grid */
+.zsacCalPage { height: 100%; }
+.zsacCalMain { flex: 1 1 auto; min-width: 0; background: var(--sapBackgroundColor, #fff); }
+.zsacCalPanel { flex: 0 0 26rem; border-left: 1px solid var(--sapList_BorderColor, #c9d3de); background: var(--sapBackgroundColor, #fff); overflow-y: auto; height: 100%; }
+.zsacCal { display: flex; position: relative; min-width: 100%; font-size: .85rem; }
+.zsacCalLeft { position: sticky; left: 0; z-index: 3; width: 44rem; flex: 0 0 44rem; background: var(--sapBackgroundColor, #fff); border-right: 2px solid var(--sapList_BorderColor, #c9d3de); }
+.zsacCalGrid { display: grid; grid-template-columns: minmax(14rem, 1fr) 8.5rem 8rem 6.5rem 6.5rem; align-items: center; column-gap: .5rem; padding: 0 .5rem; }
+.zsacCalHead { height: 40px; font-weight: 600; color: var(--sapContent_LabelColor, #6a6d70); border-bottom: 1px solid var(--sapList_BorderColor, #c9d3de); }
+.zsacCalRow { border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5); cursor: pointer; box-sizing: border-box; }
+.zsacCalRow:hover { background: var(--sapList_Hover_Background, #f5f5f5); } .zsacCalSel, .zsacCalSel:hover { background: var(--sapList_SelectionBackgroundColor, #e5f0fa); }
+.zsacCalProc .zsacCalTitle { font-weight: 600; }
+.zsacCalName { display: flex; align-items: center; gap: .3rem; overflow: hidden; white-space: nowrap; } .zsacCalTitle { overflow: hidden; text-overflow: ellipsis; color: var(--sapLinkColor, #0a6ed1); }
+.zsacCalTog { width: 1rem; display: inline-block; text-align: center; cursor: pointer; flex: none; } .zsacCalIco { font-family: "SAP-icons"; font-size: .9rem; flex: none; color: var(--sapContent_IconColor, #5b738b); }
+.zsacCalStatus { white-space: nowrap; } .zsacCalSt-DONE { color: #107e3e; } .zsacCalSt-CANCELLED { color: #bb0000; } .zsacCalSt-ON_HOLD, .zsacCalSt-IN_REVIEW { color: #b25a00; } .zsacCalSt-ACTIVE, .zsacCalSt-OPEN { color: #0a6ed1; }
+.zsacCalFlag { font-size: .75rem; font-weight: 600; } .zsacCalOverdue { color: #bb0000; } .zsacCalDelayed { color: #b25a00; }
+.zsacCalBar { display: inline-block; width: 3.5rem; height: .4rem; border-radius: .2rem; background: var(--sapList_BorderColor, #d9dde2); vertical-align: middle; overflow: hidden; } .zsacCalBar > span { display: block; height: 100%; background: #0a6ed1; }
+.zsacCalRight { position: relative; flex: 0 0 auto; }
+.zsacCalTicks { position: relative; height: 40px; border-bottom: 1px solid var(--sapList_BorderColor, #c9d3de); overflow: hidden; }
+.zsacCalTick { position: absolute; top: 0; bottom: 0; padding: 2px 0 0 4px; border-left: 1px solid var(--sapList_BorderColor, #e0e0e0); font-size: .75rem; color: var(--sapContent_LabelColor, #6a6d70); white-space: nowrap; } .zsacCalTickMajor { border-left-color: var(--sapContent_LabelColor, #888); }
+.zsacCalTickSub { position: absolute; top: 18px; left: 4px; color: var(--sapTextColor, #1d2d3e); }
+.zsacCalGRow { position: relative; border-bottom: 1px solid var(--sapList_BorderColor, #eee); box-sizing: border-box; }
+.zsacCalGBar { position: absolute; top: 7px; height: 20px; border-radius: 3px; background: #b6d4de; border: 1px solid #5b9bb0; box-sizing: border-box; cursor: pointer; overflow: hidden; }
+.zsacCalGDone { display: block; height: 100%; background: #5b9bb0; }
+.zsacCalGSt-DONE { background: #cfe8d5; border-color: #3f9d5a; } .zsacCalGSt-DONE .zsacCalGDone { background: #3f9d5a; }
+.zsacCalGSt-CANCELLED { background: #f1d0d0; border-color: #bb5555; opacity: .7; } .zsacCalGSt-CANCELLED .zsacCalGDone { background: #bb5555; }
+.zsacCalGSt-ON_HOLD { background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.22) 0 2px, transparent 2px 6px); }
+.zsacCalGContainer { height: 12px; top: 11px; border-radius: 2px; } .zsacCalGOverdue { border-color: #bb0000; box-shadow: 0 0 0 1px #bb0000 inset; } .zsacCalGSel { outline: 2px solid #0a6ed1; }
+.zsacCalToday { position: absolute; top: 0; width: 0; border-left: 2px dashed #a000b0; z-index: 2; pointer-events: none; }
+.zsacCalMonth { padding: .5rem; } .zsacCalDow, .zsacCalWeek { display: grid; grid-template-columns: repeat(7, 1fr); }
+.zsacCalDow > div { text-align: center; color: var(--sapContent_LabelColor, #6a6d70); padding: .25rem 0; font-weight: 600; }
+.zsacCalDay { min-height: 6.5rem; border: 1px solid var(--sapList_BorderColor, #e0e0e0); margin: -1px 0 0 -1px; padding: .2rem; overflow: hidden; box-sizing: border-box; } .zsacCalMode-week .zsacCalDay { min-height: 24rem; }
+.zsacCalOut { background: var(--sapShell_Background, #f7f7f7); color: var(--sapContent_LabelColor, #888); } .zsacCalNow { outline: 2px solid #a000b0; outline-offset: -2px; }
+.zsacCalDayNo { text-align: right; font-size: .8rem; margin-bottom: .15rem; }
+.zsacCalChip { border-radius: 3px; padding: 1px 4px; margin-bottom: 2px; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; background: #b6d4de; border-left: 3px solid #5b9bb0; }
+.zsacCalCh-DONE { background: #cfe8d5; border-left-color: #3f9d5a; } .zsacCalCh-CANCELLED { background: #f1d0d0; border-left-color: #bb5555; text-decoration: line-through; } .zsacCalCh-ON_HOLD, .zsacCalCh-IN_REVIEW { background: #f6e3c3; border-left-color: #c88a1a; }
+.zsacCalChOver { border-left-color: #bb0000; } .zsacCalChSel { outline: 2px solid #0a6ed1; }
+.zsacCalMore { font-size: .75rem; color: var(--sapLinkColor, #0a6ed1); cursor: pointer; } .zsacCalDayView { padding: 1rem; } .zsacCalDayTitle { font-size: 1.1rem; font-weight: 600; margin-bottom: .75rem; }
+.zsacCalPanelBody { padding: .75rem 1rem 1.5rem; } .zsacCalPanelBody .sapMLabel { margin-top: .6rem; display: block; }

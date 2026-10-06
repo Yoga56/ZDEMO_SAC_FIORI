@@ -1,48 +1,45 @@
-<mvc:View controllerName="zsac.fiori.controller.Calendar" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" height="100%">
-  <ScrollContainer height="100%" vertical="true">
-    <VBox class="zsacPage">
-      <Table id="table" items="{path: 'view>/items', sorter: [{path: 'month', group: true}, {path: 'DueDate'}], groupHeaderFactory: '.groupHeader'}" noDataText="No tasks" sticky="ColumnHeaders,HeaderToolbar">
-        <headerToolbar>
-          <OverflowToolbar>
-            <Title text="Planning Calendar" level="H3"/>
-            <ToolbarSpacer/>
-            <SegmentedButton selectedKey="ALL" selectionChange=".onFilter">
-              <items>
-                <SegmentedButtonItem key="ALL" text="All"/>
-                <SegmentedButtonItem key="MINE" text="Mine"/>
-                <SegmentedButtonItem key="OPEN" text="Open"/>
-                <SegmentedButtonItem key="IN_REVIEW" text="In review"/>
-              </items>
-            </SegmentedButton>
-            <Button text="New task" icon="sap-icon://add" type="Emphasized" press=".onNew"/>
-          </OverflowToolbar>
-        </headerToolbar>
-        <columns>
-          <Column><Text text="Task"/></Column>
-          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Plan"/></Column>
-          <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Assignee"/></Column>
-          <Column width="7rem"><Text text="Due"/></Column>
-          <Column width="8rem"><Text text="Status"/></Column>
-          <Column hAlign="End" width="13rem"><Text text=""/></Column>
-        </columns>
-        <items>
-          <ColumnListItem>
-            <cells>
-              <ObjectIdentifier title="{view>Title}" text="{view>Notes}"/>
-              <Link text="{view>ModelId} / {view>VersionId}" press=".onOpenPlan"/>
-              <Text text="{view>Assignee}"/>
-              <ObjectStatus text="{view>DueDate}" state="{view>dueState}"/>
-              <ObjectStatus text="{view>statusText}" state="{view>statusState}"/>
-              <HBox justifyContent="End">
-                <Button text="Submit" visible="{= ${view>Status} === 'OPEN'}" press=".onSubmit" type="Transparent"/>
-                <Button text="Approve" visible="{= ${view>Status} === 'IN_REVIEW'}" press=".onApprove" type="Accept"/>
-                <Button text="Reject" visible="{= ${view>Status} === 'IN_REVIEW'}" press=".onReject" type="Reject"/>
-                <Button icon="sap-icon://delete" type="Transparent" press=".onDelete"/>
-              </HBox>
-            </cells>
-          </ColumnListItem>
-        </items>
-      </Table>
-    </VBox>
-  </ScrollContainer>
+<mvc:View controllerName="zsac.fiori.controller.Calendar" xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:core="sap.ui.core" height="100%">
+  <Page showHeader="false" enableScrolling="false" class="sapUiNoContentPadding">
+    <subHeader>
+      <OverflowToolbar>
+        <Title text="Calendar" level="H3"/>
+        <SegmentedButton id="space" selectedKey="list" selectionChange=".onSpace">
+          <items>
+            <SegmentedButtonItem key="calendar" text="Calendar" icon="sap-icon://calendar"/>
+            <SegmentedButtonItem key="list" text="List" icon="sap-icon://list"/>
+          </items>
+        </SegmentedButton>
+        <ToolbarSeparator/>
+        <MenuButton id="newMenu" icon="sap-icon://add" text="New" type="Emphasized"><menu><Menu id="newItems" itemSelected=".onNewItem"/></menu></MenuButton>
+        <Button id="copy" icon="sap-icon://duplicate" tooltip="Copy the selected event" press=".onCopy" enabled="false"/>
+        <Button id="del" icon="sap-icon://delete" tooltip="Delete the selected event" press=".onDelete" enabled="false"/>
+        <Button icon="sap-icon://refresh" tooltip="Refresh" press=".onRefresh"/>
+        <ToolbarSpacer/>
+        <SearchField width="11rem" liveChange=".onSearch" placeholder="Search events"/>
+        <Select id="statusFilter" width="9rem" change=".onStatusFilter"/>
+        <ToggleButton id="mine" text="Mine" icon="sap-icon://person-placeholder" press=".onMine" tooltip="Only events you own, are assigned to or may view"/>
+        <ToolbarSeparator/>
+        <Button icon="sap-icon://navigation-left-arrow" press=".onPrev" tooltip="Earlier"/>
+        <Text id="period" width="8rem" textAlign="Center"/>
+        <Button icon="sap-icon://navigation-right-arrow" press=".onNext" tooltip="Later"/>
+        <Button text="Today" press=".onToday"/>
+        <SegmentedButton id="zoom" selectedKey="month" selectionChange=".onZoom">
+          <items>
+            <SegmentedButtonItem key="day" text="Day"/>
+            <SegmentedButtonItem key="week" text="Week"/>
+            <SegmentedButtonItem key="month" text="Month"/>
+            <SegmentedButtonItem id="yearItem" key="year" text="Year"/>
+          </items>
+        </SegmentedButton>
+      </OverflowToolbar>
+    </subHeader>
+    <content>
+      <HBox class="zsacCalPage" renderType="Bare" height="100%">
+        <ScrollContainer id="mainScroll" class="zsacCalMain" height="100%" width="100%" vertical="true" horizontal="true">
+          <core:HTML id="main" content="&lt;div&gt;&lt;/div&gt;"/>
+        </ScrollContainer>
+        <VBox id="panel" class="zsacCalPanel" visible="false" renderType="Bare"/>
+      </HBox>
+    </content>
+  </Page>
 </mvc:View>
