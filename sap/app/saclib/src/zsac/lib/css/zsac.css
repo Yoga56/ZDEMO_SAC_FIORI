@@ -444,4 +444,4 @@ path.zsacCp { fill-opacity: .3; }
 .zsacCanvas:not(.zsacEditable) .zsacCard:hover { box-shadow: 0 2px 4px rgba(16, 38, 64, .08), 0 10px 26px rgba(16, 38, 64, .09); }
 
 /* a dialog body made of a VBox of width 100% with the small margin would stick out of the dialog by the margin: keep it inside */
-.sapMDialog .sapMDialogScrollCont > .sapMVBox.sapUiSmallMargin { box-sizing: border-box; max-width: calc(100% - 2rem); }
+.sapMDialog .sapMVBox.sapUiSmallMargin { box-sizing: border-box; max-width: calc(100% - 2rem); }   /* also when the box sits inside a scroll container of the dialog */

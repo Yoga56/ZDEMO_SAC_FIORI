@@ -281,6 +281,8 @@ sap.ui.define([
     /** The versions and facts of a model are roots of their own on the server: they go with the model (a live model has none), as in the mock. */
     async deleteModel(id) {
       const model = await this.getModel(id).catch(() => null);
+      // only the owner (or anyone, for a model nobody owns) may delete: check before anything is removed, an editor could otherwise empty the model and be refused at the end
+      if (model && model.Access !== "OWNER" && !Access.isOpen(model.Owner)) { throw new Error("The service answered 403: You are not authorized for this operation"); }
       if (model && !LiveSource.isLive(model)) {
         const facts = await this._list("/Fact", [new Filter("ModelId", FilterOperator.EQ, id)], { $select: "ModelId,VersionId,Period,Measure,Dim1,Dim2,Dim3,Dim4,Dim5,Value" });
         for (let i = 0; i < facts.length; i += 400) { await this._action("/Fact/" + NS + "DeleteFacts(...)", { Payload: this._payload(facts.slice(i, i + 400)) }); }
