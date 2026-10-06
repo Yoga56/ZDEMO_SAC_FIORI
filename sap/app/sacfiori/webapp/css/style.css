@@ -44,10 +44,14 @@
 }
 
 /* navigation button: a floating action button over the page, bottom left */
-.zsacFab.sapMBtn { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; width: 3.5rem !important; height: 3.5rem !important; min-width: 3.5rem; border-radius: 1rem; box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .35); }
+.zsacFab.sapMBtn { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; width: auto !important; height: 3.5rem !important; min-width: 3.5rem; max-width: 12rem; overflow: hidden; transition: padding .2s; border-radius: 1rem; box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .35); }
 .zsacFab .sapMBtnInner { border-radius: 1rem; width: 100% !important; height: 100% !important; min-width: 0; }
-.zsacFab .sapMBtnInner { display: flex; align-items: center; justify-content: center; padding: 0; }
+.zsacFab .sapMBtnInner { display: flex; align-items: center; justify-content: center; }
 .zsacFab .sapMBtnIcon { font-size: 1.5rem; line-height: 1; margin: 0; width: auto; height: auto; }
+/* the text is folded away; the button unfolds it on hover, while pressed and while the menu is open */
+.zsacFab .sapMBtnContent { display: inline-block; max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; font-size: 1rem; font-weight: 600; transition: max-width .2s ease, opacity .2s ease, margin .2s ease; margin: 0; }
+.zsacFab:hover .sapMBtnContent, .zsacFab:active .sapMBtnContent, .zsacFab.zsacFabOpen .sapMBtnContent, .zsacFab:focus-visible .sapMBtnContent { max-width: 6rem; opacity: 1; margin: 0 .5rem 0 .625rem; }
+.zsacFab .sapMBtnInner { padding: 0 1rem !important; }
 .zsacFab { touch-action: none; cursor: grab; }
 .zsacFab.zsacFabDragging { cursor: grabbing; opacity: .85; }
 /* pages scroll clear of the button, so it never hides the last rows */

@@ -16,20 +16,23 @@
     </tnt:mainContents>
   </tnt:ToolPage>
   <!-- the navigation is a floating button over the page (bottom left) that opens a floating menu, so there is no sliding bar and nothing to mistake for the SAP shell bar above -->
-  <Button id="fab" class="zsacFab" icon="sap-icon://grid" type="Emphasized" press=".onToggleSide" tooltip="Navigation">
+  <Button id="fab" class="zsacFab" icon="sap-icon://grid" text="Menu" type="Emphasized" press=".onToggleSide" tooltip="Navigation">
   <dependents>
-  <Popover id="navMenu" class="zsacNavMenu" showHeader="false" showArrow="false" placement="Top" verticalScrolling="true" contentMinWidth="14rem">
+  <Popover id="navMenu" afterOpen=".onMenuState" afterClose=".onMenuState" beforeOpen=".onMenuState" class="zsacNavMenu" showHeader="false" showArrow="false" placement="Top" verticalScrolling="true" contentMinWidth="14rem">
     <List id="side" mode="SingleSelectMaster" selectionChange=".onNavSelect" includeItemInSelection="true">
       <StandardListItem title="Home" icon="sap-icon://home" type="Active" custom:key="home"/>
       <StandardListItem title="Files" icon="sap-icon://folder-full" type="Active" custom:key="files"/>
-      <StandardListItem title="Stories" icon="sap-icon://business-objects-experience" type="Active" custom:key="stories"/>
-      <StandardListItem title="Data Analyser" icon="sap-icon://pie-chart" type="Active" custom:key="analyser"/>
+      <GroupHeaderListItem title="Prepare data"/>
       <StandardListItem title="Datasets" icon="sap-icon://database" type="Active" custom:key="datasets"/>
       <StandardListItem title="Modeller" icon="sap-icon://dimension" type="Active" custom:key="modelers"/>
+      <GroupHeaderListItem title="Plan"/>
       <StandardListItem title="Planning" icon="sap-icon://projector" type="Active" custom:key="planning"/>
       <StandardListItem title="Data Actions" icon="sap-icon://workflow-tasks" type="Active" custom:key="dataactions"/>
       <StandardListItem title="Multi Actions" icon="sap-icon://process" type="Active" custom:key="multiactions"/>
       <StandardListItem title="Calendar" icon="sap-icon://calendar" type="Active" custom:key="calendar"/>
+      <GroupHeaderListItem title="Report"/>
+      <StandardListItem title="Data Analyser" icon="sap-icon://pie-chart" type="Active" custom:key="analyser"/>
+      <StandardListItem title="Stories" icon="sap-icon://business-objects-experience" type="Active" custom:key="stories"/>
     </List>
   </Popover>
   </dependents>

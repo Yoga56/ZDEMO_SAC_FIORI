@@ -62,7 +62,9 @@ sap.ui.define([
         if (!el || el._zsacDrag) { return; }
         el._zsacDrag = true;
         try { const p = JSON.parse(window.localStorage.getItem(KEY) || "null"); if (p) { place(el, p.x, p.y); } } catch (e) { /* no storage: it stays bottom left */ }
-        window.addEventListener("resize", () => { if (el.style.top) { place(el, el.offsetLeft, el.offsetTop); } });
+        const keepInside = () => { if (el.style.top) { place(el, el.offsetLeft, el.offsetTop); } else if (el.getBoundingClientRect().right > window.innerWidth - 8) { place(el, el.offsetLeft, el.offsetTop); } };
+        window.addEventListener("resize", keepInside);
+        el.addEventListener("transitionend", keepInside);   // the button grows with its text: it must not grow out of the window
         el.addEventListener("pointerdown", (e) => {
           const r = el.getBoundingClientRect();
           const d = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, moved: false };
@@ -96,6 +98,12 @@ sap.ui.define([
       menu.setPlacement(above >= need || above >= below ? "Top" : "Bottom");
       menu.setContentHeight(need > Math.max(above, below) ? Math.floor(Math.max(above, below)) + "px" : "auto");
       menu.openBy(e.getSource());
+    },
+
+    /** The button shows its text while the menu is open (and while the pointer is on it, in CSS). */
+    onMenuState() {
+      const el = this.byId("fab").getDomRef();
+      if (el) { el.classList.toggle("zsacFabOpen", this.byId("navMenu").isOpen()); }
     },
 
     /** The item of the page that is open is marked in the menu. */
