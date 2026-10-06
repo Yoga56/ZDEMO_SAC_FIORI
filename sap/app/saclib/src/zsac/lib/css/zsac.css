@@ -236,7 +236,7 @@ path.zsacCp { fill-opacity: .35; } .zsacCpDot { display: inline-block; width: .7
 .zsacCalMain { flex: 1 1 auto; min-width: 0; background: var(--sapBackgroundColor, #fff); }
 .zsacCalPanel { flex: 0 0 26rem; border-left: 1px solid var(--sapList_BorderColor, #c9d3de); background: var(--sapBackgroundColor, #fff); overflow-y: auto; height: 100%; }
 .zsacCal { display: flex; position: relative; min-width: 100%; font-size: .85rem; }
-.zsacCalLeft { position: sticky; left: 0; z-index: 3; width: 44rem; flex: 0 0 44rem; background: var(--sapBackgroundColor, #fff); border-right: 2px solid var(--sapList_BorderColor, #c9d3de); }
+.zsacCalLeft { position: sticky; left: 0; z-index: 3; width: var(--zsacCalLeftW, 44rem); flex: 0 0 var(--zsacCalLeftW, 44rem); background: var(--sapBackgroundColor, #fff); border-right: 2px solid var(--sapList_BorderColor, #c9d3de); }
 .zsacCalGrid { display: grid; grid-template-columns: minmax(14rem, 1fr) 8.5rem 8rem 6.5rem 6.5rem; align-items: center; column-gap: .5rem; padding: 0 .5rem; }
 .zsacCalHead { height: 40px; font-weight: 600; color: var(--sapContent_LabelColor, #6a6d70); border-bottom: 1px solid var(--sapList_BorderColor, #c9d3de); }
 .zsacCalRow { border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5); cursor: pointer; box-sizing: border-box; }
@@ -269,3 +269,11 @@ path.zsacCp { fill-opacity: .35; } .zsacCpDot { display: inline-block; width: .7
 .zsacCalChOver { border-left-color: #bb0000; } .zsacCalChSel { outline: 2px solid #0a6ed1; }
 .zsacCalMore { font-size: .75rem; color: var(--sapLinkColor, #0a6ed1); cursor: pointer; } .zsacCalDayView { padding: 1rem; } .zsacCalDayTitle { font-size: 1.1rem; font-weight: 600; margin-bottom: .75rem; }
 .zsacCalPanelBody { padding: .75rem 1rem 1.5rem; } .zsacCalPanelBody .sapMLabel { margin-top: .6rem; display: block; }
+
+/* handles between a side panel and what is next to it (see designer/Resizer) */
+.zsacSplitter { flex: 0 0 6px; width: 6px; margin: 0 -3px; cursor: col-resize; position: relative; z-index: 20; background: transparent; touch-action: none; }
+.zsacSplitter:hover, .zsacSplitterOn, .zsacSplitter:focus-visible { background: var(--sapContent_FocusColor, #0070f2); opacity: .45; outline: none; }
+.zsacSplitter-inside { position: absolute; top: 0; bottom: 0; right: -3px; margin: 0; }
+body.zsacResizing { user-select: none; cursor: col-resize; } body.zsacResizing iframe { pointer-events: none; }
+.zsacShell .sapTntSideNavigation:not(.sapTntSideNavigationNotExpanded) { width: var(--zsacNavW, 15rem); min-width: var(--zsacNavW, 15rem); }
+.sapTntToolPageAside:has(.sapTntSideNavigationNotExpanded) + .zsacSplitter { display: none !important; }

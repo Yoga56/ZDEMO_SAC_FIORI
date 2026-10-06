@@ -3,9 +3,22 @@ sap.ui.define([
   "sap/ui/Device",
   "zsac/lib/library",
   "zsac/lib/widget/Widgets",
-  "zsac/lib/core/ProviderRegistry"
-], function (UIComponent, Device, lib, Widgets, ProviderRegistry) {
+  "zsac/lib/core/ProviderRegistry",
+  "zsac/lib/designer/Resizer"
+], function (UIComponent, Device, lib, Widgets, ProviderRegistry, Resizer) {
   "use strict";
+
+  /** The side panels that can be resized: where they are, where the handle sits, the limits and the standard width (pixels). */
+  const PANELS = [
+    { selector: ".sapTntToolPageAside", handle: "after", key: "nav", min: 180, max: 420, def: 240, cssVar: "--zsacNavW" },
+    { selector: ".zsacPalette[id*='---story--']", handle: "after", key: "palette", min: 140, max: 480, def: 208 },
+    { selector: ".zsacPalette[id*='---analyser--']", handle: "after", key: "analyserLeft", min: 220, max: 640, def: 352 },
+    { selector: ".zsacDesigner > .zsacRight:not(.zsacRightWide)", handle: "before", key: "builder", min: 240, max: 760, def: 352 },
+    { selector: ".zsacModeller .zsacRightWide", handle: "before", key: "modellerSide", min: 260, max: 760, def: 416 },
+    { selector: ".zsacDesignerFlow", handle: "after", key: "flow", min: 160, max: 480, def: 256 },
+    { selector: ".zsacCalPanel", handle: "before", key: "calendarPanel", min: 300, max: 760, def: 416 },
+    { selector: ".zsacCalLeft", handle: "inside", key: "calendarList", min: 320, max: 1100, def: 704, cssVar: "--zsacCalLeftW" }
+  ];
 
   /**
    * Chooses the data provider: ?provider=odata in the URL, else sap.ui5/config/provider of the manifest (mock).
@@ -16,6 +29,7 @@ sap.ui.define([
 
     init() {
       UIComponent.prototype.init.apply(this, arguments);
+      Resizer.watch(PANELS);
       this.providerReady = this._createProvider();
       this.providerReady.then(() => this.getRouter().initialize());
     },
