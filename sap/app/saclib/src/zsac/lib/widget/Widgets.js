@@ -351,25 +351,35 @@ sap.ui.define([
       let current = 0; let compareWith = -1; let mode = widget.Props.Mode || "medium"; let threshold = ""; let busy = false;
       const cur = () => scenarios[current];
       const unit = () => (loaded && loaded.unit) || "";
+      let lastWidth = 0;
       const draw = () => {
         if (!loaded) { return; }
         const sc = cur();
         const results = [{ name: sc.name, result: sc.result }].concat(compareWith >= 0 && compareWith !== current && scenarios[compareWith] && scenarios[compareWith].result ? [{ name: scenarios[compareWith].name, result: scenarios[compareWith].result }] : []);
         const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? " selected" : "") + ">" + Format.esc(t) + "</option>";
         const others = scenarios.map((s, i) => ({ s, i })).filter((x) => x.i !== current && x.s.result);
-        let h = "<div>" + (loaded.errors.length ? '<div class="zsacVMsg">' + loaded.errors.map((e) => Format.esc(e)).join("<br>") + "</div>" : "")
-          + '<div class="zsacCpBar"><label>Scenario <select data-a="scenario">' + scenarios.map((s, i) => opt(i, s.name, i === current)).join("") + "</select></label>"
-          + '<button type="button" data-a="new" title="A new scenario starts from the settings of this one">New</button>'
-          + (scenarios.length > 1 ? '<button type="button" data-a="delete">Delete</button>' : "")
-          + '<label>Precision <select data-a="mode">' + [["preview", "Preview (1,000)"], ["medium", "Medium (10,000)"], ["high", "High (100,000)"]].map((m) => opt(m[0], m[1], m[0] === mode)).join("") + "</select></label>"
-          + '<button type="button" class="zsacCpRun" data-a="run"' + (busy ? " disabled" : "") + ">" + (busy ? "Running..." : "Run simulation") + "</button>"
-          + (others.length ? '<label>Compare with <select data-a="compare">' + opt(-1, "(none)", compareWith < 0) + others.map((x) => opt(x.i, x.s.name, x.i === compareWith)).join("") + "</select></label>" : "") + "</div>"
-          + CompassView.driversHtml(Compass.drivers(loaded.tree, loaded.values, sc.settings), sc.settings, unit());
+        const dom = holder.getDomRef();
+        const width = dom ? dom.clientWidth : 0;
+        lastWidth = width;
+        const wide = width >= 760;
+        const chartW = Math.max(300, Math.min(900, (wide ? width - 17 * 16 - 16 : width) - 36));
+        const drivers = Compass.drivers(loaded.tree, loaded.values, sc.settings);
+        const uncertain = drivers.filter((d) => d.min !== null && d.max !== null && (sc.settings[d.id] ? sc.settings[d.id].active !== false : true)).length;
+        let h = '<div class="zsacCp">' + (loaded.errors.length ? '<div class="zsacVMsg">' + loaded.errors.map((e) => Format.esc(e)).join("<br>") + "</div>" : "")
+          + '<div class="zsacCpBar"><div class="zsacCpGroup"><select data-a="scenario" title="Scenario">' + scenarios.map((s, i) => opt(i, s.name, i === current)).join("") + "</select>"
+          + '<button type="button" data-a="new" title="A new scenario starts from the settings of this one">+ New</button>'
+          + (scenarios.length > 1 ? '<button type="button" data-a="delete" title="Delete this scenario">Delete</button>' : "") + "</div>"
+          + '<div class="zsacCpGroup">' + (others.length ? '<label>Compare <select data-a="compare">' + opt(-1, "(none)", compareWith < 0) + others.map((x) => opt(x.i, x.s.name, x.i === compareWith)).join("") + "</select></label>" : "")
+          + '<select data-a="mode" title="Precision: how many calculations the simulation makes">' + [["preview", "Preview \u00b7 1,000"], ["medium", "Medium \u00b7 10,000"], ["high", "High \u00b7 100,000"]].map((m) => opt(m[0], m[1], m[0] === mode)).join("") + "</select>"
+          + '<button type="button" class="zsacCpRun" data-a="run"' + (busy ? " disabled" : "") + ">" + (busy ? "Running..." : "\u25B6 Run simulation") + "</button></div></div>"
+          + '<details class="zsacCpDet"' + (sc.result ? "" : " open") + '><summary>Drivers <span class="zsacCpSub">' + drivers.length + " \u00b7 " + uncertain + " with a range</span></summary>"
+          + CompassView.driversHtml(drivers, sc.settings, unit()) + "</details>";
         if (sc.result) {
-          h += '<div class="zsacCpResult">' + CompassView.statsHtml(sc.result, unit(), threshold)
-            + '<div class="zsacCpThr"><label>Chance of reaching <input type="number" step="any" data-a="threshold" value="' + Format.esc(threshold) + '"> or more</label></div>'
-            + CompassView.chartSvg(results, { w: 640, h: 250 }) + CompassView.casesHtml(sc.result, unit()) + CompassView.influenceHtml(sc.result)
-            + '<div class="zsacVCap">' + sc.result.n.toLocaleString("en") + " calculations, seed " + sc.result.seed + ". Drivers without a range stay at their booked value.</div></div>";
+          const thr = '<div class="zsacCpKpi zsacCpKpiIn"><span class="zsacVCap">Chance of reaching a value</span><span class="zsacCpKpiV"><input type="number" step="any" data-a="threshold" placeholder="value" value="' + Format.esc(threshold) + '"></span></div>';
+          h += '<div class="zsacCpResult">' + CompassView.statsHtml(sc.result, unit(), threshold, thr)
+            + '<div class="zsacCpMain"><div class="zsacCpChartBox">' + CompassView.chartSvg(results, { w: chartW, h: 230 }) + CompassView.casesHtml(sc.result, unit()) + "</div>"
+            + '<div class="zsacCpSide">' + CompassView.influenceHtml(sc.result) + "</div></div>"
+            + '<div class="zsacVCap zsacCpFoot">' + sc.result.n.toLocaleString("en") + " calculations, seed " + sc.result.seed + ". Drivers without a range stay at their booked value.</div></div>";
         } else { h += '<div class="zsacVMsg">Enter a minimum and a maximum for the drivers you are unsure about, then run the simulation.</div>'; }
         holder.setContent(h + "</div>");
         bind();
@@ -387,7 +397,8 @@ sap.ui.define([
             if (inp.value !== "" && d && d.baseline !== null) { const delta = Math.abs(d.baseline) * Number(inp.value) / 100; s.min = d.baseline - delta; s.max = d.baseline + delta; draw(); }
           } else { s[f] = inp.value === "" ? "" : Number(inp.value); }
           sc.result = null;
-          if (f === "min" || f === "max") { const row = inp.closest("tr"); const lo = row.querySelector('[data-f="min"]').value; const hi = row.querySelector('[data-f="max"]').value; row.classList.toggle("zsacCpBad", lo !== "" && hi !== "" && Number(lo) > Number(hi)); }
+          if (f === "min" || f === "max") { const row = inp.closest(".zsacCpDRow"); const lo = row.querySelector('[data-f="min"]').value; const hi = row.querySelector('[data-f="max"]').value; row.classList.toggle("zsacCpBad", lo !== "" && hi !== "" && Number(lo) > Number(hi)); }
+          if (f === "active") { inp.closest(".zsacCpDRow").classList.toggle("zsacCpOff", !inp.checked); }
         }));
         const act = (a) => el.querySelector('[data-a="' + a + '"]');
         const on = (a, ev, fn) => { const n = act(a); if (n) { n.addEventListener(ev, fn); } };
@@ -408,6 +419,22 @@ sap.ui.define([
         });
       };
       holder.addEventDelegate({ onAfterRendering: bind });
+      // the chart is drawn at the width it has, so its text stays small; redraw when the widget is resized (not while someone types in it)
+      let sizeTimer = null;
+      const watch = () => {
+        const dom = holder.getDomRef();
+        if (!dom || dom._zsacWatched || typeof ResizeObserver === "undefined") { return; }
+        dom._zsacWatched = true;
+        new ResizeObserver(() => {
+          clearTimeout(sizeTimer);
+          sizeTimer = setTimeout(() => {
+            const el = holder.getDomRef();
+            if (!el || !loaded || !cur().result || busy || Math.abs(el.clientWidth - lastWidth) < 40 || el.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) { return; }
+            draw();
+          }, 250);
+        }).observe(dom);
+      };
+      holder.addEventDelegate({ onAfterRendering: watch });
       const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: holder });
       return wire(card, widget, async () => {
         const l = await loadTree(widget, ctx);

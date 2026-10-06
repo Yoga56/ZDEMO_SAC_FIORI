@@ -14,10 +14,10 @@ sap.ui.define(["../core/Format"], function (Format) {
    * results (other scenarios) as dashed curves. results = [{ name, result }]
    */
   function chartSvg(results, opts) {
-    const o = Object.assign({ w: 640, h: 260 }, opts);
+    const o = Object.assign({ w: 640, h: 230 }, opts);
     const main = results[0].result;
     if (!main || !main.bins.length) { return '<div class="zsacVMsg">Nothing to show: no valid result.</div>'; }
-    const m = { l: 40, r: 12, t: 22, b: 26 };
+    const m = { l: 12, r: 12, t: 24, b: 24 };
     const iw = o.w - m.l - m.r; const ih = o.h - m.t - m.b;
     const lo = Math.min.apply(null, results.map((r) => r.result.min)); const hi = Math.max.apply(null, results.map((r) => r.result.max));
     const span = hi - lo || 1;
@@ -29,7 +29,7 @@ sap.ui.define(["../core/Format"], function (Format) {
     for (let i = 0; i <= 4; i++) {
       const v = lo + (span * i) / 4;
       out += '<line class="zsacGrid" x1="' + x(v).toFixed(1) + '" x2="' + x(v).toFixed(1) + '" y1="' + m.t + '" y2="' + (m.t + ih) + '"/>'
-        + '<text class="zsacSvgMuted" x="' + x(v).toFixed(1) + '" y="' + (o.h - 8) + '" text-anchor="middle">' + Format.compact(v) + "</text>";
+        + '<text class="zsacSvgMuted" x="' + Math.min(o.w - 14, Math.max(14, x(v))).toFixed(1) + '" y="' + (o.h - 7) + '" text-anchor="middle">' + Format.compact(v) + "</text>";
     }
     out += '<line class="zsacAxis" x1="' + m.l + '" x2="' + (o.w - m.r) + '" y1="' + (m.t + ih) + '" y2="' + (m.t + ih) + '"/>';
     main.cases.forEach((c) => {
@@ -47,54 +47,56 @@ sap.ui.define(["../core/Format"], function (Format) {
     });
     if (main.baseline !== null && main.baseline >= lo && main.baseline <= hi) {
       out += '<line class="zsacCpBase" x1="' + x(main.baseline).toFixed(1) + '" x2="' + x(main.baseline).toFixed(1) + '" y1="' + m.t + '" y2="' + (m.t + ih) + '"><title>Baseline ' + esc(num(main.baseline)) + "</title></line>"
-        + '<text class="zsacSvgText" x="' + (x(main.baseline) + 4).toFixed(1) + '" y="' + (m.t + 10) + '">Baseline</text>';
+        + '<text class="zsacSvgText zsacCpBaseLbl" x="' + (x(main.baseline) + 5).toFixed(1) + '" y="' + (m.t + 8) + '">Baseline</text>';
     }
     if (results.length > 1) {
       out += '<g transform="translate(' + (o.w - m.r - 120) + ',' + (m.t + 4) + ')">' + results.map((r, i) => '<g transform="translate(0,' + (i * 14) + ')"><line class="zsacCpCurve' + (i ? " zsacCpOther zsacCpOther" + ((i - 1) % 3) : "") + '" x1="0" x2="16" y1="5" y2="5"/><text class="zsacSvgText" x="20" y="9">' + esc(Format.truncate(r.name, 14)) + "</text></g>").join("") + "</g>";
     }
-    return '<svg xmlns="http://www.w3.org/2000/svg" class="zsacSvg zsacCompassSvg" width="' + o.w + '" height="' + o.h + '" viewBox="0 0 ' + o.w + " " + o.h + '" role="img">' + out + "</svg>";
+    return '<svg xmlns="http://www.w3.org/2000/svg" class="zsacSvg zsacCompassSvg" width="' + o.w + '" height="' + o.h + '" style="max-width:100%;height:auto" viewBox="0 0 ' + o.w + " " + o.h + '" role="img">' + out + "</svg>";
   }
 
   function casesHtml(r, unit) {
     if (!r.cases.length) { return ""; }
-    return '<table class="zsacCpTable"><tr><th></th><th>Case</th><th>Probability</th><th>Target between</th></tr>'
-      + r.cases.map((c) => '<tr><td><span class="zsacCpDot zsacCp-' + c.id + '"></span></td><td>' + esc(c.label) + "</td><td>" + pct(c.p) + "</td><td>" + esc(num(c.from, unit) + " to " + num(c.to, unit)) + "</td></tr>").join("") + "</table>";
+    return '<div class="zsacCpCases">' + r.cases.map((c) => '<div class="zsacCpCase zsacCpCase-' + c.id + '" title="' + esc(c.label + ": " + pct(c.p) + " of the results") + '"><span class="zsacCpCaseHead"><span class="zsacCpDot zsacCp-' + c.id + '"></span>' + esc(c.label.replace(/ case$/i, "")) + '</span><span class="zsacCpCaseP">' + pct(c.p) + '</span><span class="zsacCpCaseR">' + esc(num(c.from, unit) + " \u2013 " + num(c.to, unit)) + "</span></div>").join("") + "</div>";
   }
 
   /** The numbers: baseline, average, spread and the chance of reaching the baseline or a value of the planner's choice. */
-  function statsHtml(r, unit, threshold) {
+  function statsHtml(r, unit, threshold, extra) {
     if (!r.n) { return '<div class="zsacVMsg">Every iteration was invalid (a division by zero): check the ranges of the drivers.</div>'; }
-    const cell = (cap, val, tip) => '<div title="' + esc(tip || "") + '"><span class="zsacVCap">' + esc(cap) + '</span><span class="zsacVBig">' + esc(val) + "</span></div>";
-    let h = '<div class="zsacVSummary">' + cell("Baseline", num(r.baseline, unit), "The target with every driver at its booked value")
+    const cell = (cap, val, tip) => '<div class="zsacCpKpi" title="' + esc(tip || "") + '"><span class="zsacVCap">' + esc(cap) + '</span><span class="zsacCpKpiV">' + esc(val) + "</span></div>";
+    let h = '<div class="zsacCpKpis">' + cell("Baseline", num(r.baseline, unit), "The target with every driver at its booked value")
       + cell("Average of the simulation", num(r.mean, unit)) + cell("Spread (standard deviation)", num(r.sd, unit));
     if (r.baseline !== null) { h += cell("Chance of reaching the baseline or more", pct(r.probAtLeast(r.baseline)), "Share of the simulated results at or above the baseline"); }
     if (threshold !== undefined && threshold !== null && threshold !== "" && isFinite(Number(threshold))) { h += cell("Chance of reaching " + Format.compact(Number(threshold)) + " or more", pct(r.probAtLeast(Number(threshold)))); }
-    h += "</div>";
+    h += (extra || "") + "</div>";
     return h + (r.noRandomness ? '<div class="zsacVMsg">No driver has a range, so every result equals the baseline. Enter a minimum and a maximum for the drivers you are unsure about.</div>' : "")
       + (r.invalid ? '<div class="zsacVMsg">' + r.invalid + " of " + r.iterations + " iterations were left out (division by zero).</div>" : "");
   }
 
   function influenceHtml(r) {
     if (!r.influence.length) { return ""; }
-    return '<div class="zsacCpInfl"><div class="zsacVCap">What moves the target</div>' + r.influence.map((i) =>
-      '<div class="zsacVRow" title="' + esc("Correlation with the target: " + i.r.toFixed(2)) + '"><span class="zsacVLabel">' + esc(Format.truncate(i.label, 28)) + '</span><span class="zsacVBarWrap"><span class="zsacVBar ' + (i.r < 0 ? "zsacVb-bad" : "zsacVb-good") + '" style="width:' + Math.max(1, Math.round(i.share * 100)) + '%"></span></span><span class="zsacVNum">'
+    return '<div class="zsacCpInfl"><div class="zsacCpH">What moves the target</div>' + r.influence.map((i) =>
+      '<div class="zsacVRow zsacCpIRow" title="' + esc("Correlation with the target: " + i.r.toFixed(2)) + '"><span class="zsacVLabel">' + esc(Format.truncate(i.label, 28)) + '</span><span class="zsacVBarWrap"><span class="zsacVBar ' + (i.r < 0 ? "zsacVb-bad" : "zsacVb-good") + '" style="width:' + Math.max(1, Math.round(i.share * 100)) + '%"></span></span><span class="zsacVNum">'
       + pct(i.share) + '</span><span class="zsacVShare">' + (i.r < 0 ? "lowers" : "raises") + "</span></div>").join("") + "</div>";
   }
 
   /** Inputs for min, max, distribution and on/off of every driver; data-d = driver id, data-f = field. */
   function driversHtml(drivers, settings, unit) {
     const val = (d, f) => { const s = (settings || {})[d.id]; return s && s[f] !== undefined && s[f] !== "" && s[f] !== null ? s[f] : (f === "min" || f === "max" ? (d[f] === null ? "" : Number(Number(d[f]).toPrecision(7))) : ""); };
-    let h = '<table class="zsacCpDrivers"><tr><th>Driver</th><th>Baseline</th><th>Minimum</th><th>Maximum</th><th title="Or a share of the baseline: 10 fills 10% below and above">± %</th><th>Distribution</th><th>On</th></tr>';
+    let h = '<div class="zsacCpDGrid"><div class="zsacCpDHead"></div><div class="zsacCpDHead">Driver</div><div class="zsacCpDHead zsacCpR">Baseline</div><div class="zsacCpDHead zsacCpR">Minimum</div><div class="zsacCpDHead zsacCpR">Maximum</div>'
+      + '<div class="zsacCpDHead zsacCpR" title="Or a share of the baseline: 10 fills 10% below and above">\u00b1 %</div><div class="zsacCpDHead">Distribution</div>';
     drivers.forEach((d) => {
       const on = (settings || {})[d.id] ? (settings[d.id].active !== false) : true;
-      h += "<tr" + (d.valid ? "" : ' class="zsacCpBad" title="The minimum is above the maximum"') + "><td>" + esc(Format.truncate(d.label, 30)) + "</td><td>" + esc(num(d.baseline, unit)) + "</td>"
-        + '<td><input type="number" step="any" data-d="' + esc(d.id) + '" data-f="min" value="' + esc(val(d, "min")) + '"></td>'
-        + '<td><input type="number" step="any" data-d="' + esc(d.id) + '" data-f="max" value="' + esc(val(d, "max")) + '"></td>'
-        + '<td><input type="number" step="any" min="0" data-d="' + esc(d.id) + '" data-f="pct" value=""></td>'
-        + '<td><select data-d="' + esc(d.id) + '" data-f="dist"><option value="normal"' + (val(d, "dist") !== "uniform" && d.dist !== "uniform" ? " selected" : "") + '>Normal</option><option value="uniform"' + (val(d, "dist") === "uniform" || (!val(d, "dist") && d.dist === "uniform") ? " selected" : "") + ">Uniform</option></select></td>"
-        + '<td><input type="checkbox" data-d="' + esc(d.id) + '" data-f="active"' + (on ? " checked" : "") + "></td></tr>";
+      const uniform = val(d, "dist") === "uniform" || (!val(d, "dist") && d.dist === "uniform");
+      h += '<div class="zsacCpDRow' + (d.valid ? "" : " zsacCpBad") + (on ? "" : " zsacCpOff") + '"' + (d.valid ? "" : ' title="The minimum is above the maximum"') + ">"
+        + '<label class="zsacCpOn" title="Include this driver in the simulation"><input type="checkbox" data-d="' + esc(d.id) + '" data-f="active"' + (on ? " checked" : "") + "></label>"
+        + '<div class="zsacCpName" title="' + esc(d.label) + '">' + esc(Format.truncate(d.label, 30)) + '</div><div class="zsacCpR zsacCpBase">' + esc(num(d.baseline, unit)) + "</div>"
+        + '<input type="number" step="any" data-d="' + esc(d.id) + '" data-f="min" value="' + esc(val(d, "min")) + '" placeholder="\u2013">'
+        + '<input type="number" step="any" data-d="' + esc(d.id) + '" data-f="max" value="' + esc(val(d, "max")) + '" placeholder="\u2013">'
+        + '<input type="number" step="any" min="0" data-d="' + esc(d.id) + '" data-f="pct" value="" placeholder="%">'
+        + '<select data-d="' + esc(d.id) + '" data-f="dist"><option value="normal"' + (uniform ? "" : " selected") + '>Normal</option><option value="uniform"' + (uniform ? " selected" : "") + ">Uniform</option></select></div>";
     });
-    return h + "</table>";
+    return h + "</div>";
   }
 
   return { chartSvg, casesHtml, statsHtml, influenceHtml, driversHtml, pct };

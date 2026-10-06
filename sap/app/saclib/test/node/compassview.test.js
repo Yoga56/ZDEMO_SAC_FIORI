@@ -41,7 +41,7 @@ test("compass numbers: baseline, chance of reaching it, a threshold, and a hint 
 });
 
 test("compass tables: cases, influence and driver inputs", () => {
-  assert.strictEqual((View.casesHtml(r, "").match(/<tr><td><span/g) || []).length, 3);
+  assert.strictEqual((View.casesHtml(r, "").match(/class="zsacCpCase /g) || []).length, 3);
   assert.match(View.influenceHtml(r), /Big/);
   const html = View.driversHtml(Compass.drivers(t2, values, {}), { "0.0": { active: false } }, "");
   assert.strictEqual((html.match(/data-f="min"/g) || []).length, 2);
