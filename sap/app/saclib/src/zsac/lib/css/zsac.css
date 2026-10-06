@@ -29,6 +29,15 @@
 .zsacSvgMuted { font-size: 11px; fill: var(--sapContent_LabelColor, #556b82); }
 .zsacSvgBig { font-size: 22px; font-weight: 600; fill: var(--sapTextColor, #1d2d3e); }
 .zsacSvgOnColor { font-size: 11px; fill: #fff; font-weight: 600; }
+/* a stroke inherited from the page outlines small text and makes it unreadable (dark on dark), so chart text never has one */
+.zsacSvg text { stroke: none; }
+/* the app follows the operating system's light or dark setting; inside the launchpad the shell theme can win and leave the theme variables light,
+   so the chart text is also set outright for dark (the legend and axis were dark on dark) */
+@media (prefers-color-scheme: dark) {
+  .zsacSvgText, .zsacSvgBig { fill: #f5f6f7; }
+  .zsacSvgMuted { fill: #a9b8c6; }
+  .zsacSvg path[class^="zsac-fill"] { stroke: #1d232a; }
+}
 .zsacGrid { stroke: var(--sapList_BorderColor, #e5e5e5); stroke-width: 1; }
 .zsacLine { stroke-width: 2.5; }
 .zsacLink { opacity: 0.35; }

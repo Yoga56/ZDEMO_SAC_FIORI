@@ -21,6 +21,14 @@ sap.ui.define([
       // phone and narrow panes: start with the navigation collapsed
       this._narrow = () => window.innerWidth < 900;
       this.byId("toolPage").setSideExpanded(!this._narrow());
+      // on a narrow screen the navigation is a drawer over the page: a tap on the page (or on the button) closes it
+      this.byId("toolPage").addEventDelegate({ onAfterRendering: () => {
+        const main = this.byId("pages").getDomRef();
+        if (main && !main.dataset.zsacClose) {
+          main.dataset.zsacClose = "1";
+          main.addEventListener("click", () => { if (this._narrow() && this.byId("toolPage").getSideExpanded()) { this.byId("toolPage").setSideExpanded(false); } }, true);
+        }
+      } });
       this.router().attachRouteMatched((e) => {
         const key = ROUTE_TO_KEY[e.getParameter("name")];
         if (key) { this.byId("side").setSelectedKey(key); }
