@@ -9,8 +9,9 @@ sap.ui.define([
   "sap/ui/model/FilterOperator",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/ui/core/Item",
   "zsac/lib/core/ModelSchema",
+  "zsac/lib/core/History",
   "zsac/lib/planning/DataActionEngine"
-], function (BaseController, DataTools, MasterDataDialog, SourceDialog, ShareDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema) {
+], function (BaseController, DataTools, MasterDataDialog, SourceDialog, ShareDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema, History) {
   "use strict";
 
   const BUILTIN_ROWS = (versions, periods) => [
@@ -26,7 +27,10 @@ sap.ui.define([
   return BaseController.extend("zsac.fiori.controller.Modeller", {
     onInit() {
       this._m = new JSONModel({});
-      this._sel = new JSONModel({ measure: false, dim: false, canDelete: false });
+      this._sel = new JSONModel({ measure: false, dim: false, canDelete: false, canUndo: false, canRedo: false });
+      this._hist = History.create(100);
+      // lists are edited in place by many handlers, so changes are found by comparing, not by events
+      this._poll = setInterval(() => { const dom = this.getView().getDomRef(); if (dom && dom.offsetParent !== null && !this._restoring && this._m.getProperty("/ModelId") !== undefined) { this._record(); } }, 600);
       this._rel = new JSONModel({ items: [] });
       this._data = new JSONModel({ items: [] });
       const v = this.getView();
@@ -34,6 +38,26 @@ sap.ui.define([
       v.setModel(this._m, "m"); v.setModel(this._sel, "sel"); v.setModel(this._rel, "rel"); v.setModel(this._data, "data");
       this.onRoute("modeller", (args) => this._load(args.id));
     },
+
+    // ---- undo and redo: a snapshot of the model after every change (taken once the typing pauses) ---------
+    onExit() { clearInterval(this._poll); },
+    _record() {
+      const before = this._hist.canUndo;
+      this._hist.record(this._m.getData());
+      if (before === this._hist.canUndo && this._sel.getProperty("/canRedo") === this._hist.canRedo) { return; }
+      this._sel.setProperty("/canUndo", this._hist.canUndo);
+      this._sel.setProperty("/canRedo", this._hist.canRedo);
+    },
+    _restore(state) {
+      if (state === undefined) { return; }
+      this._restoring = true;
+      this._m.setData(state);
+      this._restoring = false;
+      this._sel.setProperty("/canUndo", this._hist.canUndo);
+      this._sel.setProperty("/canRedo", this._hist.canRedo);
+    },
+    onUndo() { this._record(); this._restore(this._hist.undo()); },
+    onRedo() { this._restore(this._hist.redo()); },
 
     // ---- formatters ------------------------------------------------------------------------
     measureDetails(aggregation, exception, unitType, unit, scaleKey) {
@@ -83,6 +107,8 @@ sap.ui.define([
         CalcMeasures: JSON.parse(JSON.stringify(model.CalcMeasures || []))
       }));
       this.byId("tabs").setSelectedKey("model");
+      this._hist.reset(this._m.getData());
+      this._sel.setProperty("/canUndo", false); this._sel.setProperty("/canRedo", false);
       await this._related(model);
       if (!model.isNew) { this._data.setProperty("/items", await DataTools.summary(this, model)); } else { this._data.setProperty("/items", []); }
     },

@@ -13,6 +13,8 @@
         </Select>
         <ToolbarSeparator/>
         <Button icon="sap-icon://save" tooltip="Save" press=".onSave" enabled="{= ${m>/Access} !== 'READ'}"/>
+        <Button icon="sap-icon://undo" tooltip="Undo" type="Transparent" press=".onUndo" enabled="{sel>/canUndo}"/>
+        <Button icon="sap-icon://redo" tooltip="Redo" type="Transparent" press=".onRedo" enabled="{sel>/canRedo}"/>
         <MenuButton icon="sap-icon://add" tooltip="Add" enabled="{= ${m>/Access} !== 'READ'}">
           <menu>
             <Menu>
