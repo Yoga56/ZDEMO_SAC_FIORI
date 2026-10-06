@@ -1,0 +1,189 @@
+MANUAL ROUTE: access control of the projection views (ADT, no abapGit)
+======================================================================
+
+Why: the OData service reads the ZC_SAC_* projection views. They were marked #NOT_REQUIRED, so they returned every owner's rows.
+Each projection must be #CHECK and have an access control role that takes the conditions of the ZR_SAC_* view it projects on.
+
+Do it in this order, and activate ONCE at the end, all together:
+
+STEP 1  Edit the 15 projection views (data definitions). In each, change the line
+            @AccessControl.authorizationCheck: #NOT_REQUIRED
+        to
+            @AccessControl.authorizationCheck: #CHECK
+        Save (Ctrl+S) but do not activate yet. The 15 views:
+
+          - zc_sac_caltask
+          - zc_sac_comment
+          - zc_sac_dastep
+          - zc_sac_dataact
+          - zc_sac_dim
+          - zc_sac_fact
+          - zc_sac_file
+          - zc_sac_mastep
+          - zc_sac_measure
+          - zc_sac_model
+          - zc_sac_multiact
+          - zc_sac_share
+          - zc_sac_story
+          - zc_sac_version
+          - zc_sac_widget
+
+STEP 2  Create the 15 access controls. In Project Explorer: right-click the package ZDEMO_SAC_FIORI > New > Other ABAP Repository Object >
+        Core Data Services > Access Control. Name = the name below, description = anything, template = Define Role (or empty),
+        then replace the whole content of the editor with the block below. Save, do not activate yet.
+
+STEP 3  Activate everything at once: Window > Show View > Inactive Objects, select all the ZC_SAC_* entries, Activate (Ctrl+F3).
+
+STEP 4  Check: F8 on ZC_SAC_MODEL must show only SALES_PLAN and OPEX_PLAN for you (and your own models if you create any).
+
+----------------------------------------------------------------------
+
+### zc_sac_caltask
+@EndUserText.label: 'Access control for calendar event (projection)'
+@MappingRole: true
+define role ZC_SAC_CALTASK
+{
+  grant select on ZC_SAC_CALTASK
+    where inheriting conditions from entity ZR_SAC_CALTASK;
+}
+
+
+### zc_sac_comment
+@EndUserText.label: 'Access control for cell comment (projection)'
+@MappingRole: true
+define role ZC_SAC_COMMENT
+{
+  grant select on ZC_SAC_COMMENT
+    where inheriting conditions from entity ZR_SAC_COMMENT;
+}
+
+
+### zc_sac_dastep
+@EndUserText.label: 'Access control for data action step (projection)'
+@MappingRole: true
+define role ZC_SAC_DASTEP
+{
+  grant select on ZC_SAC_DASTEP
+    where inheriting conditions from entity ZR_SAC_DASTEP;
+}
+
+
+### zc_sac_dataact
+@EndUserText.label: 'Access control for data action (projection)'
+@MappingRole: true
+define role ZC_SAC_DATAACT
+{
+  grant select on ZC_SAC_DATAACT
+    where inheriting conditions from entity ZR_SAC_DATAACT;
+}
+
+
+### zc_sac_dim
+@EndUserText.label: 'Access control for model dimension (projection)'
+@MappingRole: true
+define role ZC_SAC_DIM
+{
+  grant select on ZC_SAC_DIM
+    where inheriting conditions from entity ZR_SAC_DIM;
+}
+
+
+### zc_sac_fact
+@EndUserText.label: 'Access control for plan fact (projection)'
+@MappingRole: true
+define role ZC_SAC_FACT
+{
+  grant select on ZC_SAC_FACT
+    where inheriting conditions from entity ZR_SAC_FACT;
+}
+
+
+### zc_sac_file
+@EndUserText.label: 'Access control for file (projection)'
+@MappingRole: true
+define role ZC_SAC_FILE
+{
+  grant select on ZC_SAC_FILE
+    where inheriting conditions from entity ZR_SAC_FILE;
+}
+
+
+### zc_sac_mastep
+@EndUserText.label: 'Access control for multi action step (projection)'
+@MappingRole: true
+define role ZC_SAC_MASTEP
+{
+  grant select on ZC_SAC_MASTEP
+    where inheriting conditions from entity ZR_SAC_MASTEP;
+}
+
+
+### zc_sac_measure
+@EndUserText.label: 'Access control for model measure (projection)'
+@MappingRole: true
+define role ZC_SAC_MEASURE
+{
+  grant select on ZC_SAC_MEASURE
+    where inheriting conditions from entity ZR_SAC_MEASURE;
+}
+
+
+### zc_sac_model
+@EndUserText.label: 'Access control for planning model (projection)'
+@MappingRole: true
+define role ZC_SAC_MODEL
+{
+  grant select on ZC_SAC_MODEL
+    where inheriting conditions from entity ZR_SAC_MODEL;
+}
+
+
+### zc_sac_multiact
+@EndUserText.label: 'Access control for multi action (projection)'
+@MappingRole: true
+define role ZC_SAC_MULTIACT
+{
+  grant select on ZC_SAC_MULTIACT
+    where inheriting conditions from entity ZR_SAC_MULTIACT;
+}
+
+
+### zc_sac_share
+@EndUserText.label: 'Access control for share (projection)'
+@MappingRole: true
+define role ZC_SAC_SHARE
+{
+  grant select on ZC_SAC_SHARE
+    where inheriting conditions from entity ZR_SAC_SHARE;
+}
+
+
+### zc_sac_story
+@EndUserText.label: 'Access control for story (projection)'
+@MappingRole: true
+define role ZC_SAC_STORY
+{
+  grant select on ZC_SAC_STORY
+    where inheriting conditions from entity ZR_SAC_STORY;
+}
+
+
+### zc_sac_version
+@EndUserText.label: 'Access control for planning version (projection)'
+@MappingRole: true
+define role ZC_SAC_VERSION
+{
+  grant select on ZC_SAC_VERSION
+    where inheriting conditions from entity ZR_SAC_VERSION;
+}
+
+
+### zc_sac_widget
+@EndUserText.label: 'Access control for story widget (projection)'
+@MappingRole: true
+define role ZC_SAC_WIDGET
+{
+  grant select on ZC_SAC_WIDGET
+    where inheriting conditions from entity ZR_SAC_WIDGET;
+}
+
