@@ -80,3 +80,39 @@ page("email-3-insight", 1170, "Analytics and planning on Fiori", "Why it changed
       ("Compass simulation", "Monte Carlo on uncertain drivers: pessimistic, realistic and optimistic range, and what moves the target."),
       ("Why did it change?", "The variance explainer names the drivers of a change between versions or periods, by every dimension.")],
      "Sample data. The same widgets run on live S/4HANA data.")
+
+# ---- fourth picture: on a phone (three phone screens next to the points) ----
+def phone_page(name, height):
+    css = CSS.replace("HEIGHT", str(height)) + """
+.phones{position:relative;display:flex;gap:26px;align-items:flex-start}
+.phone{width:290px;border-radius:44px;padding:11px;background:linear-gradient(160deg,#1b2b33,#0a1418);box-shadow:0 30px 70px rgba(0,0,0,.45),inset 0 0 0 2px rgba(255,255,255,.18)}
+.phone .scr{border-radius:34px;overflow:hidden;background:#111;aspect-ratio:750/1624}
+.phone img{width:100%;height:100%;display:block;object-fit:cover}
+.phone.mid{margin-top:34px}
+.cap{margin-top:12px;text-align:center;font-size:16px;color:#d6e6e9;font-weight:600}
+.row{position:relative;display:flex;gap:34px;padding:30px 56px 0;align-items:flex-start}
+.side{flex:1;display:flex;flex-direction:column;gap:18px;padding-top:6px}
+.side .chip{padding:20px 24px}
+"""
+    def ph(img, cap, cls=""):
+        return f"<div><div class='phone {cls}'><div class='scr'><img src='file://{IMG}/{img}'></div></div><div class='cap'>{cap}</div></div>"
+    h = f"<html><head><meta charset='utf-8'><style>{css}</style></head><body>"
+    h += "<div class='orb o1'></div><div class='orb o2'></div><div class='orb o3'></div>"
+    h += "<div class='wrap'><div class='badge'><span class='pill'>SAC Lite</span><span class='eb'>Analytics and planning on Fiori</span></div><h1>Open it on your phone</h1>"
+    h += "<div class='sub'>The same app, the same data, in the browser of your phone. No extra app to install.</div></div>"
+    h += "<div class='row'><div class='side'>"
+    for t, d in [("Fits the screen", "Widgets stack in one column, charts resize, dialogs and designers stack instead of squeezing."),
+                 ("One thumb", "A floating menu button opens the pages in the order of the work. Drag it out of the way."),
+                 ("Same launchpad", "Opens from the Fiori launchpad tile, under your own S/4HANA login and authorizations.")]:
+        h += f"<div class='chip glass'><b>{t}</b><span>{d}</span></div>"
+    h += "</div><div class='phones'>"
+    h += ph("phone-story-kpi.jpg", "Story with KPIs") + ph("phone-story-charts.jpg", "Charts", "mid") + ph("phone-menu.jpg", "Floating menu")
+    h += "</div></div><div class='foot' style='padding-top:22px'><span>Checked at phone width (375 px) in the browser and opened on a real phone.</span><span>SAC Lite is a custom application on SAP S/4HANA Cloud</span></div></body></html>"
+    path = os.path.join(tempfile.gettempdir(), name + ".html")
+    open(path, "w").write(h)
+    out = os.path.join(IMG, name + ".png")
+    subprocess.run([CHROME, "--headless", "--disable-gpu", "--hide-scrollbars", "--virtual-time-budget=12000", f"--window-size=1400,{height}",
+                    "--allow-file-access-from-files", f"--screenshot={out}", "file://" + path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    print("written", out)
+
+phone_page("email-4-phone", 1010)
