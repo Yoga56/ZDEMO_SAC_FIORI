@@ -435,6 +435,84 @@
           "LowerIsBetter": false,
           "Simulate": true
         }
+      },
+      {
+        "Id": "W_HDR",
+        "Page": 2,
+        "Type": "header",
+        "Title": "",
+        "X": 0,
+        "Y": 20,
+        "W": 12,
+        "H": 2,
+        "Binding": {
+          "ModelId": "",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "",
+          "Filters": {}
+        },
+        "Props": {
+          "Text": "Revenue by product",
+          "Subtitle": "Actual, year to date",
+          "Color": "teal"
+        }
+      },
+      {
+        "Id": "W_WF",
+        "Page": 2,
+        "Type": "chart.waterfall",
+        "Title": "Revenue build-up by product",
+        "X": 0,
+        "Y": 22,
+        "W": 6,
+        "H": 4,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [
+            "PRODUCT"
+          ],
+          "Columns": [],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {
+          "ShowTotal": true
+        }
+      },
+      {
+        "Id": "W_STK",
+        "Page": 2,
+        "Type": "chart.bar",
+        "Title": "Revenue by region and channel",
+        "X": 6,
+        "Y": 22,
+        "W": 6,
+        "H": 4,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [
+            "REGION"
+          ],
+          "Columns": [
+            "CHANNEL"
+          ],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {
+          "Stacked": true
+        }
       }
     ]
   },

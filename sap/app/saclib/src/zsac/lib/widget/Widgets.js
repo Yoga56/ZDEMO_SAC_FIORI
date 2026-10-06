@@ -26,12 +26,13 @@ sap.ui.define([
   "./VarianceView",
   "./VarianceDialog",
   "../core/ValueTree",
+  "../core/WebContent",
   "./ValueTreeView",
   "sap/ui/core/HTML",
   "sap/m/Link",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
-  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, ValueTree, ValueTreeView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
+  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, ValueTree, WebContent, ValueTreeView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -102,14 +103,16 @@ sap.ui.define([
     WidgetRegistry.register(type, {
       name, icon, group: "Charts", size,
       defaults: chartDefaults(["$FIRST_DIM"], type === "chart.sankey" ? ["$SECOND_DIM"] : []),
-      builder: queryBuilder(rowsLabel, colsLabel, maxRows).concat([{ key: "Props.Level", label: "Hierarchy level shown (1 = top)", kind: "number", min: 1 }]),
+      builder: queryBuilder(rowsLabel, colsLabel, maxRows).concat([{ key: "Props.Level", label: "Hierarchy level shown (1 = top)", kind: "number", min: 1 }])
+        .concat(type === "chart.bar" ? [{ key: "Props.Stacked", label: "Stack the series", kind: "bool" }] : [])
+        .concat(type === "chart.waterfall" ? [{ key: "Props.ShowTotal", label: "Show the total as the last bar", kind: "bool", default: true }] : []),
       create(widget, ctx) {
         const content = new SvgChart({ type });
         const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content });
         return wire(card, widget, async () => {
           const result = await runQuery(widget, ctx);
           const measure = (result.model.Measures || []).find((m) => m.MeasureId === widget.Binding.Measure);
-          content.setData(ChartData.fromResult(type, result, measure && measure.Label, Object.keys(activeHierarchies(widget.Binding)).length ? Math.max(1, Number(widget.Props.Level) || 1) : 0));
+          content.setData(ChartData.fromResult(type, result, measure && measure.Label, Object.keys(activeHierarchies(widget.Binding)).length ? Math.max(1, Number(widget.Props.Level) || 1) : 0, { stacked: !!widget.Props.Stacked, total: widget.Props.ShowTotal !== false }));
         });
       }
     });
@@ -119,6 +122,7 @@ sap.ui.define([
   chart("chart.line", "Line chart", "sap-icon://line-chart", { w: 6, h: 4 }, "X axis", "Series", 1);
   chart("chart.donut", "Donut chart", "sap-icon://donut-chart", { w: 4, h: 4 }, "Slices", null, 1);
   chart("chart.funnel", "Funnel chart", "sap-icon://upstacked-chart", { w: 4, h: 4 }, "Stages", null, 1);
+  chart("chart.waterfall", "Waterfall chart", "sap-icon://vertical-waterfall-chart", { w: 6, h: 4 }, "Steps", null, 1);
   chart("chart.sankey", "Sankey chart", "sap-icon://sankey-diagram", { w: 6, h: 4 }, "From", "To", 1);
 
   WidgetRegistry.register("chart.gauge", {
@@ -504,6 +508,77 @@ sap.ui.define([
     }
   });
 
+  // ---- content widgets: they show what the author put in, not data of a model
+  const THEME_COLORS = [["blue", "Blue"], ["teal", "Teal"], ["green", "Green"], ["orange", "Orange"], ["red", "Red"], ["grey", "Grey"], ["white", "White"]];
+  const colorSelect = (key, label) => ({ key, label, kind: "select", options: THEME_COLORS });
+  const staticCard = (widget, content, bare) => {
+    const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, bare: !!bare, content });
+    card.refresh = () => Promise.resolve();
+    return card;
+  };
+
+  WidgetRegistry.register("image", {
+    name: "Image", icon: "sap-icon://picture", group: "Content", size: { w: 4, h: 3 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Url: "", Alt: "", Fit: "contain" } },
+    builder: [
+      { key: "Title", label: "Title", kind: "text" },
+      { key: "Props.Url", label: "Address of the picture (https://... or a path)", kind: "text" },
+      { key: "Props.Alt", label: "Description for screen readers", kind: "text" },
+      { key: "Props.Fit", label: "Fit", kind: "select", options: [["contain", "Whole picture"], ["cover", "Fill the box"]] }
+    ],
+    create(widget) {
+      const c = WebContent.check(widget.Props.Url, "image");
+      const html = c.ok
+        ? '<div class="zsacImage"><img src="' + Format.esc(c.url) + '" alt="' + Format.esc(widget.Props.Alt || widget.Title || "") + '" style="object-fit:' + (widget.Props.Fit === "cover" ? "cover" : "contain") + '"></div>'
+        : '<div class="zsacVMsg">' + Format.esc(widget.Props.Url ? c.error : "Enter the address of a picture in the builder panel.") + "</div>";
+      return staticCard(widget, new HTML({ content: html }));
+    }
+  });
+
+  WidgetRegistry.register("webpage", {
+    name: "Web page", icon: "sap-icon://internet-browser", group: "Content", size: { w: 6, h: 5 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Url: "" } },
+    builder: [
+      { key: "Title", label: "Title", kind: "text" },
+      { key: "Props.Url", label: "Address of the page (https://...)", kind: "text" }
+    ],
+    create(widget) {
+      const c = WebContent.check(widget.Props.Url, "page");
+      const html = c.ok
+        ? '<div class="zsacWebPage"><iframe src="' + Format.esc(c.url) + '" title="' + Format.esc(widget.Title || "Web page") + '" sandbox="' + WebContent.sandbox(c.url, window.location.origin) + '" referrerpolicy="no-referrer" loading="lazy"></iframe></div>'
+        : '<div class="zsacVMsg">' + Format.esc(widget.Props.Url ? c.error : "Enter the address of a page in the builder panel. Some sites do not allow being shown inside another page.") + "</div>";
+      return staticCard(widget, new HTML({ content: html }));
+    }
+  });
+
+  WidgetRegistry.register("shape", {
+    name: "Shape", icon: "sap-icon://border", group: "Content", size: { w: 4, h: 1 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Kind: "rectangle", Color: "blue" } },
+    builder: [
+      { key: "Props.Kind", label: "Shape", kind: "select", options: [["rectangle", "Rectangle"], ["rounded", "Rounded rectangle"], ["line", "Line"], ["circle", "Circle"]] },
+      colorSelect("Props.Color", "Colour")
+    ],
+    create(widget) {
+      const kind = ["rectangle", "rounded", "line", "circle"].indexOf(widget.Props.Kind) >= 0 ? widget.Props.Kind : "rectangle";
+      return staticCard(widget, new HTML({ content: '<div class="zsacShape zsacShape-' + kind + " zsacColor-" + Format.esc(widget.Props.Color || "blue") + '"></div>' }), true);
+    }
+  });
+
+  WidgetRegistry.register("header", {
+    name: "Header", icon: "sap-icon://header", group: "Content", size: { w: 12, h: 2 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Text: "Heading", Subtitle: "", Color: "blue" } },
+    builder: [
+      { key: "Props.Text", label: "Heading", kind: "text" },
+      { key: "Props.Subtitle", label: "Subtitle", kind: "text" },
+      colorSelect("Props.Color", "Colour")
+    ],
+    create(widget) {
+      const html = '<div class="zsacHeader zsacColor-' + Format.esc(widget.Props.Color || "blue") + '"><div class="zsacHeaderText">' + Format.esc(widget.Props.Text || "")
+        + '</div>' + (widget.Props.Subtitle ? '<div class="zsacHeaderSub">' + Format.esc(widget.Props.Subtitle) + "</div>" : "") + "</div>";
+      return staticCard(widget, new HTML({ content: html }), true);
+    }
+  });
+
   /**
    * Smart defaults for a freshly dropped widget: model of the story, first measure, first dimension(s),
    * the first public version. Placeholders $FIRST_DIM / $SECOND_DIM in the registry defaults are resolved here.
@@ -525,7 +600,8 @@ sap.ui.define([
     const first = widget.Type === "planning.table"
       ? ((versions || []).find((v) => v.Category === "BUDGET" && !v.Locked) || (versions || []).find((v) => v.Category !== "PRIVATE" && !v.Locked))
       : (versions || []).find((v) => v.Category !== "PRIVATE");
-    if (first && widget.Type !== "filter" && widget.Type !== "text" && widget.Type !== "dataaction.trigger" && widget.Type !== "multiaction.trigger" && !(b.Filters && b.Filters.VERSION) && !(b.Columns || []).includes("VERSION")) {
+    const def = WidgetRegistry.get(widget.Type);
+    if (first && !(def && def.static) && widget.Type !== "filter" && widget.Type !== "text" && widget.Type !== "dataaction.trigger" && widget.Type !== "multiaction.trigger" && !(b.Filters && b.Filters.VERSION) && !(b.Columns || []).includes("VERSION")) {
       b.Filters = Object.assign({}, b.Filters, { VERSION: [first.VersionId] });
     }
     return widget;

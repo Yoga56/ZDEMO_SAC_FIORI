@@ -57,8 +57,15 @@ sap.ui.define(["../core/Format"], function (Format) {
     }).join("");
   }
 
+  /** Stacked bars need the axis to span the sums: frame() gets the stack totals as one series, and a second empty one so it leaves room for the legend. */
+  function stackedFrame(data, w, h) {
+    const totals = data.categories.map((c, i) => data.series.reduce((s, x) => s + Math.max(0, x.values[i] || 0), 0));
+    return frame({ categories: data.categories, series: [{ name: "", values: totals }, { name: "", values: [] }] }, w, h);
+  }
+
   function bar(data, w, h) {
     if (!data.categories.length) { return empty(w, h); }
+    if (data.stacked && data.series.length > 1) { return stackedBar(data, w, h); }
     const f = frame(data, w, h);
     const band = f.iw / data.categories.length;
     const n = data.series.length;
@@ -76,6 +83,49 @@ sap.ui.define(["../core/Format"], function (Format) {
     });
     return svg(w, h, f.out + bars + categoryLabels(data.categories, f, w, h, band) +
       (f.multi ? legend(data.series.map((s) => s.name), w, 6) : ""));
+  }
+
+  function stackedBar(data, w, h) {
+    const f = stackedFrame(data, w, h);
+    const band = f.iw / data.categories.length;
+    const bw = Math.max(4, Math.min(48, band * 0.6));
+    let bars = "";
+    data.categories.forEach((c, i) => {
+      let top = f.y(0);
+      data.series.forEach((s, si) => {
+        const v = Math.max(0, s.values[i] || 0);
+        if (!v) { return; }
+        const hh = f.y(0) - f.y(v);
+        top -= hh;
+        bars += '<rect class="' + fill(si) + '" x="' + (f.m.l + band * i + (band - bw) / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0, hh).toFixed(1) +
+          '"><title>' + esc(c + " / " + s.name + ": " + Format.full(v)) + "</title></rect>";
+      });
+    });
+    return svg(w, h, f.out + bars + categoryLabels(data.categories, f, w, h, band) + legend(data.series.map((s) => s.name), w, 6));
+  }
+
+  /** Floating bars from step.start to step.end; a connector line joins each end to the next start. */
+  function waterfall(data, w, h) {
+    const steps = data.steps || [];
+    if (!steps.length) { return empty(w, h); }
+    const levels = steps.reduce((a, s) => a.concat([s.start, s.end]), [0]);
+    const f = frame({ categories: steps.map((s) => s.label), series: [{ name: "", values: levels }] }, w, h);
+    const band = f.iw / steps.length;
+    const bw = Math.max(6, Math.min(48, band * 0.62));
+    let out = f.out;
+    steps.forEach((s, i) => {
+      const x = f.m.l + band * i + (band - bw) / 2;
+      const y0 = f.y(Math.max(s.start, s.end));
+      const hh = Math.max(1, Math.abs(f.y(s.start) - f.y(s.end)));
+      out += '<rect class="zsacWf-' + s.kind + '" x="' + x.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" rx="2"><title>' +
+        esc(s.label + ": " + (s.kind === "total" ? "" : s.delta >= 0 ? "+" : "-") + Format.full(Math.abs(s.delta))) + "</title></rect>";
+      out += '<text class="zsacSvgText" x="' + (x + bw / 2).toFixed(1) + '" y="' + (y0 - 4).toFixed(1) + '" text-anchor="middle">' + (s.kind === "total" ? "" : s.delta >= 0 ? "+" : "-") + compact(Math.abs(s.delta)) + "</text>";
+      if (i < steps.length - 1) {
+        const ly = f.y(s.end).toFixed(1);
+        out += '<line class="zsacWfLink" x1="' + (x + bw).toFixed(1) + '" x2="' + (x + band).toFixed(1) + '" y1="' + ly + '" y2="' + ly + '"/>';
+      }
+    });
+    return svg(w, h, out + categoryLabels(steps.map((s) => s.label), f, w, h, band));
   }
 
   function line(data, w, h) {
@@ -213,5 +263,5 @@ sap.ui.define(["../core/Format"], function (Format) {
     return svg(w, h, out);
   }
 
-  return { bar, line, donut, funnel, gauge, sankey, empty };
+  return { bar, line, donut, funnel, gauge, sankey, waterfall, empty };
 });

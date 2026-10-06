@@ -2,7 +2,7 @@
 sap.ui.define(["sap/ui/core/Control", "./ChartBuilders"], function (Control, ChartBuilders) {
   "use strict";
 
-  const BUILDER = { "chart.bar": "bar", "chart.line": "line", "chart.donut": "donut", "chart.funnel": "funnel", "chart.gauge": "gauge", "chart.sankey": "sankey" };
+  const BUILDER = { "chart.bar": "bar", "chart.line": "line", "chart.donut": "donut", "chart.funnel": "funnel", "chart.gauge": "gauge", "chart.sankey": "sankey", "chart.waterfall": "waterfall" };
 
   return Control.extend("zsac.lib.widget.SvgChart", {
     metadata: {
