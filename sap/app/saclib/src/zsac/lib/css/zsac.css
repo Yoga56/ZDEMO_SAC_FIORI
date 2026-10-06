@@ -394,3 +394,15 @@ path.zsacCp { fill-opacity: .3; }
 .zsacCpIRow.zsacVRow { grid-template-columns: minmax(5.5rem, 1.4fr) minmax(1.5rem, .8fr) 2.4rem 2.9rem; }
 .zsacCpIRow .zsacVLabel { font-size: .78rem; }
 .zsacCpIRow .zsacVShare { font-size: .72rem; }
+
+/* value driver tree: a pane that can be dragged (pan), zoomed and fitted */
+.zsacVTView { display: flex; flex-direction: column; flex: 1; min-height: 14rem; }
+.zsacVTView .zsacVTBar { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .25rem; }
+.zsacVTTools { display: inline-flex; align-items: center; gap: .25rem; }
+.zsacVTTools button { height: 1.6rem; min-width: 1.6rem; padding: 0 .5rem; font: inherit; font-size: .8rem; border: 1px solid var(--sapField_BorderColor, #b8bfc7); border-radius: .4rem; background: var(--sapButton_Background, #fff); color: var(--sapTextColor, #1d2d3e); cursor: pointer; }
+.zsacVTTools button:hover { background: var(--sapButton_Hover_Background, #eaf1f9); }
+.zsacVTZoom { min-width: 2.6rem; text-align: center; font-size: .75rem; color: var(--sapContent_LabelColor, #556b82); font-variant-numeric: tabular-nums; }
+.zsacVTPane { position: relative; flex: 1; overflow: hidden; cursor: grab; touch-action: none; border-radius: .5rem; background: radial-gradient(circle, var(--sapList_BorderColor, #dfe4ea) 1px, transparent 1px) 0 0 / 18px 18px; user-select: none; }
+.zsacVTPane.zsacVTGrab { cursor: grabbing; }
+.zsacVTPane .zsacVT { overflow: visible; display: inline-block; width: max-content; padding: .5rem; transform-origin: 0 0; will-change: transform; }
+.zsacVTPane input { cursor: text; }

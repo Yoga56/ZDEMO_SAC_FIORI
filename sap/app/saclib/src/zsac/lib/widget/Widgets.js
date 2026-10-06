@@ -301,18 +301,50 @@ sap.ui.define([
       const holder = new HTML({ content: "<div></div>" });
       let state = null; // { tree, values, compare, labels, unit }
       const overrides = {};
+      let view = null;   // the pan and zoom of the tree: { x, y, z }; kept while the numbers are redrawn
       const draw = () => {
         if (!state) { return; }
         const live = Object.keys(overrides).reduce((o, k) => { if (overrides[k].pct !== "" && overrides[k].pct !== undefined) { o[k] = overrides[k]; } return o; }, {});
         const tree = ValueTree.annotate(state.tree, state.values, { compare: state.compare, overrides: live, lowerIsBetter: !!widget.Props.LowerIsBetter });
-        holder.setContent("<div>" + (state.errors.length ? '<div class="zsacVMsg">' + state.errors.map((e) => Format.esc(e)).join("<br>") + "</div>" : "")
-          + '<div class="zsacVTBar">' + (Object.keys(live).length ? '<a class="zsacVTReset" href="#">Reset simulation</a>' : (widget.Props.Simulate !== false ? '<span class="zsacVMsg">Type a % under a driver to simulate its effect on the top.</span>' : "")) + "</div>"
-          + ValueTreeView.html(tree, { hasCompare: !!state.compare, compareLabel: state.labels.compare, simulate: widget.Props.Simulate !== false, overrides: live, unit: state.unit }) + "</div>");
+        holder.setContent('<div class="zsacVTView">' + (state.errors.length ? '<div class="zsacVMsg">' + state.errors.map((e) => Format.esc(e)).join("<br>") + "</div>" : "")
+          + '<div class="zsacVTBar"><span>' + (Object.keys(live).length ? '<a class="zsacVTReset" href="#">Reset simulation</a>' : (widget.Props.Simulate !== false ? '<span class="zsacVMsg">Type a % under a driver to simulate its effect on the top.</span>' : "")) + "</span>"
+          + '<span class="zsacVTTools"><button type="button" data-z="out" title="Zoom out">\u2212</button><span class="zsacVTZoom">100%</span><button type="button" data-z="in" title="Zoom in">+</button>'
+          + '<button type="button" data-z="fit" title="Fit the whole tree and centre it">Fit</button></span></div>'
+          + '<div class="zsacVTPane" title="Drag to move the tree, Ctrl and the wheel to zoom">' + ValueTreeView.html(tree, { hasCompare: !!state.compare, compareLabel: state.labels.compare, simulate: widget.Props.Simulate !== false, overrides: live, unit: state.unit }) + "</div></div>");
         bind(); // setContent updates a rendered control in place, without an afterRendering
+      };
+      const parts = () => { const el = holder.getDomRef(); const pane = el && el.querySelector(".zsacVTPane"); const inner = pane && pane.querySelector(".zsacVT"); return pane && inner ? { el, pane, inner } : null; };
+      const apply = () => {
+        const p = parts();
+        if (!p || !view) { return; }
+        p.inner.style.transform = "translate(" + Math.round(view.x) + "px," + Math.round(view.y) + "px) scale(" + view.z + ")";
+        const label = p.el.querySelector(".zsacVTZoom");
+        if (label) { label.textContent = Math.round(view.z * 100) + "%"; }
+      };
+      /** The whole tree in view and in the middle of the pane (never bigger than its natural size). */
+      const fit = () => {
+        const p = parts();
+        if (!p) { return; }
+        p.pane.style.minHeight = Math.min(p.inner.offsetHeight + 16, 640) + "px";
+        const pw = p.pane.clientWidth; const ph = p.pane.clientHeight;
+        const z = Math.max(0.3, Math.min(1, (pw - 16) / p.inner.offsetWidth, (ph - 16) / p.inner.offsetHeight));
+        view = { z, x: (pw - p.inner.offsetWidth * z) / 2, y: Math.max(8, (ph - p.inner.offsetHeight * z) / 2) };
+        apply();
+      };
+      const zoomBy = (factor, cx, cy) => {
+        const p = parts();
+        if (!p || !view) { return; }
+        const z = Math.max(0.3, Math.min(2, view.z * factor));
+        const px = cx === undefined ? p.pane.clientWidth / 2 : cx; const py = cy === undefined ? p.pane.clientHeight / 2 : cy;
+        view = { z, x: px - (px - view.x) * (z / view.z), y: py - (py - view.y) * (z / view.z) };
+        apply();
       };
       const bind = () => {
         const el = holder.getDomRef();
         if (!el) { return; }
+        const first = parts();
+        if (first && first.pane._zsacBound) { return; }          // the first render can reach this twice (after draw and after rendering)
+        if (first) { first.pane._zsacBound = true; }
         el.querySelectorAll(".zsacVTPct").forEach((inp) => inp.addEventListener("change", () => {
           const id = inp.getAttribute("data-n");
           if (inp.value === "") { delete overrides[id]; } else { overrides[id] = { pct: Number(inp.value) }; }
@@ -320,6 +352,27 @@ sap.ui.define([
         }));
         const reset = el.querySelector(".zsacVTReset");
         if (reset) { reset.addEventListener("click", (e) => { e.preventDefault(); Object.keys(overrides).forEach((k) => { delete overrides[k]; }); draw(); }); }
+        const p = parts();
+        if (!p) { return; }
+        if (view) { p.pane.style.minHeight = Math.min(p.inner.offsetHeight * view.z + 16, 640) + "px"; apply(); } else { fit(); }
+        el.querySelectorAll("[data-z]").forEach((b) => b.addEventListener("click", () => { const k = b.getAttribute("data-z"); if (k === "fit") { fit(); } else { zoomBy(k === "in" ? 1.2 : 1 / 1.2); } }));
+        p.pane.addEventListener("wheel", (e) => {
+          if (!e.ctrlKey && !e.metaKey) { return; }
+          e.preventDefault();
+          const r = p.pane.getBoundingClientRect();
+          zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top);
+        }, { passive: false });
+        // drag the tree to move it (not when the pointer is on an input or a link)
+        p.pane.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0 || e.target.closest("input, a, button, select")) { return; }
+          const start = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+          p.pane.classList.add("zsacVTGrab");
+          try { p.pane.setPointerCapture(e.pointerId); } catch (err) { /* a synthetic pointer cannot be captured */ }
+          const move = (ev) => { view.x = start.vx + ev.clientX - start.x; view.y = start.vy + ev.clientY - start.y; apply(); };
+          const up = () => { p.pane.classList.remove("zsacVTGrab"); p.pane.removeEventListener("pointermove", move); p.pane.removeEventListener("pointerup", up); p.pane.removeEventListener("pointercancel", up); };
+          p.pane.addEventListener("pointermove", move); p.pane.addEventListener("pointerup", up); p.pane.addEventListener("pointercancel", up);
+          e.preventDefault();
+        });
       };
       holder.addEventDelegate({ onAfterRendering: bind });
       const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: holder });
