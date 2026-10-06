@@ -151,3 +151,39 @@ test("currency conversion: member currency, rates by month, quarter, year and in
   const msgs = Schema.validate(A, { model, versions: [], actions: [] }).map((x) => x.message).join("\n");
   ["choose the currency to convert into", "not like USD>EUR", "dimension that holds the currency"].forEach((t) => assert.ok(msgs.indexOf(t) >= 0, t));
 });
+
+test("advanced formula: measures of the same cell, other versions with @, division by zero skips the cell, validation", () => {
+  const Schema = req("zsac/lib/planning/DataActionSchema");
+  const Engine = req("zsac/lib/planning/DataActionEngine");
+  const model = { ModelId: "M", Dimensions: [{ DimId: "REGION", Label: "Region", Slot: 1, Members: [{ Id: "A" }, { Id: "B" }] }],
+    Measures: [{ MeasureId: "REV", Label: "Revenue" }, { MeasureId: "COST", Label: "Cost" }, { MeasureId: "PROFIT", Label: "Profit" }, { MeasureId: "MARGIN", Label: "Margin" }] };
+  const f = (r, ver, m, v, p = "2026-01") => ({ ModelId: "M", VersionId: ver, Period: p, Measure: m, Dim1: r, Dim2: "", Dim3: "", Dim4: "", Dim5: "", Value: v });
+  const facts = [f("A", "BUD", "REV", 100), f("A", "BUD", "COST", 60), f("B", "BUD", "REV", 0), f("B", "BUD", "COST", 5), f("A", "ACT", "REV", 80)];
+  const run = (formula, extra) => Engine.run(model, facts, { Id: "A", ModelId: "M", Name: "F", Steps: [Object.assign({ StepType: "FORMULA", Name: "Calc", Filter: { VERSION: ["BUD"], MEASURE: ["REV"] }, Formula: formula, TgtMeasure: "PROFIT" }, extra)] }, {}, { versions: [{ VersionId: "BUD" }, { VersionId: "ACT" }] });
+  const value = (r, ver, m) => (r.facts.find((x) => x.Dim1 === r_ && x.VersionId === ver && x.Measure === m) || {}).Value;
+  let r_ = "A";
+  let r = run("REV - COST");
+  assert.strictEqual(r.status, "S", r.error);
+  assert.strictEqual(value(r, "BUD", "PROFIT"), 40);
+  r_ = "B";
+  assert.strictEqual(value(r, "BUD", "PROFIT"), -5);                       // B has revenue 0 and cost 5
+  r_ = "A";
+  r = run("REV@ACT / REV@BUD", { TgtMeasure: "MARGIN" });
+  assert.strictEqual(value(r, "BUD", "MARGIN"), 0.8);
+  r_ = "B";
+  assert.strictEqual(value(r, "BUD", "MARGIN"), undefined);                // 0 / 0 is skipped, not written
+  assert.match(r.steps[0].message, /1 cells skipped/);
+  r_ = "A";
+  r = run("REV * 2", { TgtVersion: "FCT" });
+  assert.strictEqual(value(r, "FCT", "PROFIT"), 200);                      // written into another version
+  assert.strictEqual(run("NOPE + 1").status, "E");
+  assert.strictEqual(run("REV @ 3").status, "E");
+  const msgs = (extra) => Schema.validate(Schema.normalizeAction({ Id: "A", ModelId: "M", Name: "F", Steps: [Object.assign({ StepType: "FORMULA", Name: "Calc", Formula: "REV - COST", TgtMeasure: "PROFIT" }, extra)] }), { model, versions: [{ VersionId: "BUD" }, { VersionId: "ACT", Locked: true }], actions: [] }).map((x) => x.message).join("\n");
+  assert.strictEqual(msgs({}), "");
+  assert.match(msgs({ Formula: "" }), /write the formula/);
+  assert.match(msgs({ Formula: "REV +" }), /ends too early/);
+  assert.match(msgs({ Formula: "NOPE * 2" }), /NOPE is not a measure/);
+  assert.match(msgs({ Formula: "REV@XYZ" }), /version XYZ does not exist/);
+  assert.match(msgs({ TgtMeasure: "" }), /choose the measure that receives/);
+  assert.match(msgs({ TgtVersion: "ACT" }), /locked/);
+});

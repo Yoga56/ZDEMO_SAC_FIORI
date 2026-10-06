@@ -314,6 +314,7 @@ sap.ui.define([
       if (s.StepType === "SCALE") { this._field(edit, "Factor", this._combo(s, "Factor", "NUMBER", true), "A number, or a number parameter."); }
       if (s.StepType === "ALLOCATE") { this._allocEditor(edit, s); }
       if (s.StepType === "CONVERT") { this._convertEditor(edit, s); }
+      if (s.StepType === "FORMULA") { this._formulaEditor(edit, s); }
     },
 
     /** ComboBox whose list holds the matching parameters (as @Id) and whose text can also be typed: a number or a member id. */
@@ -405,6 +406,19 @@ sap.ui.define([
       this._field(edit, "Write mode", new Select({ width: "14rem", selectedKey: s.WriteMode, items: [new Item({ key: "OVERWRITE", text: "Overwrite" }), new Item({ key: "APPEND", text: "Append (add to existing)" })],
         change: (e) => { s.WriteMode = e.getParameter("selectedItem").getKey(); this._changed(false); } }));
       edit.addItem(new CheckBox({ text: "Clear the source values after allocating", selected: s.ClearSource, select: (e) => { s.ClearSource = e.getParameter("selected"); this._changed(false); } }));
+    },
+
+    _formulaEditor(edit, s) {
+      edit.addItem(new Title({ text: "Formula", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      const measures = (this._model.Measures || []).map((m) => m.MeasureId);
+      this._field(edit, "Formula", new TextArea({ width: "100%", rows: 3, value: s.Formula, placeholder: "REVENUE - COST",
+        liveChange: (e) => { s.Formula = e.getParameter("value"); this._changed(false); } }),
+        "Measure ids (" + measures.join(", ") + "), numbers and + - * / ^ ( ). MEASURE@VERSION is the measure in another version, for example REVENUE@ACT * 1.05. It is worked out for every combination of members the filter covers, on the values as they are in the model.");
+      this._field(edit, "Write the result into measure", new Select({ width: "14rem", selectedKey: s.TgtMeasure, forceSelection: false,
+        items: [new Item({ key: "", text: "Choose a measure" })].concat((this._model.Measures || []).map((m) => new Item({ key: m.MeasureId, text: m.Label }))),
+        change: (e) => { s.TgtMeasure = e.getParameter("selectedItem").getKey(); this._changed(false); } }));
+      this._field(edit, "Write into version", this._combo(s, "TgtVersion", "MEMBER", false, "VERSION", this._members("VERSION")), "Empty keeps the version of each value.");
+      edit.addItem(new Text({ text: "A cell where the formula cannot be worked out (a division by zero) is skipped. The formula is applied to every cell separately, so a ratio is not summed over members; for a ratio of totals use a calculated measure." }).addStyleClass("zsacSmall"));
     },
 
     _convertEditor(edit, s) {

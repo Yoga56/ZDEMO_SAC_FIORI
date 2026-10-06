@@ -6,6 +6,8 @@
  *             optionally aggregated onto one member (Aggregate To), times a factor, overwriting or adding to what is there
  *   SCALE     the selected facts are multiplied by a factor
  *   DELETE    the selected facts are removed
+ *   FORMULA   a measure is worked out from other measures (and the same measure in other versions: REVENUE@ACT) for every combination of
+ *             members the selected facts cover, and written to a target measure (and version); a cell where it cannot be worked out is skipped
  *   CONVERT   values are multiplied by a conversion rate: from the currency of a member (the CURRENCY attribute of a dimension) or one
  *             currency, into another, optionally into another version or measure; a missing rate stops the action
  *   ALLOCATE  the sum of the selected facts, per period/measure/other members, is spread over members of a dimension: equally, in proportion
@@ -129,6 +131,37 @@ sap.ui.define([
           });
           break;
         }
+        case "FORMULA": {
+          const f = Schema.compileFormula(step.Formula);
+          if (f.error) { throw new Error(step.Name + ": " + f.error); }
+          const measureIds = (model.Measures || []).map((m) => m.MeasureId);
+          const idOf = (name) => measureIds.find((m) => m.toUpperCase() === name.toUpperCase());
+          const versionIds = Array.from(new Set(Array.from(work.values()).map((x) => x.VersionId).concat(Array.from(ctx.versionIds || []))));
+          const verOf = (name) => versionIds.find((v) => v.toUpperCase() === name.toUpperCase());
+          f.refs.forEach((r) => { if (!idOf(r.measure)) { throw new Error(step.Name + ": " + r.measure + " is not a measure of the model"); } if (r.version && !verOf(r.version)) { throw new Error(step.Name + ": version " + r.version + " does not exist"); } });
+          const tgtMeasure = one(step.TgtMeasure);
+          const tgtVersion = one(step.TgtVersion);
+          if (!tgtMeasure || !idOf(tgtMeasure)) { throw new Error(step.Name + ": choose the measure that receives the result"); }
+          const cells = new Map();
+          select(step).forEach((x) => { const c = Object.assign({}, x, { Measure: "" }); cells.set(keyOf(c), c); });
+          let skipped = 0;
+          const writes = [];
+          cells.forEach((cell) => {
+            const target = Object.assign({}, cell, { Measure: idOf(tgtMeasure), VersionId: tgtVersion || cell.VersionId });
+            const env = { current: (work.get(keyOf(target)) || { Value: 0 }).Value, refs: {} };
+            f.refs.forEach((r) => {
+              const hit = work.get(keyOf(Object.assign({}, cell, { Measure: idOf(r.measure), VersionId: r.version ? verOf(r.version) : cell.VersionId })));
+              env.refs[r.name] = hit ? hit.Value : 0;
+            });
+            let v;
+            try { v = f.evaluate(env); } catch (e) { v = NaN; }
+            if (!Number.isFinite(v)) { skipped++; return; }
+            writes.push(Object.assign(target, { Value: round(v) }));
+          });
+          writes.forEach((t) => { work.set(keyOf(t), t); touched++; });
+          if (skipped) { entry.message = touched + " values, " + skipped + " cells skipped (the formula could not be worked out, for example a division by zero)"; }
+          break;
+        }
         case "CONVERT": {
           const parsed = Schema.parseRates(step.Rates);
           const to = one(step.ToCurrency).toUpperCase();
@@ -246,7 +279,7 @@ sap.ui.define([
     facts.forEach((f) => { const x = clean(f); work.set(keyOf(x), x); });
     const result = { status: "S", facts: null, changed: 0, log: [], steps: [] };
     try {
-      execute(model, work, A, Schema.resolveValues(A, params && params.Values), { locked: new Set((c.versions || []).filter((v) => v.Locked).map((v) => v.VersionId)), actions },
+      execute(model, work, A, Schema.resolveValues(A, params && params.Values), { locked: new Set((c.versions || []).filter((v) => v.Locked).map((v) => v.VersionId)), versionIds: new Set((c.versions || []).map((v) => v.VersionId)), actions },
         0, params && params.Filter, result.steps, null);
       result.facts = Array.from(work.values());
       result.steps.forEach((s) => { result.changed += s.touched; result.log.push("Step " + s.no + " " + s.name + " (" + s.type + "): " + s.message); });

@@ -10,16 +10,18 @@
  *            SCALE     Factor
  *            DELETE    (the filter only)
  *            ALLOCATE  TargetDim, TargetMembers, TgtVersion, Driver (EQUAL|PROPORTIONAL|REFERENCE), DriverVersion, WriteMode, ClearSource
+ *            FORMULA   Formula (measure ids, MEASURE@VERSION, numbers, + - * / ^ and parentheses), TgtMeasure, TgtVersion, WriteMode
  *            CONVERT   CurrencyDim | FromCurrency, ToCurrency, Rates (text, see parseRates), TgtVersion, TgtMeasure, WriteMode
  *            EMBED     ActionId, ParamMap: { childParam: value | "@parentParam" } }
  * A value written "@Name" is the parameter Name, asked for when the action runs.
  */
-sap.ui.define([], function () {
+sap.ui.define(["./FormulaEngine"], function (FormulaEngine) {
   "use strict";
 
   const STEP_TYPES = {
     COPY: { label: "Copy", icon: "sap-icon://duplicate", hint: "Copy facts onto other members (another version, another year ...), optionally aggregated, overwriting or adding" },
     ALLOCATE: { label: "Allocation", icon: "sap-icon://share-2", hint: "Spread values over members: equally, in proportion to existing values, or like a reference version" },
+    FORMULA: { label: "Advanced Formula", icon: "sap-icon://simulate", hint: "Work out a measure from other measures (and from other versions) for every combination of members, for example REVENUE - COST" },
     CONVERT: { label: "Currency Conversion", icon: "sap-icon://money-bills", hint: "Convert values from the currency of their members (or one currency) into another with the rates you give" },
     SCALE: { label: "Scale", icon: "sap-icon://measure", hint: "Multiply the selected values by a factor" },
     DELETE: { label: "Fact Deletion", icon: "sap-icon://delete", hint: "Delete the selected facts" },
@@ -46,7 +48,7 @@ sap.ui.define([], function () {
     const s = Object.assign({
       Name: "", Description: "", Active: true, Filter: {}, Rules: [], AggregateTo: [], WriteMode: "OVERWRITE", Factor: 1,
       TargetDim: "", TargetMembers: [], TgtVersion: "", Driver: "EQUAL", DriverVersion: "", ClearSource: false, ActionId: "", ParamMap: {},
-      CurrencyDim: "", FromCurrency: "", ToCurrency: "", Rates: "", TgtMeasure: ""
+      CurrencyDim: "", FromCurrency: "", ToCurrency: "", Rates: "", TgtMeasure: "", Formula: ""
     }, clone(step), { StepType: type });
     s.Filter = s.Filter || {};
     if (step.SrcVersion !== undefined || ((type === "SCALE" || type === "DELETE") && s.TgtVersion)) {
@@ -100,6 +102,23 @@ sap.ui.define([], function () {
     return { rates, errors };
   }
 
+  /**
+   * The formula of an Advanced Formula step: names are measure ids; ID@VERSION is the measure in another version (same members).
+   * @returns {{error?: string, refs: {name: string, measure: string, version: string}[], evaluate(env)}}   env.refs = { name: number }, env.current
+   */
+  function compileFormula(text) {
+    const refs = [];
+    const src = String(text || "").replace(/([A-Za-z_][A-Za-z0-9_]*)@([A-Za-z_][A-Za-z0-9_]*)/g, (m, measure, version) => {
+      const name = measure + "__AT__" + version;
+      if (!refs.some((r) => r.name === name)) { refs.push({ name, measure, version }); }
+      return name;
+    });
+    const f = FormulaEngine.compile("=" + src.replace(/^\s*=/, ""));
+    if (f.error) { return { error: f.error, refs: [], names: [], evaluate: f.evaluate }; }
+    f.names.forEach((n) => { if (!refs.some((r) => r.name === n)) { refs.push({ name: n, measure: n, version: "" }); } });
+    return { refs, names: f.names, evaluate: f.evaluate };
+  }
+
   /** The rate to convert `from` into `to` in `period` (a month): see parseRates for the order of preference; null when there is none. */
   function rateFor(rates, from, to, period) {
     from = String(from).toUpperCase(); to = String(to).toUpperCase();
@@ -123,7 +142,7 @@ sap.ui.define([], function () {
     (step.Rules || []).forEach((r) => { add(r.From); add(r.To); });
     (step.AggregateTo || []).forEach((x) => add(x.Member));
     (step.TargetMembers || []).forEach(add);
-    [step.Factor, step.TgtVersion, step.DriverVersion, step.ToCurrency, step.FromCurrency].forEach(add);
+    [step.Factor, step.TgtVersion, step.DriverVersion, step.ToCurrency, step.FromCurrency, step.TgtMeasure].forEach(add);
     Object.keys(step.ParamMap || {}).forEach((k) => { const v = step.ParamMap[k]; (Array.isArray(v) ? v : [v]).forEach(add); });
     return out;
   }
@@ -235,6 +254,20 @@ sap.ui.define([], function () {
           filterVersions.forEach((v) => { if (!isRef(v) && !s.TgtVersion && versions.get(v) && versions.get(v).Locked) { err(i, where + ": version " + v + " is locked"); } });
           break;
         }
+        case "FORMULA": {
+          const f = compileFormula(s.Formula);
+          if (!String(s.Formula || "").trim()) { err(i, where + ": write the formula"); } else if (f.error) { err(i, where + ": " + f.error); } else {
+            const measures = new Set(((model && model.Measures) || []).map((m) => m.MeasureId.toUpperCase()));
+            f.refs.forEach((r) => {
+              if (!measures.has(r.measure.toUpperCase())) { err(i, where + ": " + r.measure + " is not a measure of the model"); }
+              if (r.version && ![...versions.keys()].some((v) => v.toUpperCase() === r.version.toUpperCase())) { err(i, where + ": version " + r.version + " does not exist"); }
+            });
+          }
+          if (!s.TgtMeasure) { err(i, where + ": choose the measure that receives the result"); } else if (!isRef(s.TgtMeasure) && !((model && model.Measures) || []).some((m) => m.MeasureId === s.TgtMeasure)) { err(i, where + ": measure " + s.TgtMeasure + " does not exist"); }
+          versionOk(s.TgtVersion, i, "Target version", true);
+          if (!s.TgtVersion) { filterVersions.forEach((v) => { if (!isRef(v) && versions.get(v) && versions.get(v).Locked) { err(i, where + ": it writes into locked version " + v); } }); }
+          break;
+        }
         case "SCALE":
           factorOk(s.Factor, i);
           filterVersions.forEach((v) => { if (!isRef(v) && versions.get(v) && versions.get(v).Locked) { err(i, where + ": version " + v + " is locked"); } });
@@ -277,5 +310,5 @@ sap.ui.define([], function () {
     return out;
   }
 
-  return { parseRates, rateFor, STEP_TYPES, BUILTIN_DIMS, isRef, refName, normalizeAction, normalizeStep, normalizeParameter, newStep, refsOf, usage, resolveValues, validate };
+  return { compileFormula, parseRates, rateFor, STEP_TYPES, BUILTIN_DIMS, isRef, refName, normalizeAction, normalizeStep, normalizeParameter, newStep, refsOf, usage, resolveValues, validate };
 });
