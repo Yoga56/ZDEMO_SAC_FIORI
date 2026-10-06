@@ -24,9 +24,10 @@ sap.ui.define([
   "../core/QueryEngine",
   "../core/CalcMeasures",
   "../widget/Widgets",
-  "./FilterEditor"
+  "./FilterEditor",
+  "./TreeEditor"
 ], function (Control, Item, VBox, HBox, Label, Input, TextArea, Select, MultiComboBox, CheckBox, StepInput, Button, Title, Text,
-  WidgetRegistry, FilterEngine, QueryEngine, CalcMeasures, Widgets, FilterEditor) {
+  WidgetRegistry, FilterEngine, QueryEngine, CalcMeasures, Widgets, FilterEditor, TreeEditor) {
   "use strict";
 
   const BUILTIN = [{ DimId: "VERSION", Label: "Version" }, { DimId: "PERIOD", Label: "Period" }, { DimId: "MEASURE", Label: "Measure" }];
@@ -105,6 +106,11 @@ sap.ui.define([
         case "textarea": return new TextArea({ value: val || "", width: "100%", rows: 3, change: (e) => this._set(f.key, e.getParameter("value")) });
         case "number": return new StepInput({ value: val === undefined ? Number(f.default) || 0 : Number(val) || 0, min: f.min || 0, width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
         case "hierarchies": return this._hierarchies(f, widget, env);
+        case "valuetree":
+        case "drivertree": {
+          if (!env.model) { return new Text({ text: "Choose a model first." }); }
+          return TreeEditor.build({ text: val || "", model: env.model, uncertainty: f.kind === "drivertree", onChange: (t) => this._set(f.key, t) });
+        }
         case "dataaction": {
           const sel = new Select({ width: "100%", selectedKey: val || "", forceSelection: false });
           sel.addItem(new Item({ key: "", text: "(none)" }));

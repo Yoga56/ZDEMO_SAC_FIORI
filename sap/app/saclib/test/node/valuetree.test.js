@@ -85,3 +85,47 @@ test("value tree: good=down is checked and the widget default applies to nodes w
   assert.strictEqual(r.children[0].favorable, false); // A rose, widget says lower is better
   assert.strictEqual(r.children[1].favorable, true); // B says up is good
 });
+
+test("serialize writes a tree back as text that parses to the same tree", () => {
+  const ValueTree = req("zsac/lib/core/ValueTree");
+  const text = ["Profit | diff", "  Revenue | sum", "    Cloud | leaf | PRODUCT=Cloud ERP,Planning; measure=REVENUE; scale=1000; range=1..2.5; dist=uniform", "    Other | leaf | CHANNEL=Direct", "  Cost | sum",
+    "    Direct | leaf | measure=COST; good=down; pct=10", "    Partner | leaf | good=up"].join("\n");
+  const a = ValueTree.parse(text);
+  assert.deepStrictEqual(a.errors, []);
+  const out = ValueTree.serialize(a.tree);
+  assert.strictEqual(out, text);
+  const b = ValueTree.parse(out);
+  const strip = (n) => ({ label: n.label, op: n.op, filters: n.filters, measure: n.measure, scale: n.scale, lower: n.lower, range: n.range, pct: n.pct, dist: n.dist, children: n.children.map(strip) });
+  assert.deepStrictEqual(strip(b.tree), strip(a.tree));
+});
+
+test("tree edits keep the tree valid", () => {
+  const Edit = req("zsac/lib/core/ValueTreeEdit");
+  const t = Edit.create("Profit");
+  assert.strictEqual(VT.serialize(t), "Profit | sum\n  Driver 1 | leaf\n  Driver 2 | leaf");
+  Edit.at(t, [0]).filters = { REGION: ["EMEA"] };
+  Edit.at(t, [0]).measure = "REVENUE";
+  Edit.setOp(t, [0], "sum");                                     // a data node becomes a parent: its data moves into its first driver
+  assert.strictEqual(Edit.at(t, [0]).children.length, 1);
+  assert.deepStrictEqual(Edit.at(t, [0, 0]).filters, { REGION: ["EMEA"] });
+  assert.strictEqual(Edit.at(t, [0]).measure, "");
+  Edit.setOp(t, [1], "ratio");
+  assert.strictEqual(Edit.at(t, [1]).children.length, 2);
+  assert.strictEqual(Edit.problems(t).length, 0);
+  assert.strictEqual(Edit.addChild(t, [1, 0], "x"), null);       // a data node has no drivers
+  const c = Edit.addChild(t, [], "Third");
+  assert.strictEqual(c.label, "Third");
+  assert.strictEqual(Edit.problems(t).length, 0);
+  assert.deepStrictEqual(Edit.move(t, [2], -1), [1]);
+  assert.strictEqual(Edit.at(t, [1]).label, "Third");
+  assert.strictEqual(Edit.move(t, [0], -1), null);
+  Edit.addChild(t, [2], "third driver of the ratio");
+  assert.strictEqual(Edit.problems(t).length, 1);
+  assert.strictEqual(Edit.remove(t, []), false);
+  // taking the last driver away makes the node a data node again
+  assert.strictEqual(Edit.remove(t, [0, 0]), true);
+  assert.strictEqual(Edit.at(t, [0]).op, "leaf");
+  Edit.setOp(t, [2], "leaf");
+  assert.strictEqual(Edit.at(t, [2]).children.length, 0);
+  assert.deepStrictEqual(VT.parse(VT.serialize(t)).errors, []);
+});

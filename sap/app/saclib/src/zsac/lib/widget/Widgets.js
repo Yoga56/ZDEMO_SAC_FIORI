@@ -292,7 +292,7 @@ sap.ui.define([
     builder: baseBuilder.concat([
       { key: "Binding.Measure", label: "Measure (for nodes that name none)", kind: "measure" },
       { key: "Binding.Filters", label: "Filters", kind: "filters" },
-      { key: "Props.Tree", label: "Tree: one node per line, indent for drivers: label | operator | DIMENSION=member; measure=ID", kind: "textarea" },
+      { key: "Props.Tree", label: "Tree: each node has a name and an operator; data nodes read a measure and members", kind: "valuetree" },
       { key: "Props.CompareVersion", label: "Compare with version", kind: "version" },
       { key: "Props.LowerIsBetter", label: "Lower is better (nodes can say good=up or good=down)", kind: "bool" },
       { key: "Props.Simulate", label: "Allow simulation (change a driver, see the effect)", kind: "bool", default: true }
@@ -338,7 +338,7 @@ sap.ui.define([
     builder: baseBuilder.concat([
       { key: "Binding.Measure", label: "Measure (for nodes that name none)", kind: "measure" },
       { key: "Binding.Filters", label: "Filters (the baseline is read for these, choose one version)", kind: "filters" },
-      { key: "Props.Tree", label: "Target and drivers: the target on top, its drivers indented. Give a driver's uncertainty as range=MIN..MAX or pct=10, dist=uniform", kind: "textarea" },
+      { key: "Props.Tree", label: "Target and drivers: the target on top, its drivers below; give a driver's uncertainty under More", kind: "drivertree" },
       { key: "Props.Mode", label: "Precision", kind: "select", options: [["preview", "Preview (1,000 calculations)"], ["medium", "Medium (10,000)"], ["high", "High (100,000)"]] },
       { key: "Props.Pessimistic", label: "Pessimistic case: share of the results (%)", kind: "number", min: 0, default: 5 },
       { key: "Props.Optimistic", label: "Optimistic case: share of the results (%)", kind: "number", min: 0, default: 5 },

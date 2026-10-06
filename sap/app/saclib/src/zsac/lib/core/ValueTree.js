@@ -15,6 +15,7 @@
  *   spec      for a leaf: entries separated by ";", each DIMENSION=member1,member2 (a filter), measure=ID (the measure, default the widget's), scale=1000, good=down (a fall is favorable: costs), range=MIN..MAX or pct=N and dist=normal|uniform (the uncertainty of the driver, used by Compass)
  *
  *   ValueTree.parse(text) -> { tree, errors }
+ *   ValueTree.serialize(tree) -> text     the inverse of parse (the visual editor writes the tree back as this text)
  *   ValueTree.leaves(tree) -> leaf nodes
  *   ValueTree.annotate(tree, values, options) -> tree with value, base, compare for every node
  *     values   { nodeId: number } the data of every leaf
@@ -109,6 +110,28 @@ sap.ui.define([], function () {
     return { tree: root, errors };
   }
 
+  const num = (n) => String(Math.round(n * 1e9) / 1e9);
+
+  /** The text of a tree: parse(serialize(tree)) gives the same tree. Only what a node says is written; the defaults are left out. */
+  function serialize(tree) {
+    const lines = [];
+    (function walk(n, depth) {
+      const spec = [];
+      if (n.op === "leaf") {
+        Object.keys(n.filters || {}).forEach((d) => { if ((n.filters[d] || []).length) { spec.push(d + "=" + n.filters[d].join(",")); } });
+        if (n.measure) { spec.push("measure=" + n.measure); }
+        if (n.scale && n.scale !== 1) { spec.push("scale=" + num(n.scale)); }
+        if (n.lower === true || n.lower === false) { spec.push("good=" + (n.lower ? "down" : "up")); }
+        if (n.range) { spec.push("range=" + num(n.range.min) + ".." + num(n.range.max)); }
+        if (n.pct !== null && n.pct !== undefined) { spec.push("pct=" + num(n.pct)); }
+        if (n.dist) { spec.push("dist=" + n.dist); }
+      }
+      lines.push("  ".repeat(depth) + [String(n.label).replace(/\|/g, "/"), n.op].concat(spec.length ? [spec.join("; ")] : []).join(" | "));
+      (n.children || []).forEach((c) => walk(c, depth + 1));
+    })(tree, 0);
+    return lines.join("\n");
+  }
+
   function leaves(tree) {
     const out = [];
     (function walk(n) { if (!n) { return; } if (n.op === "leaf") { out.push(n); } n.children.forEach(walk); })(tree);
@@ -163,5 +186,5 @@ sap.ui.define([], function () {
     return copy(tree);
   }
 
-  return { parse, leaves, annotate, evaluate, OPS, SYMBOL };
+  return { parse, serialize, leaves, annotate, evaluate, OPS, SYMBOL };
 });

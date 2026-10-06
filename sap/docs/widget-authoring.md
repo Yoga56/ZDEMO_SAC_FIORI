@@ -34,3 +34,6 @@ Builder field kinds: `text`, `textarea`, `number`, `bool`, `select` (`options: [
 `dimensions` (`max`), `measure`, `version`, `filters` (includes search and replace of filter values).
 Use `"$FIRST_DIM"` / `"$SECOND_DIM"` in `defaults` to be replaced by the model's dimensions when the widget is dropped.
 Load the module once (for example from `Component.js`) and the widget is available everywhere.
+
+## Visual editor for value driver trees and Compass
+The builder panel of the *Value driver tree* and *Compass simulation* widgets builds the tree with lists, not text (`designer/TreeEditor.js`, edits in `core/ValueTreeEdit.js`). A node has a name and an operator (sum, first minus the others, product, first divided by second, or data); a data node has a measure list and "Add filter" lists of members per dimension; under *More* sit the scale, the favourable direction and, for Compass, the range, plus/minus percent and distribution. Moving, adding and removing nodes keeps the tree valid. The tree is still stored as the text of `core/ValueTree` (`Props.Tree`), so existing trees open in the editor and the text can be edited by hand: *Edit as text* switches to it, and a text with problems opens there. A widget field of `kind: "valuetree"` (or `"drivertree"` with uncertainty) gives another widget the same editor.
