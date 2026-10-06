@@ -72,10 +72,10 @@
               </headerToolbar>
               <Table id="dims" items="{path: 'm>/Dimensions', templateShareable: false}" mode="SingleSelectMaster" selectionChange=".onSelectDim" noDataText="No dimensions">
                 <columns>
-                  <Column width="22%"><Text text="Name"/></Column>
-                  <Column width="28%" minScreenWidth="Tablet" demandPopin="true"><Text text="Description"/></Column>
-                  <Column width="16%" minScreenWidth="Tablet" demandPopin="true"><Text text="Type"/></Column>
-                  <Column width="36%" minScreenWidth="Tablet" demandPopin="true"><Text text="Additional Details"/></Column>
+                  <Column width="20%"><Text text="Name"/></Column>
+                  <Column width="24%" minScreenWidth="Tablet" demandPopin="true"><Text text="Description"/></Column>
+                  <Column width="22%" minScreenWidth="Tablet" demandPopin="true"><Text text="Type"/></Column>
+                  <Column width="34%" minScreenWidth="Tablet" demandPopin="true"><Text text="Additional Details"/></Column>
                 </columns>
                 <items>
                   <ColumnListItem>
@@ -278,7 +278,7 @@
                     <Label text="Description"/>
                     <Input value="{m>Label}" enabled="{= !${m>builtin}}"/>
                     <Label text="Type"/>
-                    <Select selectedKey="{m>Type}" width="100%" enabled="{= !${m>builtin}}" change=".onDimType" items="{path: 'view>/dimTypes', templateShareable: false}" visible="{= !${m>builtin}}">
+                    <Select selectedKey="{m>Type}" forceSelection="false" width="100%" enabled="{= !${m>builtin}}" change=".onDimType" items="{path: 'view>/dimTypes', templateShareable: false}" visible="{= !${m>builtin}}">
                       <core:Item key="{view>key}" text="{view>text}"/>
                     </Select>
                     <Input value="{path: 'm>Type', formatter: '.typeLabel'}" enabled="false" visible="{m>builtin}"/>
