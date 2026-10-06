@@ -39,7 +39,7 @@ sap.ui.define(["../core/Resize"], function (Resize) {
     h.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       const x0 = e.clientX; const w0 = current(el, rule);
-      h.setPointerCapture(e.pointerId); document.body.classList.add("zsacResizing"); h.classList.add("zsacSplitterOn");
+      try { h.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } document.body.classList.add("zsacResizing"); h.classList.add("zsacSplitterOn");
       const move = (ev) => set(w0 + grows * (ev.clientX - x0), false);
       const up = (ev) => { h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", up); document.body.classList.remove("zsacResizing"); h.classList.remove("zsacSplitterOn"); set(w0 + grows * (ev.clientX - x0), true); };
       h.addEventListener("pointermove", move); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);

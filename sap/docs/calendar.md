@@ -5,7 +5,12 @@ The Calendar page follows the SAC Calendar. Code: `zsac.lib/calendar` (CalendarE
 ## Workspaces
 * **List**: a tree of events and processes (expand and collapse) with status, progress, start and end date, and a timeline beside it with the bars, the finished part of each bar, hatching for events on hold, a dashed line for today and Day, Week, Month and Year zoom. A process shows the range of its children, their average progress and a status worked out from theirs.
 * **Calendar**: month, week and day grids; a day with more than three events has a "more" link.
-* Search, a status filter, **Mine** (events you own, are assigned to or may view), earlier, later, Today.
+* Search, **Filter** (due: today, next 7 or 30 days, this month, overdue; type; status; assignee; plan, shown as chips that can be taken off one by one), **Mine** (events you own, are assigned to or may view), earlier, later, Today.
+* **Columns**: the list shows the columns the user chooses (status, progress, start, end, type, assignee, plan, owner; kept in the browser). When the divider between the list and the timeline is moved so the list gets narrow, columns drop out, the least important first, instead of spilling over the timeline.
+* **Export** gives the list (with the filters) as a CSV file for a spreadsheet; a cell that would be read as a formula is made text.
+* **Checkboxes** select several events: delete them (with what is inside them) or change their status in one go (Start, Hold, Resume, Complete, Cancel, Reopen: for the events it is possible for).
+* **Colours**: each event has a colour, shown on the row and on its bar.
+* **Drag**: a bar of the timeline can be moved, or its start or end dragged, in whole days; in the calendar an event is dragged to another day. Only events the user can change, and only those with dates of their own (a process takes its dates from its tasks).
 
 ## Events
 Types: General Task, Review Task, Composite Task, Process, **Data Locking Task**, **Data Action Task** and **Multi Action Task**; *Process from Template* (Budget cycle, Month-end close, Forecast cycle: a process with its tasks, each after the one before) and *Generate Events with Wizard* (the same event every day, week, month, quarter or year, up to 60).
@@ -34,3 +39,8 @@ One table, `ZSAC_CALTASK`, with the event fields (type, parent, dates, progress,
 
 ## Panels
 Every side panel of the app can be resized by dragging its edge (double-click for the standard width, arrow keys when the edge has focus): the navigation, the story palette and builder, the analyser, the modeller's details, the action designer's flow, the calendar's details and the calendar's list. The widths are kept per panel in the browser.
+
+## What is not in
+* **Admin Mode** of SAC (an administrator sees and changes every event): there is no administrator role in this app; an owner who has left is replaced by changing `OWNER_ID` in the table.
+* **Data slices in tasks**: a data locking task locks a whole version, not a slice (region, product ...), and a data action task takes the parameters of the action, not a filter of its own.
+* **Several owners per event as separate rights**, **notifications by e-mail**, **time of day** (events are whole days) and **running by itself on the start date** (needs a server job).

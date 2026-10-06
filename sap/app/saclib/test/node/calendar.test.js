@@ -97,9 +97,11 @@ test("calendar list: a row per event with indent, status, progress and dates; a 
   const { rows } = C.build(PROCESS, TODAY);
   const html = V.listHtml(rows, { today: TODAY, selected: "B" });
   assert.strictEqual((html.match(/class="zsacCalRow /g) || []).length, 5);
+  assert.strictEqual((html.match(/data-chk="/g) || []).length, 5); // a checkbox for each event, and one for all
+  assert.match(html, /data-chk-all="1"/);
   assert.match(html, /data-tog="P"/);
   assert.match(html, /zsacCalSel" data-id="B"/);
-  assert.match(html, /padding-left:22px/); // a child is indented
+  assert.match(html, /padding-left:20px/); // a child is indented
   assert.match(html, /Oct 6, 2026/);
   assert.match(html, /In progress/);
   assert.match(html, /Overdue/); // Z ended in September and is open
@@ -377,4 +379,108 @@ test("dependency lines: from the end of the earlier bar into the start of the la
   assert.ok(!/NaN/.test(html));
   assert.deepStrictEqual(V.linkPaths(rows.slice(0, 1), new Map(g.bars.map((b) => [b.id, b]))), []); // the later one is not shown
   assert.strictEqual(V.listHtml(C.build([ev("Z")], TODAY).rows, { gantt: C.gantt(C.build([ev("Z")], TODAY).rows, { today: TODAY }), today: TODAY }).includes("zsacCalLinks"), false);
+});
+
+test("filters: several statuses and types, a due range, an assignee, a plan", () => {
+  const events = [
+    ev("A", { Status: "ACTIVE", EndDate: "2026-10-09", People: { Assignees: ["ALICE"] }, ModelId: "M1" }),
+    ev("B", { Type: "REVIEW", Approver: "CFO", EndDate: "2026-10-20", ModelId: "M2" }),
+    ev("C", { Status: "DONE", EndDate: "2026-10-08", People: { Assignees: ["alice"] } }),
+    ev("D", { Type: "LOCK", ModelId: "M1", EndDate: "2026-09-01" }),
+    ev("P", { Type: "PROCESS" }), ev("PC", { ParentId: "P", EndDate: "2026-10-10" })
+  ];
+  const { rows } = C.build(events, TODAY);
+  const ids = (o) => C.filterRows(rows, o).map((r) => r.event.Id);
+  assert.deepStrictEqual(ids({ statuses: ["ACTIVE", "DONE"] }), ["C", "A"].sort((x, y) => ids({}).indexOf(x) - ids({}).indexOf(y)));
+  assert.deepStrictEqual(ids({ types: ["REVIEW", "LOCK"] }).sort(), ["B", "D"]);
+  assert.deepStrictEqual(ids({ assignee: "Alice" }).sort(), ["A", "C"]);
+  assert.deepStrictEqual(ids({ model: "M1" }).sort(), ["A", "D"]);
+  assert.deepStrictEqual(ids({ due: C.dueRange("NEXT7", TODAY) }).sort(), ["A", "P", "PC"]); // C is done, so it is not due; PC ends on the 10th and brings its process P along
+  assert.deepStrictEqual(ids({ due: C.dueRange("OVERDUE", TODAY) }).sort(), ["D"]);
+  assert.deepStrictEqual(ids({ due: C.dueRange("NEXT30", TODAY), types: ["REVIEW"] }), ["B"]); // the filters add up
+});
+
+test("due ranges", () => {
+  assert.deepStrictEqual(C.dueRange("TODAY", TODAY), { from: TODAY, to: TODAY });
+  assert.deepStrictEqual(C.dueRange("NEXT7", TODAY), { from: "2026-10-06", to: "2026-10-13" });
+  assert.deepStrictEqual(C.dueRange("THIS_MONTH", TODAY), { from: "2026-10-01", to: "2026-10-31" });
+  assert.strictEqual(C.dueRange("OVERDUE", TODAY).to, "2026-10-05");
+  assert.strictEqual(C.dueRange("NOPE", TODAY), null);
+});
+
+test("csv export: one line per event, quotes and formulas made safe", () => {
+  const { rows } = C.build([ev("P", { Type: "PROCESS" }), ev("A", { ParentId: "P", Title: 'Say "hi", then go', Description: "=SUM(A1)\nline two", People: { Assignees: ["ALICE", "BOB"] } })], TODAY);
+  const csv = C.toCsv(rows).split("\r\n");
+  assert.match(csv[0], /^Title,Type,Status,Progress %,Start date,End date,Process,Owner,Assignees/);
+  assert.strictEqual(csv.length, 3); // header, P, A (the line break in the description is a plain \n inside quotes)
+  assert.ok(csv[2].startsWith('"Say ""hi"", then go",General Task,Open,0,2026-10-01,2026-10-10,P,'));
+  assert.ok(csv[2].includes("ALICE; BOB"));
+  assert.ok(csv[2].includes("\"'=SUM(A1)")); // a leading = is made a text
+  assert.strictEqual(C.toCsv([]).split("\r\n").length, 1);
+});
+
+test("reschedule: move shifts both dates, resizing moves one, the end never goes before the start", () => {
+  const e = ev("R", { StartDate: "2026-10-05", EndDate: "2026-10-09" });
+  const dates = (x) => [x.StartDate, x.EndDate];
+  assert.deepStrictEqual(dates(C.reschedule(e, "move", 3)), ["2026-10-08", "2026-10-12"]);
+  assert.deepStrictEqual(dates(C.reschedule(e, "move", -6)), ["2026-09-29", "2026-10-03"]);
+  assert.deepStrictEqual(dates(C.reschedule(e, "start", 2)), ["2026-10-07", "2026-10-09"]);
+  assert.deepStrictEqual(dates(C.reschedule(e, "start", 20)), ["2026-10-09", "2026-10-09"]); // cannot pass the end
+  assert.deepStrictEqual(dates(C.reschedule(e, "end", -20)), ["2026-10-05", "2026-10-05"]);
+  assert.deepStrictEqual(dates(C.reschedule(e, "end", 2)), ["2026-10-05", "2026-10-11"]);
+  assert.deepStrictEqual(dates(C.reschedule(e, "move", 0.4)), ["2026-10-05", "2026-10-09"]);
+  assert.throws(() => C.reschedule(e, "stretch", 1), /Unknown way/);
+  assert.throws(() => C.reschedule(Object.assign({}, e, { StartDate: null, EndDate: null }), "move", 1), /no dates/);
+});
+
+test("a process saved as a template keeps its tasks and what they wait for, and comes out again as a process", () => {
+  let n = 0; const newId = () => "N" + ++n;
+  const events = [ev("P", { Type: "PROCESS", Title: "Quarter close", Description: "Close the quarter", StartDate: "2026-01-01", EndDate: "2026-01-31" }),
+    ev("A", { ParentId: "P", Title: "Collect", StartDate: "2026-10-01", EndDate: "2026-10-05", Config: { Color: "red" } }),
+    ev("B", { ParentId: "P", Title: "Check", Type: "REVIEW", Approver: "CFO", StartDate: "2026-10-06", EndDate: "2026-10-08", Config: { After: ["A"], Remind: 7, History: [{ x: 1 }], LastRun: { Status: "S" } } }),
+    ev("C", { ParentId: "P", Title: "Lock", Type: "LOCK", ModelId: "M", VersionId: "ACT", StartDate: "2026-10-09", EndDate: "2026-10-09", Config: { After: ["A", "B", "GONE"], Mode: "UNLOCK" } })];
+  const tpl = C.toTemplate("P", events, () => "TPL1");
+  assert.deepStrictEqual([tpl.Id, tpl.Type, tpl.Title, tpl.Description], ["TPL1", "PROCESS", "Quarter close", "Close the quarter"]);
+  const steps = tpl.Config.Template.steps;
+  assert.deepStrictEqual(steps.map((s) => [s.Title, s.offset, s.days, s.after]), [["Collect", 0, 5, []], ["Check", 5, 3, [0]], ["Lock", 8, 1, [0, 1]]]);
+  assert.deepStrictEqual(steps[1].Config, { Remind: 7 }); // the run and the history of the original are not part of a template
+  assert.strictEqual(steps[2].Config.Mode, "UNLOCK");
+  assert.strictEqual(C.build([tpl], TODAY).rows.length, 0); // it is stored like an event but is not one
+  const found = C.savedTemplates([tpl, ev("X")]);
+  assert.deepStrictEqual(found.map((t) => [t.id, t.name, t.saved]), [["TPL1", "Quarter close", true]]);
+  const made = C.instantiate(found[0], { Title: "Quarter close Q4", Start: "2027-01-04", newId });
+  assert.deepStrictEqual(made.map((e) => [e.Title, e.StartDate, e.EndDate]), [["Quarter close Q4", "2027-01-04", "2027-01-12"], ["Collect", "2027-01-04", "2027-01-08"], ["Check", "2027-01-09", "2027-01-11"], ["Lock", "2027-01-12", "2027-01-12"]]);
+  assert.deepStrictEqual(made.slice(1).map((e) => e.Config.After || []), [[], [made[1].Id], [made[1].Id, made[2].Id]]);
+  assert.deepStrictEqual([made[2].Approver, made[3].ModelId, made[3].Config.Mode, made[2].Config.Remind, made[2].Config.History], ["CFO", "M", "UNLOCK", 7, undefined]);
+  assert.ok(made.every((e) => C.validate(e, made).errors.length === 0));
+  assert.throws(() => C.toTemplate("A", events), /Only a process/);
+  assert.throws(() => C.toTemplate("P", [events[0]]), /no tasks/);
+  assert.deepStrictEqual(C.COLORS.teal, "#0b7285");
+});
+
+test("calendar list: the columns are the user's choice, checked rows are marked, a colour shows on the row and the bar", () => {
+  const { rows } = C.build([ev("A", { Config: { Color: "red" }, People: { Assignees: ["ALICE"] }, ModelId: "M", VersionId: "BUD", Owner: "BOB" }), ev("B")], TODAY);
+  const html = V.listHtml(rows, { today: TODAY, columns: ["type", "assignee", "plan", "owner"], selection: new Set(["A"]), gantt: C.gantt(rows, { today: TODAY }) });
+  assert.match(html, /class="zsacCalCell c-type">Type</);
+  assert.ok(!/c-progress/.test(html) && !/c-status/.test(html));
+  assert.match(html, /ALICE/); assert.match(html, /M \/ BUD/); assert.match(html, />BOB</);
+  assert.match(html, /zsacCalChecked/);
+  assert.match(html, /background:#bb0000/); // the swatch of the red event
+  assert.match(html, /--c:#bb0000/); // and its bar
+  assert.strictEqual((html.match(/zsacCalGColored/g) || []).length, 1);
+  assert.match(V.listHtml(rows, { today: TODAY }), /c-status/); // the standard columns
+  assert.ok(!/c-bogus/.test(V.listHtml(rows, { columns: ["bogus", "end"] })));
+});
+
+test("calendar list: bars and chips can be dragged only when the event can be changed and has dates of its own", () => {
+  const { rows } = C.build([ev("P", { Type: "PROCESS" }), ev("A", { ParentId: "P" }), ev("R", { Access: "READ", StartDate: "2026-10-08", EndDate: "2026-10-09" }), ev("W", { StartDate: "2026-10-10", EndDate: "2026-10-11" })], TODAY);
+  const html = V.listHtml(rows, { today: TODAY, gantt: C.gantt(rows, { today: TODAY }) });
+  const bar = (id) => (html.match(new RegExp('<div class="zsacCalGBar[^>]*data-id="' + id + '"[^>]*>')) || [""])[0];
+  assert.ok(bar("A").includes('data-drag="1"')); assert.ok(bar("W").includes('data-drag="1"'));
+  assert.ok(!bar("P").includes("data-drag")); // a process takes its dates from its tasks
+  assert.ok(!bar("R").includes("data-drag")); // view access only
+  assert.strictEqual((html.match(/data-edge="start"/g) || []).length, 2);
+  const grid = V.gridHtml(C.monthGrid(rows, 2026, 10, TODAY), { mode: "month" });
+  assert.match(grid, /data-id="A" data-drag="1" draggable="true"/);
+  assert.ok(!/data-id="R" data-drag/.test(grid));
 });

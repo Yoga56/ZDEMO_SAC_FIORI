@@ -74,7 +74,7 @@ sap.ui.define([], function () {
 
   /** The events in tree order (roots by start date, then children), each with what it shows: a parent shows its children. */
   function build(events, today) {
-    const list = events.map(normalize);
+    const list = events.map(normalize).filter((e) => !e.Config.Template); // a saved template is kept like an event but is not one
     const byId = new Map(list.map((e) => [e.Id, e]));
     const kids = new Map();
     list.forEach((e) => {
@@ -217,17 +217,38 @@ sap.ui.define([], function () {
     return out;
   }
 
+  const COLORS = { teal: "#0b7285", blue: "#0a6ed1", green: "#107e3e", orange: "#e9730c", red: "#bb0000", purple: "#7b3fa0", grey: "#6a6d70" };
+
+  /** { from, to } (days, inclusive) for a "due" filter: TODAY, NEXT7, NEXT30, THIS_MONTH, OVERDUE (everything before today). */
+  function dueRange(preset, today) {
+    const t = today || fromDay(Math.floor(Date.now() / DAY));
+    switch (preset) {
+      case "TODAY": return { from: t, to: t };
+      case "NEXT7": return { from: t, to: addDays(t, 7) };
+      case "NEXT30": return { from: t, to: addDays(t, 30) };
+      case "THIS_MONTH": return { from: t.slice(0, 8) + "01", to: addDays(addMonths(t.slice(0, 8) + "01", 1), -1) };
+      case "OVERDUE": return { from: "0000-01-01", to: addDays(t, -1) };
+      default: return null;
+    }
+  }
+
   /**
    * Rows that match, with the processes that hold a match (so a match is still shown in its place).
-   * options = { q: text in the title, status, type, user + mine: the user is owner, assignee or viewer }
+   * options = { q: text in the title, status / statuses, type / types, user + mine: the user is owner, assignee or viewer, assignee: a user name,
+   *             model: a model id, due: { from, to } (the event ends in that range; a finished event is not due) }
    */
   function filterRows(rows, options) {
     const o = options || {};
     const q = String(o.q || "").trim().toLowerCase();
     const me = String(o.user || "").toUpperCase();
+    const statuses = (o.statuses || []).concat(o.status ? [o.status] : []);
+    const types = (o.types || []).concat(o.type ? [o.type] : []);
+    const who = String(o.assignee || "").trim().toUpperCase();
     const involved = (e) => ["Owners", "Assignees", "Viewers"].some((k) => e.People[k].some((u) => String(u).toUpperCase() === me)) || String(e.Owner || "").toUpperCase() === me;
-    const match = (r) => (!q || r.event.Title.toLowerCase().indexOf(q) >= 0) && (!o.status || r.eff.status === o.status) && (!o.type || r.event.Type === o.type) && (!o.mine || involved(r.event));
-    if (!q && !o.status && !o.type && !o.mine) { return rows; }
+    const match = (r) => (!q || r.event.Title.toLowerCase().indexOf(q) >= 0) && (!statuses.length || statuses.indexOf(r.eff.status) >= 0) && (!types.length || types.indexOf(r.event.Type) >= 0)
+      && (!o.mine || involved(r.event)) && (!who || r.event.People.Assignees.some((u) => String(u).toUpperCase() === who)) && (!o.model || r.event.ModelId === o.model)
+      && (!o.due || (!!r.eff.end && r.eff.end >= o.due.from && r.eff.end <= o.due.to && !finished(r.eff.status)));
+    if (!q && !statuses.length && !types.length && !o.mine && !who && !o.model && !o.due) { return rows; }
     const keep = new Set();
     const parentOf = new Map(rows.map((r) => [r.event.Id, r.event.ParentId]));
     rows.forEach((r) => {
@@ -236,6 +257,35 @@ sap.ui.define([], function () {
       while (id && !guard.has(id)) { guard.add(id); keep.add(id); id = parentOf.get(id); }
     });
     return rows.filter((r) => keep.has(r.event.Id));
+  }
+
+  /** The rows as CSV (text), for a spreadsheet. A cell that would be read as a formula gets a leading quote. */
+  function toCsv(rows) {
+    const cell = (v) => {
+      let t = String(v === undefined || v === null ? "" : v);
+      if (/^[=+\-@\t\r]/.test(t)) { t = "'" + t; }
+      return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+    };
+    const titles = new Map(rows.map((r) => [r.event.Id, r.event.Title]));
+    const head = ["Title", "Type", "Status", "Progress %", "Start date", "End date", "Process", "Owner", "Assignees", "Viewers", "Plan", "Version", "Reviewer", "Description"];
+    const lines = [head.map(cell).join(",")].concat(rows.map((r) => {
+      const e = r.event;
+      return [e.Title, TYPES[e.Type].label, STATUSES[r.eff.status].label, r.eff.progress, r.eff.start, r.eff.end, titles.get(e.ParentId) || "", e.Owner || "", e.People.Assignees.join("; "), e.People.Viewers.join("; "), e.ModelId, e.VersionId, e.Approver, e.Description].map(cell).join(",");
+    }));
+    return lines.join("\r\n");
+  }
+
+  /** The event moved or resized by days (a drag on the timeline): moving shifts both dates, resizing moves one; the end never goes before the start. */
+  function reschedule(event, how, days) {
+    const e = normalize(event);
+    const d = Math.round(Number(days) || 0);
+    if (!e.StartDate || !e.EndDate) { throw new Error("The event has no dates"); }
+    let start = e.StartDate; let end = e.EndDate;
+    if (how === "move") { start = addDays(start, d); end = addDays(end, d); }
+    else if (how === "start") { start = addDays(start, d); if (start > end) { start = end; } }
+    else if (how === "end") { end = addDays(end, d); if (end < start) { end = start; } }
+    else { throw new Error("Unknown way to change the dates: " + how); }
+    return Object.assign({}, e, { StartDate: start, EndDate: end });
   }
 
   /**
@@ -450,6 +500,33 @@ sap.ui.define([], function () {
       steps: [{ Title: "Run forecast", Type: "MULTIACTION", offset: 0, days: 2 }, { Title: "Review forecast", Type: "REVIEW", offset: 2, days: 3 }, { Title: "Lock forecast", Type: "LOCK", offset: 5, days: 1 }] }
   ];
 
+  /**
+   * A process (with the tasks directly inside it) as a template: each step keeps its type, its length, its place in time relative to the start of the
+   * process, what it waits for (as the positions of earlier steps) and its settings (action, parameters, what a locking task does, reminders, colour).
+   * The record to store is an event of type PROCESS whose Config.Template holds the steps; it does not show in the calendar.
+   */
+  function toTemplate(processId, events, newId) {
+    const all = events.map(normalize);
+    const p = all.find((e) => e.Id === processId);
+    if (!p || !TYPES[p.Type].container) { throw new Error("Only a process or a composite task can be saved as a template"); }
+    const kids = all.filter((e) => e.ParentId === p.Id).sort((a, b) => String(a.StartDate).localeCompare(String(b.StartDate)) || a.Title.localeCompare(b.Title));
+    if (!kids.length) { throw new Error("The process has no tasks to keep"); }
+    const start = p.StartDate && kids.some((k) => k.StartDate) ? kids.map((k) => k.StartDate).filter(Boolean).sort()[0] : p.StartDate;
+    const at = new Map(kids.map((k, i) => [k.Id, i]));
+    const steps = kids.map((k) => {
+      const config = JSON.parse(JSON.stringify(k.Config)); delete config.After; delete config.History; delete config.LastRun; delete config.Template;
+      return { Title: k.Title, Type: k.Type, offset: toDay(k.StartDate) - toDay(start), days: toDay(k.EndDate) - toDay(k.StartDate) + 1, after: (k.Config.After || []).filter((id) => at.has(id)).map((id) => at.get(id)),
+        Approver: k.Approver, ModelId: k.ModelId, VersionId: k.VersionId, Config: config };
+    });
+    const id = newId ? newId() : "TPL" + Math.random().toString(36).slice(2, 10);
+    return normalize({ Id: id, Type: "PROCESS", Title: p.Title, Status: "OPEN", StartDate: start, EndDate: start, Description: p.Description, Config: { Template: { description: p.Description, steps } } });
+  }
+
+  /** The templates stored as events, in the shape of TEMPLATES (id, name, description, steps). */
+  function savedTemplates(events) {
+    return events.map(normalize).filter((e) => e.Config.Template && Array.isArray(e.Config.Template.steps)).map((e) => ({ id: e.Id, name: e.Title, description: e.Config.Template.description || "", steps: e.Config.Template.steps, saved: true }));
+  }
+
   /** spec = { Title, Start, ParentId, ModelId, VersionId, Approver, People, newId } -> [process, ...tasks] */
   function instantiate(template, spec) {
     if (toDay(spec.Start) === null) { throw new Error("Enter the start date"); }
@@ -458,14 +535,18 @@ sap.ui.define([], function () {
     const process = normalize({ Id: nextId(), Type: "PROCESS", Title: spec.Title || template.name, ParentId: spec.ParentId || "", Status: "OPEN", StartDate: spec.Start, EndDate: addDays(spec.Start, last - 1),
       Description: template.description, People: spec.People });
     let previous = null;
-    const tasks = template.steps.map((s) => {
-      const e = normalize({ Id: nextId(), Type: s.Type, Title: s.Title, ParentId: process.Id, Status: "OPEN", StartDate: addDays(spec.Start, s.offset), EndDate: addDays(spec.Start, s.offset + s.days - 1),
-        ModelId: spec.ModelId || "", VersionId: spec.VersionId || "", Approver: s.Type === "REVIEW" ? (spec.Approver || "") : "", People: spec.People, Config: previous ? { After: [previous] } : {} });
+    const ids = template.steps.map(() => nextId());
+    const tasks = template.steps.map((s, i) => {
+      // a saved template says what each step waits for; a built-in one chains the steps
+      const after = s.after !== undefined ? s.after.map((k) => ids[k]).filter(Boolean) : (previous ? [previous] : []);
+      const config = Object.assign(JSON.parse(JSON.stringify(s.Config || {})), after.length ? { After: after } : {});
+      const e = normalize({ Id: ids[i], Type: s.Type, Title: s.Title, ParentId: process.Id, Status: "OPEN", StartDate: addDays(spec.Start, s.offset), EndDate: addDays(spec.Start, s.offset + s.days - 1),
+        ModelId: spec.ModelId || s.ModelId || "", VersionId: spec.VersionId || s.VersionId || "", Approver: s.Type === "REVIEW" ? (spec.Approver || s.Approver || "") : "", People: spec.People, Config: config });
       previous = e.Id;
       return e;
     });
     return [process].concat(tasks);
   }
 
-  return { TYPES, STATUSES, FLOW, TEMPLATES, FILE_TYPES, sharesOf, addFile, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, canDo, advance, describeHistory, reminders, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
+  return { TYPES, STATUSES, FLOW, TEMPLATES, COLORS, dueRange, toCsv, reschedule, toTemplate, savedTemplates, FILE_TYPES, sharesOf, addFile, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, canDo, advance, describeHistory, reminders, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
 });

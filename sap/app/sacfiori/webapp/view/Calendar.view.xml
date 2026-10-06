@@ -13,11 +13,14 @@
         <MenuButton id="newMenu" icon="sap-icon://add" text="New" type="Emphasized"><menu><Menu id="newItems" itemSelected=".onNewItem"/></menu></MenuButton>
         <Button id="copy" icon="sap-icon://duplicate" tooltip="Copy the selected event" press=".onCopy" enabled="false"/>
         <Button id="del" icon="sap-icon://delete" tooltip="Delete the selected event" press=".onDelete" enabled="false"/>
+        <MenuButton id="bulk" icon="sap-icon://status-in-process" tooltip="Change the status of the checked events" enabled="false"><menu><Menu id="bulkItems" itemSelected=".onBulkStatus"/></menu></MenuButton>
         <Button icon="sap-icon://refresh" tooltip="Refresh" press=".onRefresh"/>
+        <Button icon="sap-icon://table-column" tooltip="Choose the columns of the list" press=".onColumns"/>
+        <Button icon="sap-icon://excel-attachment" tooltip="Export the list as a CSV file" press=".onExport"/>
         <Button id="reminders" icon="sap-icon://bell" text="0" tooltip="Reminders: reviews waiting for you, events that are overdue or end soon" press=".onReminders"/>
         <ToolbarSpacer/>
         <SearchField width="11rem" liveChange=".onSearch" placeholder="Search events"/>
-        <Select id="statusFilter" width="9rem" change=".onStatusFilter"/>
+        <Button id="filters" icon="sap-icon://filter" text="Filter" press=".onFilters" tooltip="Filter by due date, type, status, assignee or plan"/>
         <ToggleButton id="mine" text="Mine" icon="sap-icon://person-placeholder" press=".onMine" tooltip="Only events you own, are assigned to or may view"/>
         <ToolbarSeparator/>
         <Button icon="sap-icon://navigation-left-arrow" press=".onPrev" tooltip="Earlier"/>
@@ -35,12 +38,15 @@
       </OverflowToolbar>
     </subHeader>
     <content>
-      <HBox class="zsacCalPage" renderType="Bare" height="100%">
-        <ScrollContainer id="mainScroll" class="zsacCalMain" height="100%" width="100%" vertical="true" horizontal="true">
-          <core:HTML id="main" content="&lt;div&gt;&lt;/div&gt;"/>
-        </ScrollContainer>
-        <VBox id="panel" class="zsacCalPanel" visible="false" renderType="Bare"/>
-      </HBox>
+      <VBox height="100%" renderType="Bare">
+        <HBox id="chips" class="zsacCalFilters" visible="false"/>
+        <HBox class="zsacCalPage" renderType="Bare" height="100%">
+          <ScrollContainer id="mainScroll" class="zsacCalMain" height="100%" width="100%" vertical="true" horizontal="true">
+            <core:HTML id="main" content="&lt;div&gt;&lt;/div&gt;"/>
+          </ScrollContainer>
+          <VBox id="panel" class="zsacCalPanel" visible="false" renderType="Bare"/>
+        </HBox>
+      </VBox>
     </content>
   </Page>
 </mvc:View>

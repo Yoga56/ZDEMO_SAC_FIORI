@@ -50,16 +50,23 @@ sap.ui.define([
 
   /** "Process from template": a process with its tasks. Resolves to the new events, or undefined. */
   function fromTemplate(ctx) {
+    let templates = Engine.TEMPLATES.concat(ctx.saved || []); // the built-in ones and the processes the user saved as templates
     const tpl = new Select({ width: "100%" });
-    Engine.TEMPLATES.forEach((t) => tpl.addItem(new Item({ key: t.id, text: t.name })));
-    const info = new Text({ text: Engine.TEMPLATES[0].description }).addStyleClass("zsacSmall");
-    tpl.attachChange(() => info.setText(Engine.TEMPLATES.find((t) => t.id === tpl.getSelectedKey()).description));
+    const fill = () => { tpl.destroyItems(); templates.forEach((t) => tpl.addItem(new Item({ key: t.id, text: t.name + (t.saved ? " (saved)" : "") }))); };
+    fill();
+    const current = () => templates.find((t) => t.id === tpl.getSelectedKey()) || templates[0];
+    const info = new Text({ text: templates[0].description + " " + templates[0].steps.length + " tasks." }).addStyleClass("zsacSmall");
+    const drop = new Button({ text: "Delete this template", type: "Reject", visible: false, press: async () => {
+      const t = current();
+      try { await ctx.deleteTemplate(t.id); templates = templates.filter((x) => x.id !== t.id); fill(); tpl.setSelectedKey(templates[0].id); tpl.fireChange({ selectedItem: tpl.getSelectedItem() }); } catch (e) { info.setText(e.message); }
+    } });
+    tpl.attachChange(() => { const t = current(); info.setText((t.description ? t.description + " " : "") + t.steps.length + " tasks."); drop.setVisible(!!t.saved); });
     const title = new Input({ width: "100%", placeholder: "Name of the process (e.g. Budget 2027)" });
     const start = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd", displayFormat: "medium", value: today() });
     const approver = new Input({ width: "100%", placeholder: "CFO", maxLength: 12 });
     const p = plan(ctx.models, ctx.versions);
-    return dialog("Process from template", [new Label({ text: "Template" }), tpl, info, new Label({ text: "Name" }), title, new Label({ text: "Start" }), start].concat(p.controls, [new Label({ text: "Reviewer of the review tasks" }), approver]), () =>
-      Engine.instantiate(Engine.TEMPLATES.find((t) => t.id === tpl.getSelectedKey()), { Title: title.getValue().trim(), Start: start.getValue(), ModelId: p.model.getSelectedKey(), VersionId: p.version.getSelectedKey(),
+    return dialog("Process from template", [new Label({ text: "Template" }), tpl, info, drop, new Label({ text: "Name" }), title, new Label({ text: "Start" }), start].concat(p.controls, [new Label({ text: "Reviewer of the review tasks" }), approver]), () =>
+      Engine.instantiate(current(), { Title: title.getValue().trim(), Start: start.getValue(), ModelId: p.model.getSelectedKey(), VersionId: p.version.getSelectedKey(),
         Approver: approver.getValue().trim(), ParentId: ctx.parentId || "", newId }));
   }
 

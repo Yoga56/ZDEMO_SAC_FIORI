@@ -13,7 +13,7 @@ sap.ui.define([
   /**
    * The details of one event, on the right of the calendar: its fields, what can be done with its status, Save and Delete.
    *
-   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, files, me, onRun(event), onOpenFile(file), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
+   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, files, me, onRun(event), onOpenFile(file), onSaveTemplate(event), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
    * Nothing is written until Save; a status change on an event that exists is saved at once, as in SAC.
    */
   function show(box, ctx) {
@@ -96,6 +96,10 @@ sap.ui.define([
     };
     field("Plan (model)", model); field("Version", version); fillVersions();
     if (draft.ModelId && draft.VersionId && ctx.onOpenPlan) { body.addItem(new Link({ text: "Open the plan", press: () => ctx.onOpenPlan(draft) })); }
+    const color = new Select({ width: "100%", selectedKey: draft.Config.Color || "", enabled: !readOnly, change: (e) => { const k = e.getParameter("selectedItem").getKey(); if (k) { draft.Config.Color = k; } else { delete draft.Config.Color; } } });
+    color.addItem(new Item({ key: "", text: "Standard" }));
+    Object.keys(Engine.COLORS).forEach((k) => color.addItem(new Item({ key: k, text: k.charAt(0).toUpperCase() + k.slice(1) })));
+    field("Colour", color);
     const remind = new Select({ width: "100%", selectedKey: String(draft.Config.Remind === undefined ? 3 : draft.Config.Remind), enabled: !readOnly, change: (e) => { draft.Config.Remind = Number(e.getParameter("selectedItem").getKey()); } });
     [["0", "Never"], ["1", "1 day before the end"], ["3", "3 days before the end"], ["7", "A week before the end"], ["14", "Two weeks before the end"]].forEach((o) => remind.addItem(new Item({ key: o[0], text: o[1] })));
     field("Remind the people on it", remind);
@@ -202,6 +206,9 @@ sap.ui.define([
     body.addItem(new Title({ text: "Activity", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
     body.addItem(historyBox); showHistory();
     if (!(draft.Config.History || []).length) { historyBox.addItem(new Text({ text: "Nothing yet" }).addStyleClass("zsacSmall")); }
+    if (!ctx.isNew && Engine.TYPES[draft.Type].container && ctx.hasChildren && ctx.onSaveTemplate && !readOnly) {
+      body.addItem(new Button({ text: "Save as template", icon: "sap-icon://save", type: "Transparent", tooltip: "Keep this process and its tasks to start new ones from", press: () => ctx.onSaveTemplate(clone(draft)) }).addStyleClass("sapUiSmallMarginTop"));
+    }
     const buttons = new HBox({ justifyContent: "End", items: [
       new Button({ text: "Delete", type: "Reject", visible: !ctx.isNew && ctx.canDelete !== false, press: () => ctx.onDelete(draft) }).addStyleClass("sapUiTinyMarginEnd"),
       new Button({ text: ctx.isNew ? "Create" : "Save", type: "Emphasized", visible: !readOnly, press: () => {
