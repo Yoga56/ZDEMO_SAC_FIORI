@@ -9,11 +9,12 @@
  * "Edit as text" switches to the text for people who prefer it, and is where a text with problems opens.
  */
 sap.ui.define([
-  "sap/ui/core/Item",
+  "sap/ui/core/Item", "sap/ui/core/SeparatorItem",
+  "sap/m/ComboBox",
   "sap/m/FlexItemData",
   "sap/m/VBox", "sap/m/HBox", "sap/m/Input", "sap/m/Select", "sap/m/MultiComboBox", "sap/m/Button", "sap/m/Text", "sap/m/TextArea", "sap/m/Panel", "sap/m/MessageStrip",
   "../core/ValueTree", "../core/ValueTreeEdit", "../core/CalcMeasures"
-], function (Item, FlexItemData, VBox, HBox, Input, Select, MultiComboBox, Button, Text, TextArea, Panel, MessageStrip, ValueTree, Edit, CalcMeasures) {
+], function (Item, SeparatorItem, ComboBox, FlexItemData, VBox, HBox, Input, Select, MultiComboBox, Button, Text, TextArea, Panel, MessageStrip, ValueTree, Edit, CalcMeasures) {
   "use strict";
 
   const OPS = [["sum", "Sum of drivers"], ["diff", "First minus the others"], ["product", "Product of drivers"], ["ratio", "First divided by second"], ["leaf", "Data (from the model)"]];
@@ -31,6 +32,24 @@ sap.ui.define([
     const dims = ((model && model.Dimensions) || []).filter((d) => d.DimId);
     const measures = model ? CalcMeasures.all(model) : [];
 
+    const generic = (name) => !name || /^(Driver \d+|Node|Total)$/.test(name);
+    /** The names offered for a node: the measures, then the members of every dimension. A name can still be typed. */
+    function nameList() {
+      const out = [{ sep: "Measures" }].concat(measures.map((m) => ({ text: m.Label })));
+      dims.forEach((d) => { out.push({ sep: d.Label || d.DimId }); (d.Members || []).forEach((m) => out.push({ text: m.Text || m.Id })); });
+      return out;
+    }
+    const names = nameList();
+    const memberText = (d, id) => { const dim = dims.find((x) => x.DimId === d); const m = dim && (dim.Members || []).find((x) => x.Id === id); return (m && m.Text) || id; };
+    /** A data node still called "Driver 2" takes the name of what it reads. */
+    const autoName = (n) => {
+      if (!generic(n.label)) { return; }
+      const d = Object.keys(n.filters).find((k) => n.filters[k].length);
+      if (d) { n.label = n.filters[d].slice(0, 2).map((m) => memberText(d, m)).join(", ") + (n.filters[d].length > 2 ? " ..." : ""); return; }
+      const m = n.measure && measures.find((x) => x.MeasureId === n.measure);
+      if (m) { n.label = m.Label; }
+    };
+
     function nodeEditor(n, path, parentOp) {
       const depth = path.length;
       const card = new VBox({ width: "100%" }).addStyleClass("zsacTreeNode");
@@ -38,7 +57,10 @@ sap.ui.define([
       const head = new VBox({ width: "100%" });
       const pos = parentOp === "ratio" ? (path[path.length - 1] === 0 ? "Numerator" : "Denominator") : parentOp === "diff" ? (path[path.length - 1] === 0 ? "Start value" : "Subtracted") : "";
       if (pos) { head.addItem(new Text({ text: pos }).addStyleClass("zsacSmall")); }
-      head.addItem(new Input({ value: n.label, width: "100%", placeholder: "Name of the node", change: (e) => { n.label = e.getParameter("value").trim() || "Node"; commit(); } }));
+      const nameBox = new ComboBox({ value: n.label, width: "100%", placeholder: "Pick a name",
+        change: (e) => { n.label = e.getParameter("value").trim() || "Node"; commit(); } });
+      names.forEach((x) => nameBox.addItem(x.sep ? new SeparatorItem({ text: x.sep }) : new Item({ key: x.text, text: x.text })));
+      head.addItem(nameBox);
       head.addItem(new Select({ width: "100%", selectedKey: n.op, items: OPS.map((o) => new Item({ key: o[0], text: o[1] })),
         change: (e) => { Edit.setOp(tree, path, e.getParameter("selectedItem").getKey()); commit(); } }).addStyleClass("sapUiTinyMarginTop"));
       const tools = new HBox({ alignItems: "Center", justifyContent: "End", width: "100%" });
@@ -70,11 +92,11 @@ sap.ui.define([
       const body = new VBox({ width: "100%" }).addStyleClass("zsacTreeLeaf");
       body.addItem(row("Measure", new Select({ width: "100%", selectedKey: n.measure, forceSelection: false,
         items: [new Item({ key: "", text: "The widget's measure" })].concat(measures.map((m) => new Item({ key: m.MeasureId, text: m.Label + (m.Calculated ? " (calculated)" : "") }))),
-        change: (e) => { n.measure = e.getParameter("selectedItem").getKey(); commit(); } })));
+        change: (e) => { n.measure = e.getParameter("selectedItem").getKey(); autoName(n); commit(); } })));
       Object.keys(n.filters).forEach((d) => {
         const dim = dims.find((x) => x.DimId === d);
         const mc = new MultiComboBox({ width: "100%", placeholder: "Choose members", selectedKeys: n.filters[d],
-          selectionFinish: (e) => { const keys = e.getParameter("selectedItems").map((i) => i.getKey()); if (keys.length) { n.filters[d] = keys; } else { delete n.filters[d]; } commit(); } });
+          selectionFinish: (e) => { const keys = e.getParameter("selectedItems").map((i) => i.getKey()); if (keys.length) { n.filters[d] = keys; } else { delete n.filters[d]; } autoName(n); commit(); } });
         ((dim && dim.Members) || []).forEach((m) => mc.addItem(new Item({ key: m.Id, text: m.Id + (m.Text && m.Text !== m.Id ? " – " + m.Text : "") })));
         // members that are not in the list (typed by hand) stay selectable
         n.filters[d].filter((k) => !((dim && dim.Members) || []).some((m) => m.Id === k)).forEach((k) => mc.addItem(new Item({ key: k, text: k })));
