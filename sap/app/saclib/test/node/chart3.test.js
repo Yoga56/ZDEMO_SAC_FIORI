@@ -55,5 +55,5 @@ test("gauge: with a target it shows the percentage, without one it shows the val
   const noTarget = ChartBuilders.gauge({ value: 4100, max: 0 }, 240, 160);
   assert.doesNotMatch(noTarget, /0%</);
   assert.match(noTarget, /No target set/);
-  assert.match(noTarget, />4\.1K</);
+  assert.match(noTarget, />4\.1k</);
 });
