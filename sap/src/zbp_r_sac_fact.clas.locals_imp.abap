@@ -12,6 +12,11 @@ CLASS lhc_fact DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS locked_version
       IMPORTING facts         TYPE zcl_sac_fact_writer=>ty_facts
       RETURNING VALUE(result) TYPE string.
+
+    "! the first model of the facts that the user may not edit (empty when all may be)
+    METHODS no_access
+      IMPORTING facts         TYPE zcl_sac_fact_writer=>ty_facts
+      RETURNING VALUE(result) TYPE string.
 ENDCLASS.
 
 CLASS lhc_fact IMPLEMENTATION.
@@ -32,9 +37,28 @@ CLASS lhc_fact IMPLEMENTATION.
   ENDMETHOD.
 
 
+  " plan data is written by the owner of the model and by whoever it was shared with for editing
+  METHOD no_access.
+    LOOP AT facts INTO DATA(f).
+      IF zcl_sac_access=>can_edit( kind = 'MODEL' id = CONV #( f-model_id ) ) = abap_false.
+        result = f-model_id.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+
   METHOD writefacts.
     LOOP AT keys INTO DATA(key).
       DATA(facts) = zcl_sac_fact_writer=>parse_payload( key-%param-Payload ).
+      DATA(denied) = no_access( facts ).
+      IF denied IS NOT INITIAL.
+        APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
+        APPEND VALUE #( %cid = key-%cid
+                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
+                                                      text     = |You are not allowed to change the data of model { denied }| ) ) TO reported-fact.
+        CONTINUE.
+      ENDIF.
       DATA(locked) = locked_version( facts ).
       IF locked IS NOT INITIAL.
         APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
@@ -51,6 +75,14 @@ CLASS lhc_fact IMPLEMENTATION.
   METHOD deletefacts.
     LOOP AT keys INTO DATA(key).
       DATA(facts) = zcl_sac_fact_writer=>parse_payload( key-%param-Payload ).
+      DATA(denied) = no_access( facts ).
+      IF denied IS NOT INITIAL.
+        APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
+        APPEND VALUE #( %cid = key-%cid
+                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
+                                                      text     = |You are not allowed to change the data of model { denied }| ) ) TO reported-fact.
+        CONTINUE.
+      ENDIF.
       DATA(locked) = locked_version( facts ).
       IF locked IS NOT INITIAL.
         APPEND VALUE #( %cid = key-%cid ) TO failed-fact.

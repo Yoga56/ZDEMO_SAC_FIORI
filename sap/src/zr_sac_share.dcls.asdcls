@@ -1,0 +1,9 @@
+@EndUserText.label: 'Access control for share'
+@MappingRole: true
+define role ZR_SAC_SHARE
+{
+  grant select on ZR_SAC_SHARE
+    where ( OwnerId ) = aspect user
+       or ( Principal ) = aspect user
+       or Principal = '*';
+}

@@ -6,7 +6,9 @@
 "ZSAC_FACT"
 ],
 "ASSOCIATED":
-[],
+[
+"ZR_SAC_MODEL"
+],
 "BASE":
 [],
 "ANNO_REF":

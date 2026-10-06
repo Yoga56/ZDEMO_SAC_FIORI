@@ -1,7 +1,10 @@
 CLASS lhc_model DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
-    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
-      IMPORTING REQUEST requested_authorizations FOR model RESULT result.
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR model RESULT result.
+
+    METHODS setowner FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR model~SetOwner.
 
     METHODS checkstructure FOR VALIDATE ON SAVE
       IMPORTING keys FOR model~CheckStructure.
@@ -9,7 +12,36 @@ ENDCLASS.
 
 CLASS lhc_model IMPLEMENTATION.
 
-  METHOD get_global_authorizations.
+  " the owner changes and deletes; whoever the model was shared with for editing changes it; the others can only read it
+  METHOD get_instance_authorizations.
+    DATA may_edit   TYPE if_abap_behv=>t_authorization.
+    DATA may_delete TYPE if_abap_behv=>t_authorization.
+    LOOP AT keys INTO DATA(key).
+      may_edit   = COND #( WHEN zcl_sac_access=>can_edit( kind = 'MODEL' id = CONV #( key-ModelId ) ) = abap_true
+                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
+      may_delete = COND #( WHEN zcl_sac_access=>can_delete( kind = 'MODEL' id = CONV #( key-ModelId ) ) = abap_true
+                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
+      APPEND VALUE #( %tky              = key-%tky
+                      %update           = may_edit
+                      %delete           = may_delete
+                      %assoc-_Dimension = may_edit
+                      %assoc-_Measure   = may_edit ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  " a new model belongs to the user who creates it
+  METHOD setowner.
+    READ ENTITIES OF zr_sac_model IN LOCAL MODE
+      ENTITY model
+        FIELDS ( OwnerId ) WITH CORRESPONDING #( keys )
+      RESULT DATA(models).
+    DELETE models WHERE OwnerId IS NOT INITIAL.
+    CHECK models IS NOT INITIAL.
+    MODIFY ENTITIES OF zr_sac_model IN LOCAL MODE
+      ENTITY model
+        UPDATE FIELDS ( OwnerId )
+        WITH VALUE #( FOR m IN models ( %tky = m-%tky OwnerId = zcl_sac_access=>user( ) ) ).
   ENDMETHOD.
 
 

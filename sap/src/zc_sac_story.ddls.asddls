@@ -13,10 +13,12 @@ define root view entity ZC_SAC_STORY
   Status,
   PagesJson,
   Filters,
+  OwnerId,
   CreatedBy,
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
   LocalLastChangedAt,
+  CurrentUser,
   _Widget : redirected to composition child ZC_SAC_WIDGET
 }

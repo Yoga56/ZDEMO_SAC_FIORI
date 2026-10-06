@@ -4,7 +4,7 @@ strict ( 2 );
 define behavior for ZR_SAC_STORY alias Story
 persistent table zsac_story
 lock master
-authorization master ( global )
+authorization master ( instance )
 etag master LocalLastChangedAt
 {
   field ( mandatory : create )
@@ -18,13 +18,16 @@ etag master LocalLastChangedAt
    CreatedAt,
    LastChangedBy,
    LastChangedAt,
-   LocalLastChangedAt;
+   LocalLastChangedAt,
+   OwnerId,
+   CurrentUser;
 
   create;
   update;
   delete;
   association _Widget { create; }
   validation CheckName on save { field StoryName; create; update; }
+  determination SetOwner on modify { create; }
 
   mapping for zsac_story
   {
@@ -35,6 +38,7 @@ etag master LocalLastChangedAt
     Status = status;
     PagesJson = pages_json;
     Filters = filters;
+    OwnerId = owner_id;
     CreatedBy = created_by;
     CreatedAt = created_at;
     LastChangedBy = last_changed_by;

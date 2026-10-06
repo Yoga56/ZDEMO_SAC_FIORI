@@ -33,9 +33,27 @@ def key_cols(e):
     return [n.lstrip("*") for n, _ in e["fields"] if n.startswith("*")]
 
 
+def access_assocs(e):
+    """Associations the access control of an entity reads: the shares that apply to the current user (one row at most each, the key of a
+    share is object and user) and, for plan data, the model it belongs to. Returns (lines of the view header, names to publish)."""
+    kind = e.get("dcl")
+    if kind == "owner":
+        k, i = f"'{e['share_kind']}'", "$projection." + e["share_id"]
+    elif kind == "file":
+        k, i = "$projection.FileKind", "$projection.ObjectId"
+    elif kind == "model":
+        return ["  association [1] to ZR_SAC_MODEL as _Model on _Model.ModelId = $projection.ModelId"], ["_Model"]
+    else:
+        return [], []
+    lines = [f"  association [0..1] to ZR_SAC_SHARE as _ShareMe  on _ShareMe.ObjectKind = {k} and _ShareMe.ObjectId = {i} and _ShareMe.Principal = $session.user",
+             f"  association [0..1] to ZR_SAC_SHARE as _ShareAll on _ShareAll.ObjectKind = {k} and _ShareAll.ObjectId = {i} and _ShareAll.Principal = '*'"]
+    return lines, ["_ShareMe", "_ShareAll"]
+
+
 def r_ddls(e, E):
     root = "parent" not in e
-    lines = ["@AccessControl.authorizationCheck: #NOT_REQUIRED", "@Metadata.allowExtensions: true",
+    check = "#CHECK" if e.get("dcl") else "#NOT_REQUIRED"
+    lines = [f"@AccessControl.authorizationCheck: {check}", "@Metadata.allowExtensions: true",
              f"@EndUserText.label: '{e['label']}'"]
     head = f"define {'root ' if root else ''}view entity {S.r_view(e)}\n  as select from {e['table'].lower()}"
     for cid, assoc in e.get("children", []):
@@ -44,13 +62,18 @@ def r_ddls(e, E):
         pid, assoc = e["parent"]
         cond = " and ".join(f"$projection.{S.camel(k)} = {assoc}.{S.camel(k)}" for k in key_cols(E[pid]))
         head += f"\n  association to parent {S.r_view(E[pid])} as {assoc} on {cond}"
+    a_lines, a_names = access_assocs(e)
+    for l in a_lines:
+        head += "\n" + l
     body = []
     for n, _ in S.all_fields(e):
         col = n.lstrip("*")
         anno = ADMIN_ANNO.get(col) if elem(e, col) == S.camel(col) else None   # only the etag master of a root carries the annotation
         # an annotation stands on its own line before the element and takes no comma
         body.append((f"  {anno}\n" if anno else "") + f"  {'key ' if n.startswith('*') else ''}{col.lower()} as {elem(e, col)}")
-    exposed = [a for _, a in e.get("children", [])] + ([e["parent"][1]] if not root else [])
+    for name, expr in e.get("calc", []):   # elements worked out by the view, not columns of the table
+        body.append(f"  {expr} as {name}")
+    exposed = [a for _, a in e.get("children", [])] + ([e["parent"][1]] if not root else []) + a_names
     out = ",\n".join(body + (["  " + a for a in exposed]))
     return "\n".join(lines) + "\n" + head + "\n{\n" + out + "\n}\n"
 
@@ -61,6 +84,7 @@ def c_ddls(e, E):
              f"@EndUserText.label: '{e['label']}'", "@AccessControl.authorizationCheck: #NOT_REQUIRED"]
     head = f"define {'root ' if root else ''}view entity {S.c_view(e)}\n  {'provider contract transactional_query' + chr(10) + '  ' if root else ''}as projection on {S.r_view(e)}"
     body = [f"  {'key ' if n.startswith('*') else ''}{elem(e, n)}" for n, _ in S.all_fields(e)]
+    body += [f"  {name}" for name, _ in e.get("calc", [])]
     for cid, assoc in e.get("children", []):
         body.append(f"  {assoc} : redirected to composition child {S.c_view(E[cid])}")
     if not root:
@@ -77,7 +101,7 @@ def r_bdef(e, E):
         out += [f"managed implementation in class {S.pool(e)} unique;", "strict ( 2 );", ""]
     out += [f"define behavior for {name} alias {e['set']}", f"persistent table {e['table'].lower()}"]
     if root:
-        out += ["lock master", "authorization master ( global )", "etag master LocalLastChangedAt"]
+        out += ["lock master", f"authorization master ( {e.get('auth', 'global')} )", "etag master LocalLastChangedAt"]
     else:
         pid, assoc = e["parent"]
         out += [f"lock dependent by {assoc}", f"authorization dependent by {assoc}", f"etag dependent by {assoc}"]
@@ -87,7 +111,7 @@ def r_bdef(e, E):
     own = [S.camel(k) for k in key_cols(e) if k not in parent_keys]
     if own:
         out += ["  field ( mandatory : create )", "   " + ",\n   ".join(own) + ";", "", "  field ( readonly : update )", "   " + ",\n   ".join(own) + ";", ""]
-    readonly = [elem(e, n) for n, _ in (e.get("admin") or [])]
+    readonly = [elem(e, n) for n, _ in (e.get("admin") or [])] + [S.camel(c) for c in e.get("readonly", [])] + [name for name, _ in e.get("calc", [])]
     if not root:
         readonly = [S.camel(k) for k in key_cols(E[e["parent"][0]])] + readonly
     if readonly:
@@ -136,6 +160,26 @@ def roots_first(E):
     return None
 
 
+def dcls(e, E):
+    """Access control: who may read the rows. Owner and shares for stories, models and files (shares are looked up with the associations of the
+    view); a dependent node and plan data take the conditions of the object they belong to; a share is for the owner and for who it names."""
+    name, kind = S.r_view(e), e["dcl"]
+    if kind == "owner":
+        cond = ["( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "( _ShareMe.Principal ) = aspect user", "( _ShareAll.Principal ) = '*'"]
+        body = "    where " + "\n       or ".join(cond) + ";"
+    elif kind == "file":
+        # folders and actions are open; a story or model file shows to whoever may open the object. SEED and SYSTEM stand for sample content.
+        cond = ["FileKind = 'FOLDER'", "FileKind = 'DATAACTION'", "FileKind = 'MULTIACTION'", "( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "OwnerId = 'SEED'",
+                "OwnerId = 'SYSTEM'", "( _ShareMe.Principal ) = aspect user", "( _ShareAll.Principal ) = '*'"]
+        body = "    where " + "\n       or ".join(cond) + ";"
+    elif kind == "share":
+        body = "    where ( OwnerId ) = aspect user\n       or ( Principal ) = aspect user\n       or Principal = '*';"
+    else:
+        parent = S.r_view(E[e["parent"][0]]) if kind == "parent" else "ZR_SAC_MODEL"
+        body = f"    where inheriting conditions from entity {parent};"
+    return (f"@EndUserText.label: 'Access control for {e['label'].lower()}'\n@MappingRole: true\ndefine role {name}\n{{\n  grant select on {name}\n{body}\n}}\n")
+
+
 def abstract(name, label, elements):
     body = "\n".join(f"  {el} : {t};" for el, t in elements)
     return f"@EndUserText.label: '{label}'\ndefine abstract entity {name}\n{{\n{body}\n}}\n"
@@ -165,6 +209,9 @@ def main():
         write(f"{S.pool(e).lower()}.clas.abap", pool_class(e))
     for name, (label, elements) in S.ABSTRACT.items():
         write(f"{name.lower()}.ddls.asddls", abstract(name, label, elements))
+    for e in S.ENTITIES:
+        if e.get("dcl"):
+            write(f"{S.r_view(e).lower()}.dcls.asdcls", dcls(e, E))
     write("zui_sac_o4.srvd.srvdsrv", service(E))
     print("sources written to", SRC)
 

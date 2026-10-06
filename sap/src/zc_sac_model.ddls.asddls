@@ -17,11 +17,13 @@ define root view entity ZC_SAC_MODEL
   DataAudit,
   DataSource,
   SourceJson,
+  OwnerId,
   CreatedBy,
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
   LocalLastChangedAt,
+  CurrentUser,
   _Dimension : redirected to composition child ZC_SAC_DIM,
   _Measure : redirected to composition child ZC_SAC_MEASURE
 }

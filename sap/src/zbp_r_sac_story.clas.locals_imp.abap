@@ -1,7 +1,10 @@
 CLASS lhc_story DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
-    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
-      IMPORTING REQUEST requested_authorizations FOR story RESULT result.
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR story RESULT result.
+
+    METHODS setowner FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR story~SetOwner.
 
     METHODS checkname FOR VALIDATE ON SAVE
       IMPORTING keys FOR story~CheckName.
@@ -9,7 +12,35 @@ ENDCLASS.
 
 CLASS lhc_story IMPLEMENTATION.
 
-  METHOD get_global_authorizations.
+  " the owner changes and deletes; whoever the story was shared with for editing changes it; the others can only read it
+  METHOD get_instance_authorizations.
+    DATA may_edit   TYPE if_abap_behv=>t_authorization.
+    DATA may_delete TYPE if_abap_behv=>t_authorization.
+    LOOP AT keys INTO DATA(key).
+      may_edit   = COND #( WHEN zcl_sac_access=>can_edit( kind = 'STORY' id = key-StoryId ) = abap_true
+                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
+      may_delete = COND #( WHEN zcl_sac_access=>can_delete( kind = 'STORY' id = key-StoryId ) = abap_true
+                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
+      APPEND VALUE #( %tky           = key-%tky
+                      %update        = may_edit
+                      %delete        = may_delete
+                      %assoc-_Widget = may_edit ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  " a new story belongs to the user who creates it
+  METHOD setowner.
+    READ ENTITIES OF zr_sac_story IN LOCAL MODE
+      ENTITY story
+        FIELDS ( OwnerId ) WITH CORRESPONDING #( keys )
+      RESULT DATA(stories).
+    DELETE stories WHERE OwnerId IS NOT INITIAL.
+    CHECK stories IS NOT INITIAL.
+    MODIFY ENTITIES OF zr_sac_story IN LOCAL MODE
+      ENTITY story
+        UPDATE FIELDS ( OwnerId )
+        WITH VALUE #( FOR s IN stories ( %tky = s-%tky OwnerId = zcl_sac_access=>user( ) ) ).
   ENDMETHOD.
 
 

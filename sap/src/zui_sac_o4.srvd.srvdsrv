@@ -8,6 +8,7 @@
 }
 define service ZUI_SAC_O4
   provider contracts odata_v4_ui {
+  expose ZC_SAC_SHARE       as Share;
   expose ZC_SAC_FILE        as File;
   expose ZC_SAC_STORY       as Story;
   expose ZC_SAC_WIDGET      as Widget;

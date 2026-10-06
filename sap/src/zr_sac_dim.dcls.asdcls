@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for model dimension'
+@MappingRole: true
+define role ZR_SAC_DIM
+{
+  grant select on ZR_SAC_DIM
+    where inheriting conditions from entity ZR_SAC_MODEL;
+}

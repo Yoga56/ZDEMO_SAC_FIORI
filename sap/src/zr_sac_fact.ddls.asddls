@@ -1,8 +1,9 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 @Metadata.allowExtensions: true
 @EndUserText.label: 'Plan Fact'
 define root view entity ZR_SAC_FACT
   as select from zsac_fact
+  association [1] to ZR_SAC_MODEL as _Model on _Model.ModelId = $projection.ModelId
 {
   key model_id as ModelId,
   key version_id as VersionId,
@@ -15,5 +16,6 @@ define root view entity ZR_SAC_FACT
   key dim5 as Dim5,
   fact_value as Value,
   @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt
+  local_last_changed_at as LocalLastChangedAt,
+  _Model
 }

@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for cell comment'
+@MappingRole: true
+define role ZR_SAC_COMMENT
+{
+  grant select on ZR_SAC_COMMENT
+    where inheriting conditions from entity ZR_SAC_MODEL;
+}

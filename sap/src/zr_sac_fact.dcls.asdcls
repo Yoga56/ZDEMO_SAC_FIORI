@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for plan fact'
+@MappingRole: true
+define role ZR_SAC_FACT
+{
+  grant select on ZR_SAC_FACT
+    where inheriting conditions from entity ZR_SAC_MODEL;
+}

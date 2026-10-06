@@ -1,0 +1,11 @@
+@EndUserText.label: 'Access control for planning model'
+@MappingRole: true
+define role ZR_SAC_MODEL
+{
+  grant select on ZR_SAC_MODEL
+    where ( OwnerId ) = aspect user
+       or OwnerId = ''
+       or OwnerId = '*'
+       or ( _ShareMe.Principal ) = aspect user
+       or ( _ShareAll.Principal ) = '*';
+}

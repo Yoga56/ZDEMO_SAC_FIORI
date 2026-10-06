@@ -68,11 +68,13 @@ Same flow as Estate Command.
 
 1. ADT: create package `ZSAC_FIORI`. *abapGit Repositories* view: link this repository to the package, **Pull**.
 2. Activate all (Ctrl+Shift+F3). If mass activation complains, in this order: tables, `ZA_SAC_*` abstract entities,
-   `ZR_SAC_*` views, `ZC_SAC_*` views, `ZCL_SAC_FACT_WRITER`, `ZCL_SAC_VERSION_ENGINE`,
-   behavior definitions `ZR_SAC_*` then `ZC_SAC_*`, `ZBP_R_SAC_*`, `ZUI_SAC_O4`, `ZCL_SAC_SEED`.
+   `ZCL_SAC_ACCESS`, `ZR_SAC_SHARE`, the other `ZR_SAC_*` views, the access controls (`*.dcls`), `ZC_SAC_*` views,
+   `ZCL_SAC_FACT_WRITER`, `ZCL_SAC_VERSION_ENGINE`, behavior definitions `ZR_SAC_*` then `ZC_SAC_*`, `ZBP_R_SAC_*`,
+   `ZUI_SAC_O4`, `ZCL_SAC_SEED`.
 3. Create the service binding `ZUI_SAC_O4` (OData V4 - UI) on the service definition and publish it. The binding is ignored by
    abapGit on purpose.
-4. Run `ZCL_SAC_SEED` with F9 for the sample models, plan data, story and actions.
+4. Run `ZCL_SAC_SEED` with F9 for the sample models, plan data, story and actions. If content was saved before
+   sharing existed, run `ZCL_SAC_CLAIM_OWNERS` once (gives it to the user who created it).
 5. UI: `cd sap/app/sacfiori && npm run deploy` (builds with the library included in the app, then `fiori deploy`; target
    destination and package are in `ui5-deploy.yaml`). Set `"provider": "odata"` in `manifest.json` (`sap.ui5/config`) or open with `?provider=odata`.
    In BAS use `npm start`; from a laptop `npm run start-local`.
@@ -80,6 +82,9 @@ Same flow as Estate Command.
 
 The ABAP sources were written without access to a system: activate, fix what the system reports and tell me. The first
 things to check are listed in [docs/technical-specification.md](sap/docs/technical-specification.md#known-gaps).
+
+Stories and models have owners and can be shared with users or everyone: see [docs/sharing-and-security.md](sap/docs/sharing-and-security.md)
+(what is enforced where, what is not protected, and the parts of the ABAP to check first).
 
 Regenerate backend sources after changing `sap/tools/sac_spec.py`:
 

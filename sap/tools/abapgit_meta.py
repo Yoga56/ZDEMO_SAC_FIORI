@@ -34,7 +34,7 @@ for _n, (_label, _el) in S.ABSTRACT.items():
     DDLS[_n] = _label
 
 DDLX: list = []
-DCLS: list = []
+DCLS = [S.r_view(_e) for _e in S.ENTITIES if _e.get("dcl")]
 BDEF = [v(_e) for _e in S.roots() for v in (S.r_view, S.c_view)]
 SRVD = {"ZUI_SAC_O4": "SAC analytics and planning service"}
 # The service binding is created in ADT (its binding content cannot be written by hand) and is

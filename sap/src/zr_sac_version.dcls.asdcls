@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for planning version'
+@MappingRole: true
+define role ZR_SAC_VERSION
+{
+  grant select on ZR_SAC_VERSION
+    where inheriting conditions from entity ZR_SAC_MODEL;
+}

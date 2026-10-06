@@ -1,0 +1,47 @@
+managed implementation in class ZBP_R_SAC_SHARE unique;
+strict ( 2 );
+
+define behavior for ZR_SAC_SHARE alias Share
+persistent table zsac_share
+lock master
+authorization master ( instance )
+etag master LocalLastChangedAt
+{
+  field ( mandatory : create )
+   ObjectKind,
+   ObjectId,
+   Principal;
+
+  field ( readonly : update )
+   ObjectKind,
+   ObjectId,
+   Principal;
+
+  field ( readonly )
+   CreatedBy,
+   CreatedAt,
+   LastChangedBy,
+   LastChangedAt,
+   LocalLastChangedAt,
+   OwnerId;
+
+  create;
+  update;
+  delete;
+  validation CheckShare on save { field AccessLevel; create; update; }
+  determination SetOwner on modify { create; }
+
+  mapping for zsac_share
+  {
+    ObjectKind = object_kind;
+    ObjectId = object_id;
+    Principal = principal;
+    AccessLevel = access_level;
+    OwnerId = owner_id;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

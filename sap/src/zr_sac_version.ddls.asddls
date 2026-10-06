@@ -1,8 +1,9 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 @Metadata.allowExtensions: true
 @EndUserText.label: 'Planning Version'
 define root view entity ZR_SAC_VERSION
   as select from zsac_version
+  association [1] to ZR_SAC_MODEL as _Model on _Model.ModelId = $projection.ModelId
 {
   key model_id as ModelId,
   key version_id as VersionId,
@@ -21,5 +22,6 @@ define root view entity ZR_SAC_VERSION
   @Semantics.systemDateTime.lastChangedAt: true
   last_changed_at as LastChangedAt,
   @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt
+  local_last_changed_at as LocalLastChangedAt,
+  _Model
 }

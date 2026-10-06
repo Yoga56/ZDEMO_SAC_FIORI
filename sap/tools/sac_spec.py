@@ -21,16 +21,27 @@ BOOL = "@ABAP_BOOLEAN"
 # id, table, label, fields, admin, parent=(parent id, association name), children=[(child id, association name)]
 # bdef: extra behavior lines; uses: lines for the projection; internal: no create/update through the service
 ENTITIES = [
-    dict(id="FILE", table="ZSAC_FILE", label="File", set="File", admin=ADMIN, fields=[
+    # who a story or a model is shared with: PRINCIPAL is a user name or * for everyone, ACCESS_LEVEL READ (open and use) or WRITE (edit).
+    # OWNER_ID is the user who shared it. Anyone sees the rows that are about them or about everyone, the owner sees all rows of the object.
+    dict(id="SHARE", table="ZSAC_SHARE", label="Share", set="Share", admin=ADMIN, fields=[
+        ("*OBJECT_KIND", "CHAR 8"), ("*OBJECT_ID", "CHAR 32"), ("*PRINCIPAL", "CHAR 12"), ("ACCESS_LEVEL", "CHAR 5"), ("OWNER_ID", "CHAR 12")],
+        validations=[("CheckShare", "AccessLevel")],
+        determinations=[("SetOwner", "on modify", "create;")],
+        readonly=["OWNER_ID"], auth="instance", dcl="share"),
+
+    dict(id="FILE", table="ZSAC_FILE", label="File", set="File", admin=ADMIN, dcl="file", fields=[
         ("*FILE_ID", "CHAR 32"), ("PARENT_ID", "CHAR 32"), ("FILE_KIND", "CHAR 12"), ("OBJECT_ID", "CHAR 32"),
         ("FILE_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("OWNER_ID", "CHAR 12"),
         ("FAVOURITE", BOOL), ("SHARED", BOOL)]),
 
     dict(id="STORY", table="ZSAC_STORY", label="Story", set="Story", admin=ADMIN, children=[("WIDGET", "_Widget")], fields=[
         ("*STORY_ID", "CHAR 32"), ("STORY_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("MODEL_ID", "CHAR 20"),
-        ("STATUS", "CHAR 1"), ("PAGES_JSON", "STRG"), ("FILTERS", "STRG")],
-        validations=[("CheckName", "StoryName")]),
-    dict(id="WIDGET", table="ZSAC_WIDGET", label="Story Widget", set="Widget", admin=LOCAL_ONLY, parent=("STORY", "_Story"), fields=[
+        ("STATUS", "CHAR 1"), ("PAGES_JSON", "STRG"), ("FILTERS", "STRG"), ("OWNER_ID", "CHAR 12")],
+        validations=[("CheckName", "StoryName")],
+        determinations=[("SetOwner", "on modify", "create;")],
+        # the owner is set by the system, never typed; the user's name travels with every row so the client knows who it is
+        readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="STORY", share_id="StoryId"),
+    dict(id="WIDGET", table="ZSAC_WIDGET", label="Story Widget", set="Widget", admin=LOCAL_ONLY, parent=("STORY", "_Story"), dcl="parent", fields=[
         ("*STORY_ID", "CHAR 32"), ("*WIDGET_ID", "CHAR 32"), ("PAGE_NO", "INT4"), ("WIDGET_KIND", "CHAR 24"), ("TITLE", "CHAR 80"),
         ("GRID_X", "INT4"), ("GRID_Y", "INT4"), ("GRID_W", "INT4"), ("GRID_H", "INT4"), ("BINDING", "STRG"), ("PROPS", "STRG")]),
 
@@ -38,17 +49,19 @@ ENTITIES = [
          children=[("DIM", "_Dimension"), ("MEASURE", "_Measure")], fields=[
         ("*MODEL_ID", "CHAR 20"), ("MODEL_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("CURRENCY", "CHAR 5"),
         ("PERIOD_FROM", "CHAR 7"), ("PERIOD_TO", "CHAR 7"), ("PLANNING_ENABLED", BOOL), ("DATA_LOCKING", BOOL),
-        ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80"), ("SOURCE_JSON", "STRG")],
-        validations=[("CheckStructure", "ModelName")]),
-    dict(id="DIM", table="ZSAC_DIM", label="Model Dimension", set="Dimension", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
+        ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80"), ("SOURCE_JSON", "STRG"), ("OWNER_ID", "CHAR 12")],
+        validations=[("CheckStructure", "ModelName")],
+        determinations=[("SetOwner", "on modify", "create;")],
+        readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="MODEL", share_id="ModelId"),
+    dict(id="DIM", table="ZSAC_DIM", label="Model Dimension", set="Dimension", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), dcl="parent", fields=[
         ("*MODEL_ID", "CHAR 20"), ("*DIM_ID", "CHAR 20"), ("DIM_LABEL", "CHAR 40"), ("SLOT", "INT4"), ("MEMBERS", "STRG"),
         ("DIM_TYPE", "CHAR 12"), ("ATTRIBUTES", "STRG"), ("HIERARCHIES", "STRG")]),
-    dict(id="MEASURE", table="ZSAC_MEASURE", label="Model Measure", set="Measure", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), fields=[
+    dict(id="MEASURE", table="ZSAC_MEASURE", label="Model Measure", set="Measure", admin=LOCAL_ONLY, parent=("MODEL", "_Model"), dcl="parent", fields=[
         ("*MODEL_ID", "CHAR 20"), ("*MEASURE_ID", "CHAR 20"), ("MEASURE_LABEL", "CHAR 40"), ("UNIT", "CHAR 10"), ("AGGREGATION", "CHAR 10"),
         ("DATA_TYPE", "CHAR 10"), ("UNIT_TYPE", "CHAR 10"), ("SCALE", "INT4"), ("DECIMALS", "INT4"), ("EXCEPTION_AGG", "CHAR 10"),
         ("EXCEPTION_DIMS", "CHAR 120")]),
 
-    dict(id="VERSION", table="ZSAC_VERSION", label="Planning Version", set="Version", admin=ADMIN, fields=[
+    dict(id="VERSION", table="ZSAC_VERSION", label="Planning Version", set="Version", admin=ADMIN, dcl="model", fields=[
         ("*MODEL_ID", "CHAR 20"), ("*VERSION_ID", "CHAR 12"), ("VERSION_NAME", "CHAR 80"), ("CATEGORY", "CHAR 10"),
         ("LOCKED", BOOL), ("OWNER_ID", "CHAR 12"), ("SOURCE_VERSION", "CHAR 12"), ("STATUS", "CHAR 1")],
         actions=["static action CreatePrivate parameter ZA_SAC_NEW_PRIVATE result [1] $self;",
@@ -57,7 +70,7 @@ ENTITIES = [
         uses=["use action CreatePrivate;", "use action Publish;", "use action Revert;"],
         determinations=[("DeleteFacts", "on modify", "delete;")]),
 
-    dict(id="FACT", table="ZSAC_FACT", label="Plan Fact", set="Fact", admin=LOCAL_ONLY, fields=[
+    dict(id="FACT", table="ZSAC_FACT", label="Plan Fact", set="Fact", admin=LOCAL_ONLY, dcl="model", fields=[
         ("*MODEL_ID", "CHAR 20"), ("*VERSION_ID", "CHAR 12"), ("*PERIOD", "CHAR 7"), ("*MEASURE", "CHAR 20"),
         ("*DIM1", "CHAR 40"), ("*DIM2", "CHAR 40"), ("*DIM3", "CHAR 40"), ("*DIM4", "CHAR 40"), ("*DIM5", "CHAR 40"),
         ("FACT_VALUE", "DEC 17 2")],
@@ -88,7 +101,7 @@ ENTITIES = [
         ("PARAMS_TEXT", "CHAR 255"), ("LOG_TEXT", "STRG"), ("STEPS_JSON", "STRG")]),
 
     # comments on plan cells; author and time are the creation user and time of the row
-    dict(id="COMMENT", table="ZSAC_COMMENT", label="Cell Comment", set="CellComment", admin=ADMIN, fields=[
+    dict(id="COMMENT", table="ZSAC_COMMENT", label="Cell Comment", set="CellComment", admin=ADMIN, dcl="model", fields=[
         ("*COMMENT_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("VERSION_ID", "CHAR 12"), ("PERIOD", "CHAR 10"), ("MEASURE", "CHAR 20"),
         ("DIMS_JSON", "STRG"), ("COMMENT_TEXT", "STRG")]),
 
@@ -110,6 +123,8 @@ CLASSES = {
     "ZCL_SAC_FACT_WRITER": ("SAC: read and write plan facts", None),
     "ZCL_SAC_VERSION_ENGINE": ("SAC: version publish and revert", None),
     "ZCL_SAC_SEED": ("SAC: sample models, plan data, stories", None),
+    "ZCL_SAC_ACCESS": ("SAC: who may open and edit a story or model", None),
+    "ZCL_SAC_CLAIM_OWNERS": ("SAC: give existing stories and models to their creators", None),
 }
 
 

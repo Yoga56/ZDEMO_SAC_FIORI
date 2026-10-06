@@ -1,8 +1,9 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 @Metadata.allowExtensions: true
 @EndUserText.label: 'Cell Comment'
 define root view entity ZR_SAC_COMMENT
   as select from zsac_comment
+  association [1] to ZR_SAC_MODEL as _Model on _Model.ModelId = $projection.ModelId
 {
   key comment_id as CommentId,
   model_id as ModelId,
@@ -20,5 +21,6 @@ define root view entity ZR_SAC_COMMENT
   @Semantics.systemDateTime.lastChangedAt: true
   last_changed_at as LastChangedAt,
   @Semantics.systemDateTime.localInstanceLastChangedAt: true
-  local_last_changed_at as LocalLastChangedAt
+  local_last_changed_at as LocalLastChangedAt,
+  _Model
 }

@@ -6,9 +6,13 @@
 "ZR_SAC_VERSION"
 ],
 "ASSOCIATED":
-[],
+[
+"ZR_SAC_MODEL"
+],
 "BASE":
-[],
+[
+"ZR_SAC_VERSION"
+],
 "ANNO_REF":
 [],
 "SCALAR_FUNCTION":
