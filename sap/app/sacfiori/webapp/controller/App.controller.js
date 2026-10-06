@@ -11,6 +11,13 @@ sap.ui.define([
   return BaseController.extend("zsac.fiori.controller.App", {
     onInit() {
       this.getView().addStyleClass(this.getOwnerComponent().getContentDensityClass());
+      // light or dark follows the setting of the operating system (and changes with it); there is no switch in the app
+      const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+      if (dark) {
+        const follow = () => { const want = dark.matches ? "sap_horizon_dark" : "sap_horizon"; if (Theming.getTheme() !== want) { Theming.setTheme(want); } };
+        follow();
+        if (dark.addEventListener) { dark.addEventListener("change", follow); }
+      }
       // phone and narrow panes: start with the navigation collapsed
       this._narrow = () => window.innerWidth < 900;
       this.byId("toolPage").setSideExpanded(!this._narrow());
@@ -48,10 +55,6 @@ sap.ui.define([
       const key = e.getParameter("item").getKey();
       if (key) { this.navTo(key); }
       if (this._narrow()) { this.byId("toolPage").setSideExpanded(false); }
-    },
-
-    onTheme() {
-      Theming.setTheme(Theming.getTheme() === "sap_horizon_dark" ? "sap_horizon" : "sap_horizon_dark");
     },
 
     onResetMock: function () {
