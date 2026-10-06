@@ -28,7 +28,8 @@ sap.ui.define([
       aggregations: { cards: { type: "sap.ui.core.Control", multiple: true, singularName: "card" } },
       events: {
         selectionChange: { parameters: { widgetId: { type: "string" } } },
-        storyChange: {}
+        storyChange: {},
+        pageChange: { parameters: { page: { type: "int" } } }
       }
     },
 
@@ -40,6 +41,8 @@ sap.ui.define([
       this._provider = null;
       this._bus.on("filter", (e) => this._onFilter(e));
       this._bus.on("refresh-all", () => this.refreshAll());
+      // a button of the story moves to another page: only when the story is shown, not while it is edited
+      this._bus.on("goto-page", (e) => { if (!this.getEditable() && this._story && this._story.Pages.some((p) => p.Id === e.page)) { this.setPageNumber(e.page); } });
       // the planning session of the page: unpublished changes that every widget shows
       this._plan = new PlanBuffer();
       this._plan.attachChange(() => {
@@ -110,7 +113,7 @@ sap.ui.define([
     _visible() { return this._story ? this._story.Widgets.filter((w) => w.Page === this.getPage()) : []; },
     _cardOf(id) { return this.getCards().find((c) => c.getWidgetId() === id); },
 
-    _ctx() { return { provider: this._provider, bus: this._bus, filters: this._filters, plan: this._plan }; },
+    _ctx() { return { provider: this._provider, bus: this._bus, filters: this._filters, plan: this._plan, story: this._story, isEditable: () => !!this.getEditable() }; },
 
     _build(widget) {
       const def = WidgetRegistry.get(widget.Type);
@@ -205,6 +208,7 @@ sap.ui.define([
       this._selected = null;
       this.invalidate();
       this.fireSelectionChange({ widgetId: "" });
+      this.firePageChange({ page: n });
     },
 
     // ---- filters ------------------------------------------------------------------------------

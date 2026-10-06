@@ -62,6 +62,7 @@ sap.ui.define([
         if (story.Pages.length > 1) {
           const tabs = new SegmentedButton({ selectedKey: String(story.Pages[0].Id), selectionChange: (e) => this._canvas.setPageNumber(Number(e.getParameter("item").getKey())) });
           story.Pages.forEach((p) => tabs.addItem(new SegmentedButtonItem({ key: String(p.Id), text: p.Title })));
+          this._canvas.attachPageChange((e) => tabs.setSelectedKey(String(e.getParameter("page")))); // a button in the story can change the page
           layout.addItem(tabs.addStyleClass("sapUiSmallMarginBottom"));
         }
         if (this._canvas.hasPlanning()) {

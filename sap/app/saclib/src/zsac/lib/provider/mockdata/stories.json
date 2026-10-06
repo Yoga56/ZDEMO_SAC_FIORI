@@ -621,6 +621,125 @@
           "Optimistic": 5,
           "LowerIsBetter": false
         }
+      },
+      {
+        "Id": "W_BTN1",
+        "Page": 2,
+        "Type": "button",
+        "Title": "",
+        "X": 0,
+        "Y": 35,
+        "W": 3,
+        "H": 1,
+        "Binding": {
+          "ModelId": "",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "",
+          "Filters": {}
+        },
+        "Props": {
+          "Text": "Back to the overview",
+          "Icon": "sap-icon://navigation-left-arrow",
+          "ButtonType": "Emphasized",
+          "Action": "page",
+          "Page": 1
+        }
+      },
+      {
+        "Id": "W_BTN2",
+        "Page": 2,
+        "Type": "button",
+        "Title": "",
+        "X": 3,
+        "Y": 35,
+        "W": 3,
+        "H": 1,
+        "Binding": {
+          "ModelId": "",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "",
+          "Filters": {}
+        },
+        "Props": {
+          "Text": "Open planning",
+          "Icon": "sap-icon://calendar",
+          "ButtonType": "Default",
+          "Action": "app",
+          "Route": "planning"
+        }
+      },
+      {
+        "Id": "W_SYM",
+        "Page": 2,
+        "Type": "symbol",
+        "Title": "",
+        "X": 6,
+        "Y": 35,
+        "W": 2,
+        "H": 2,
+        "Binding": {
+          "ModelId": "",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "",
+          "Filters": {}
+        },
+        "Props": {
+          "Icon": "sap-icon://trend-up",
+          "Size": "large",
+          "Color": "green",
+          "Label": "Revenue is on track",
+          "Action": "none"
+        }
+      },
+      {
+        "Id": "W_RSS",
+        "Page": 2,
+        "Type": "rss",
+        "Title": "Company news",
+        "X": 0,
+        "Y": 37,
+        "W": 6,
+        "H": 5,
+        "Binding": {
+          "ModelId": "",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "",
+          "Filters": {}
+        },
+        "Props": {
+          "Url": "mock://news",
+          "Max": 5,
+          "Proxy": ""
+        }
+      },
+      {
+        "Id": "W_CMT",
+        "Page": 2,
+        "Type": "comment",
+        "Title": "Discussion",
+        "X": 6,
+        "Y": 37,
+        "W": 6,
+        "H": 5,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "BUD"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {
+          "Max": 20
+        }
       }
     ]
   },

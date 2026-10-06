@@ -220,3 +220,13 @@ path.zsacCp { fill-opacity: .35; } .zsacCpDot { display: inline-block; width: .7
 .zsacCpCurve { stroke: var(--sapTextColor, #1d2d3e); stroke-width: 1.8; fill: none; } .zsacCpOther { stroke-dasharray: 5 3; } .zsacCpOther0 { stroke: #e9730c; } .zsacCpOther1 { stroke: #7b3fa0; } .zsacCpOther2 { stroke: #0b7285; }
 .zsacCpBound { stroke: var(--sapContent_LabelColor, #6a6d70); stroke-width: 1; } .zsacCpBase { stroke: var(--sapAccentColor6, #0a6ed1); stroke-width: 1.5; stroke-dasharray: 4 3; } .zsacAxis { stroke: var(--sapList_BorderColor, #c9d3de); }
 .zsacCpInfl { margin-top: .5rem; max-width: 34rem; }
+
+/* symbol, rss, comments */
+.zsacSymbol.zsacColor-blue, .zsacSymbol.zsacColor-teal, .zsacSymbol.zsacColor-green, .zsacSymbol.zsacColor-orange, .zsacSymbol.zsacColor-red, .zsacSymbol.zsacColor-grey, .zsacSymbol.zsacColor-white { color: var(--zsacTone); }
+.zsacSymbol.sapUiIcon { cursor: default; } .zsacSymbol.sapUiIconPointer { cursor: pointer; }
+.zsacRssItem { padding: .4rem 0; border-bottom: 1px solid var(--sapList_BorderColor, #c9d3de); } .zsacRssItem a { font-weight: 600; }
+.zsacRssDate { font-size: .75rem; color: var(--sapContent_LabelColor, #6a6d70); } .zsacRssSum { font-size: .85rem; margin-top: .15rem; } .zsacRssBar { margin-top: .4rem; font-size: .85rem; }
+.zsacCmItem { padding: .4rem 0; border-bottom: 1px solid var(--sapList_BorderColor, #c9d3de); } .zsacCmHead { font-size: .8rem; color: var(--sapContent_LabelColor, #6a6d70); }
+.zsacCmWhere { background: var(--sapShell_Background, #eaf3fc); border-radius: .5rem; padding: 0 .4rem; margin-left: .25rem; } .zsacCmDel { float: right; font-size: .75rem; } .zsacCmBody { white-space: pre-wrap; margin-top: .15rem; }
+.zsacCmNew { margin-top: .6rem; display: flex; flex-direction: column; gap: .35rem; } .zsacCmText { font: inherit; width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--sapField_BorderColor, #89919a); border-radius: .25rem; resize: vertical; }
+.zsacCmAdd { align-self: flex-end; font: inherit; padding: 4px 12px; border: 0; border-radius: .25rem; cursor: pointer; background: var(--sapButton_Emphasized_Background, #0a6ed1); color: #fff; } .zsacCmAdd[disabled] { opacity: .5; cursor: default; }

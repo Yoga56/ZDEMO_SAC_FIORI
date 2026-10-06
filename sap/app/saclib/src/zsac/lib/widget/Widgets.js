@@ -28,14 +28,18 @@ sap.ui.define([
   "../core/GeoLocations",
   "../core/ValueTree",
   "../core/WebContent",
+  "../core/ButtonAction",
+  "../core/Feed",
+  "../core/CommentThread",
   "./ValueTreeView",
   "../core/Compass",
   "./CompassView",
   "sap/ui/core/HTML",
   "sap/m/Link",
-  "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
+  "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast",
+  "sap/ui/core/Icon"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
-  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
+  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ButtonAction, Feed, CommentThread, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast, Icon) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -680,6 +684,157 @@ sap.ui.define([
       const html = '<div class="zsacHeader zsacColor-' + Format.esc(widget.Props.Color || "blue") + '"><div class="zsacHeaderText">' + Format.esc(widget.Props.Text || "")
         + '</div>' + (widget.Props.Subtitle ? '<div class="zsacHeaderSub">' + Format.esc(widget.Props.Subtitle) + "</div>" : "") + "</div>";
       return staticCard(widget, new HTML({ content: html }), true);
+    }
+  });
+
+  // ---- button, symbol: a story can move around and open things
+  const actionFields = [
+    { key: "Props.Action", label: "When pressed", kind: "select", options: ButtonAction.KINDS },
+    { key: "Props.Page", label: "Page number (for: go to a page of the story)", kind: "number", min: 1 },
+    { key: "Props.Url", label: "Web address (for: open a web address)", kind: "text" },
+    { key: "Props.Route", label: "Page of the app (for: go to a page of the app), e.g. stories/STORY_SALES", kind: "text" }
+  ];
+  function runAction(props, ctx) {
+    if (ctx.isEditable && ctx.isEditable()) { MessageToast.show("Buttons work when the story is shown, not while it is edited"); return; }
+    const r = ButtonAction.resolve(props, ctx.story);
+    if (!r.ok) { MessageToast.show(r.error); return; }
+    if (r.kind === "page") { ctx.bus.fire("goto-page", { page: r.page }); }
+    else if (r.kind === "url") { window.open(r.url, "_blank", "noopener,noreferrer"); }
+    else if (r.kind === "app") { window.location.hash = r.hash; }
+    else if (r.kind === "refresh") { ctx.bus.fire("refresh-all"); }
+  }
+
+  WidgetRegistry.register("button", {
+    name: "Button", icon: "sap-icon://cursor-arrow", group: "Controls", size: { w: 3, h: 1 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Text: "Button", Icon: "", ButtonType: "Emphasized", Action: "none", Page: 1, Url: "", Route: "" } },
+    builder: [
+      { key: "Props.Text", label: "Text", kind: "text" },
+      { key: "Props.Icon", label: "Icon, e.g. sap-icon://home (optional)", kind: "text" },
+      { key: "Props.ButtonType", label: "Look", kind: "select", options: [["Emphasized", "Emphasized"], ["Default", "Default"], ["Transparent", "Transparent"], ["Accept", "Positive"], ["Reject", "Negative"]] }
+    ].concat(actionFields),
+    create(widget, ctx) {
+      const type = ["Emphasized", "Default", "Transparent", "Accept", "Reject"].indexOf(widget.Props.ButtonType) >= 0 ? widget.Props.ButtonType : "Default";
+      const btn = new Button({ text: widget.Props.Text || "", type, width: "100%", icon: ButtonAction.isIcon(widget.Props.Icon) ? widget.Props.Icon : "", press: () => runAction(widget.Props, ctx) });
+      return staticCard(widget, btn, true);
+    }
+  });
+
+  WidgetRegistry.register("symbol", {
+    name: "Symbol", icon: "sap-icon://favorite", group: "Content", size: { w: 2, h: 2 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Icon: "sap-icon://home", Size: "medium", Color: "blue", Label: "", Action: "none", Page: 1, Url: "", Route: "" } },
+    builder: [
+      { key: "Props.Icon", label: "Icon, e.g. sap-icon://home (the SAP icon names)", kind: "text" },
+      { key: "Props.Size", label: "Size", kind: "select", options: [["small", "Small"], ["medium", "Medium"], ["large", "Large"], ["huge", "Huge"]] },
+      colorSelect("Props.Color", "Colour"),
+      { key: "Props.Label", label: "Text under the symbol", kind: "text" }
+    ].concat(actionFields),
+    create(widget, ctx) {
+      const size = { small: "1.5rem", medium: "2.5rem", large: "4rem", huge: "6rem" }[widget.Props.Size] || "2.5rem";
+      const clickable = (widget.Props.Action || "none") !== "none";
+      const icon = new Icon({ src: ButtonAction.isIcon(widget.Props.Icon) ? widget.Props.Icon : "sap-icon://question-mark", size, useIconTooltip: false, decorative: !clickable, tooltip: widget.Props.Label || "" }).addStyleClass("zsacSymbol zsacColor-" + (widget.Props.Color || "blue"));
+      if (clickable) { icon.attachPress(() => runAction(widget.Props, ctx)); }
+      const items = [icon].concat(widget.Props.Label ? [new Text({ text: widget.Props.Label, textAlign: "Center" })] : []);
+      return staticCard(widget, new VBox({ alignItems: "Center", justifyContent: "Center", height: "100%", items }), true);
+    }
+  });
+
+  // ---- RSS reader
+  const FEED_MOCK = "mock://news";
+  WidgetRegistry.register("rss", {
+    name: "RSS reader", icon: "sap-icon://marketing-campaign", group: "Content", size: { w: 4, h: 4 }, static: true,
+    defaults: { Binding: emptyBinding(), Props: { Url: FEED_MOCK, Max: 5, Proxy: "" } },
+    builder: [
+      { key: "Title", label: "Title", kind: "text" },
+      { key: "Props.Url", label: "Address of the feed (RSS or Atom). mock://news shows a sample", kind: "text" },
+      { key: "Props.Max", label: "Number of items", kind: "number", min: 1, default: 5 },
+      { key: "Props.Proxy", label: "Proxy address, if the feed's site does not allow other pages to read it (the feed address is added at the end)", kind: "text" }
+    ],
+    create(widget) {
+      const holder = new HTML({ content: "<div></div>" });
+      const card = staticCard(widget, holder);
+      const show = (h) => holder.setContent("<div>" + h + "</div>");
+      const bind = () => { const el = holder.getDomRef(); const a = el && el.querySelector(".zsacRssReload"); if (a) { a.addEventListener("click", (e) => { e.preventDefault(); card.refresh(); }); } };
+      holder.addEventDelegate({ onAfterRendering: bind });
+      card.refresh = async function () {
+        const reload = '<div class="zsacRssBar"><a href="#" class="zsacRssReload">Reload</a></div>';
+        const fail = (msg) => { show('<div class="zsacVMsg">' + Format.esc(msg) + "</div>" + reload); bind(); };
+        const max = Math.max(1, Number(widget.Props.Max) || 5);
+        let text;
+        const raw = String(widget.Props.Url || "").trim();
+        if (!raw) { return fail("Enter the address of a feed in the builder panel."); }
+        if (raw === FEED_MOCK) { text = Feed.SAMPLE; } else {
+          const c = WebContent.check(raw, "page");
+          if (!c.ok) { return fail(c.error); }
+          let target = c.url;
+          if (widget.Props.Proxy) { const px = WebContent.check(widget.Props.Proxy, "page"); if (!px.ok) { return fail("Proxy address: " + px.error); } target = px.url + encodeURIComponent(c.url); }
+          try {
+            const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 10000);
+            const res = await fetch(target, { signal: ctl.signal, credentials: "omit", referrerPolicy: "no-referrer" });
+            clearTimeout(timer);
+            if (!res.ok) { return fail("The feed answered " + res.status + "."); }
+            text = await res.text();
+          } catch (e) {
+            return fail("The feed could not be read. Most sites do not allow other pages to read their feed (CORS): give a proxy address in the builder panel, or use a feed on this server.");
+          }
+        }
+        const f = Feed.parse(text, max);
+        if (f.error) { return fail(f.error); }
+        const rows = f.items.map((i) => '<div class="zsacRssItem">' + (i.link ? '<a href="' + Format.esc(i.link) + '" target="_blank" rel="noopener noreferrer">' + Format.esc(i.title) + "</a>" : "<span>" + Format.esc(i.title) + "</span>")
+          + (i.date ? '<div class="zsacRssDate">' + Format.esc(new Date(i.date).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" })) + "</div>" : "")
+          + (i.summary ? '<div class="zsacRssSum">' + Format.esc(i.summary) + "</div>" : "") + "</div>").join("");
+        show((f.title ? '<div class="zsacVCap">' + Format.esc(f.title) + "</div>" : "") + (rows || '<div class="zsacVMsg">The feed has no items.</div>') + reload);
+        bind();
+      };
+      return card;
+    }
+  });
+
+  // ---- comments of the story: the thread of a model and version, shown under the story's filters
+  WidgetRegistry.register("comment", {
+    name: "Comments", icon: "sap-icon://comment", group: "Controls", size: { w: 4, h: 5 },
+    defaults: { Binding: emptyBinding(), Props: { Max: 20 } },
+    builder: baseBuilder.concat([
+      { key: "Binding.Measure", label: "Measure the comments are about (optional)", kind: "measure" },
+      { key: "Binding.Filters", label: "Filters (choose one version: comments belong to a version)", kind: "filters" },
+      { key: "Props.Max", label: "Comments shown (the latest)", kind: "number", min: 1, default: 20 }
+    ]),
+    create(widget, ctx) {
+      const holder = new HTML({ content: "<div></div>" });
+      const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: holder });
+      let model = null; let draft = "";
+      const b = widget.Binding;
+      const filters = () => FilterEngine.merge(ctx.filters || {}, b.Filters || {});
+      const versionId = () => { const v = filters().VERSION; return v && v.length === 1 ? v[0] : ""; };
+      const show = (h) => { holder.setContent("<div>" + h + "</div>"); bind(); };
+      const bind = () => {
+        const el = holder.getDomRef(); if (!el) { return; }
+        const box = el.querySelector(".zsacCmText"); if (box) { box.addEventListener("input", () => { draft = box.value; }); }
+        const add = el.querySelector(".zsacCmAdd");
+        if (add) { add.addEventListener("click", async () => {
+          const c = CommentThread.create(draft, { modelId: b.ModelId, versionId: versionId(), filters: filters(), measure: b.Measure });
+          if (c.error) { MessageToast.show(c.error); return; }
+          try { await ctx.provider.saveComment(c); draft = ""; await card.refresh(); } catch (e) { MessageToast.show(e.message || String(e)); }
+        }); }
+        el.querySelectorAll("[data-del]").forEach((a) => a.addEventListener("click", (e) => {
+          e.preventDefault();
+          MessageBox.confirm("Delete this comment?", { onClose: async (action) => { if (action === MessageBox.Action.OK) { try { await ctx.provider.deleteComment(a.getAttribute("data-del")); await card.refresh(); } catch (err) { MessageToast.show(err.message || String(err)); } } } });
+        }));
+      };
+      holder.addEventDelegate({ onAfterRendering: bind });
+      return wire(card, widget, async () => {
+        if (!(ctx.provider.capabilities && ctx.provider.capabilities.comments)) { card.setMessage("This data source does not keep comments"); return; }
+        model = await ctx.provider.getModel(b.ModelId);
+        const vid = versionId();
+        const list = CommentThread.visible(await ctx.provider.listComments(b.ModelId, vid || undefined), { versionId: vid, filters: filters() });
+        const shown = list.slice(-Math.max(1, Number(widget.Props.Max) || 20));
+        const items = shown.map((c) => { const where = CommentThread.where(c, model);
+          return '<div class="zsacCmItem"><div class="zsacCmHead"><b>' + Format.esc(c.Author || "") + "</b> " + Format.esc(c.At ? new Date(c.At).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }) : "")
+            + (where ? ' <span class="zsacCmWhere">' + Format.esc(where) + "</span>" : "") + ' <a href="#" data-del="' + Format.esc(c.Id) + '" class="zsacCmDel">Delete</a></div><div class="zsacCmBody">' + Format.esc(c.Text) + "</div></div>"; }).join("");
+        show((vid ? "" : '<div class="zsacVMsg">Choose one version in the filters of this widget to add comments.</div>')
+          + (list.length > shown.length ? '<div class="zsacVCap">' + (list.length - shown.length) + " older comment(s) not shown</div>" : "")
+          + (items || '<div class="zsacVMsg">No comments yet.</div>')
+          + '<div class="zsacCmNew"><textarea class="zsacCmText" rows="2" maxlength="' + CommentThread.MAX + '" placeholder="Write a comment">' + Format.esc(draft) + '</textarea><button type="button" class="zsacCmAdd"' + (vid ? "" : " disabled") + ">Add comment</button></div>");
+      });
     }
   });
 

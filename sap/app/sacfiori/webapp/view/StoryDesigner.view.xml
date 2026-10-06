@@ -31,7 +31,7 @@
         <ScrollContainer class="zsacStage" vertical="true" horizontal="false">
           <VBox>
             <zp:PlanToolbar id="plan" visible="false"/>
-            <zd:StoryCanvas id="canvas" selectionChange=".onSelect" storyChange=".onStoryChange"/>
+            <zd:StoryCanvas id="canvas" selectionChange=".onSelect" storyChange=".onStoryChange" pageChange=".onPageChanged"/>
           </VBox>
         </ScrollContainer>
         <ScrollContainer id="right" class="zsacRight" vertical="true" visible="false">

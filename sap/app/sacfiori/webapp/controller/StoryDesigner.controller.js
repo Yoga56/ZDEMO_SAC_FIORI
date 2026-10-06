@@ -83,6 +83,9 @@ sap.ui.define([
       this._selectionButtons(false);
     },
 
+    /** A button in the story moved to another page: the page bar follows. */
+    onPageChanged(e) { this.byId("pages").setSelectedKey(String(e.getParameter("page"))); },
+
     _selectionButtons(on) { this.byId("dup").setEnabled(on); this.byId("del").setEnabled(on); },
 
     // ---- pages ---------------------------------------------------------------------------
