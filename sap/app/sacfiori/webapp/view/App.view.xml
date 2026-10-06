@@ -1,6 +1,6 @@
 <mvc:View controllerName="zsac.fiori.controller.App"
-  xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:tnt="sap.tnt" xmlns:core="sap.ui.core" displayBlock="true" height="100%">
-  <tnt:ToolPage id="toolPage" class="zsacShell">
+  xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc" xmlns:tnt="sap.tnt" xmlns:core="sap.ui.core" xmlns:custom="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1" displayBlock="true" height="100%">
+  <tnt:ToolPage id="toolPage" class="zsacShell" sideExpanded="false">
     <tnt:header>
       <tnt:ToolHeader>
         <Image src="https://upload.wikimedia.org/wikipedia/commons/5/59/SAP_2011_logo.svg" height="1.5rem" visible="false"/>
@@ -11,32 +11,31 @@
         <Button id="bell" icon="sap-icon://bell" type="Transparent" press=".onBell" tooltip="Reminders" visible="false"/>
       </tnt:ToolHeader>
     </tnt:header>
-    <tnt:sideContent>
-      <tnt:SideNavigation id="side" selectedKey="home" itemSelect=".onNavSelect">
-        <tnt:NavigationList>
-          <tnt:NavigationListItem text="Home" icon="sap-icon://home" key="home"/>
-          <tnt:NavigationListItem text="Files" icon="sap-icon://folder-full" key="files"/>
-          <tnt:NavigationListItem text="Stories" icon="sap-icon://business-objects-experience" key="stories"/>
-          <tnt:NavigationListItem text="Data Analyser" icon="sap-icon://pie-chart" key="analyser"/>
-          <tnt:NavigationListItem text="Datasets" icon="sap-icon://database" key="datasets"/>
-          <tnt:NavigationListItem text="Modeller" icon="sap-icon://dimension" key="modelers"/>
-          <tnt:NavigationListItem text="Planning" icon="sap-icon://projector" key="planning"/>
-          <tnt:NavigationListItem text="Data Actions" icon="sap-icon://workflow-tasks" key="dataactions"/>
-          <tnt:NavigationListItem text="Multi Actions" icon="sap-icon://process" key="multiactions"/>
-          <tnt:NavigationListItem text="Calendar" icon="sap-icon://calendar" key="calendar"/>
-        </tnt:NavigationList>
-        <tnt:fixedItem>
-          <tnt:NavigationList>
-            <tnt:NavigationListItem text="Predictive Scenarios" icon="sap-icon://lightbulb" key="soon1" enabled="false"/>
-            <tnt:NavigationListItem text="Compass" icon="sap-icon://explorer" key="soon2" enabled="false"/>
-          </tnt:NavigationList>
-        </tnt:fixedItem>
-      </tnt:SideNavigation>
-    </tnt:sideContent>
     <tnt:mainContents>
       <NavContainer id="pages" defaultTransitionName="show"/>
     </tnt:mainContents>
   </tnt:ToolPage>
-  <!-- the navigation button floats over the page (bottom left), so it is not mistaken for the menu of the SAP shell bar above -->
-  <Button id="fab" class="zsacFab" icon="sap-icon://menu2" type="Emphasized" press=".onToggleSide" tooltip="Navigation"/>
+  <!-- the navigation is a floating button over the page (bottom left) that opens a floating menu, so there is no sliding bar and nothing to mistake for the SAP shell bar above -->
+  <Button id="fab" class="zsacFab" icon="sap-icon://grid" type="Emphasized" press=".onToggleSide" tooltip="Navigation">
+  <dependents>
+  <Popover id="navMenu" class="zsacNavMenu" showHeader="false" showArrow="false" placement="Top" verticalScrolling="true" contentMinWidth="14rem">
+    <List id="side" mode="SingleSelectMaster" selectionChange=".onNavSelect" includeItemInSelection="true">
+      <StandardListItem title="Home" icon="sap-icon://home" type="Active" custom:key="home"/>
+      <StandardListItem title="Files" icon="sap-icon://folder-full" type="Active" custom:key="files"/>
+      <StandardListItem title="Stories" icon="sap-icon://business-objects-experience" type="Active" custom:key="stories"/>
+      <StandardListItem title="Data Analyser" icon="sap-icon://pie-chart" type="Active" custom:key="analyser"/>
+      <StandardListItem title="Datasets" icon="sap-icon://database" type="Active" custom:key="datasets"/>
+      <StandardListItem title="Modeller" icon="sap-icon://dimension" type="Active" custom:key="modelers"/>
+      <StandardListItem title="Planning" icon="sap-icon://projector" type="Active" custom:key="planning"/>
+      <StandardListItem title="Data Actions" icon="sap-icon://workflow-tasks" type="Active" custom:key="dataactions"/>
+      <StandardListItem title="Multi Actions" icon="sap-icon://process" type="Active" custom:key="multiactions"/>
+      <StandardListItem title="Calendar" icon="sap-icon://calendar" type="Active" custom:key="calendar"/>
+    </List>
+    <List class="zsacNavMenuSoon">
+      <StandardListItem title="Predictive Scenarios" icon="sap-icon://lightbulb" type="Inactive" enabled="false"/>
+      <StandardListItem title="Compass" icon="sap-icon://explorer" type="Inactive" enabled="false"/>
+    </List>
+  </Popover>
+  </dependents>
+  </Button>
 </mvc:View>

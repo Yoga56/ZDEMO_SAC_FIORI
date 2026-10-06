@@ -10,7 +10,6 @@ sap.ui.define([
 
   /** The side panels that can be resized: where they are, where the handle sits, the limits and the standard width (pixels). */
   const PANELS = [
-    { selector: ".sapTntToolPageAside", handle: "after", key: "nav", min: 180, max: 420, def: 240, cssVar: "--zsacNavW" },
     { selector: ".zsacPalette[id*='---story--']", handle: "after", key: "palette", min: 140, max: 480, def: 208 },
     { selector: ".zsacPalette[id*='---analyser--']", handle: "after", key: "analyserLeft", min: 220, max: 640, def: 352 },
     { selector: ".zsacDesigner > .zsacRight:not(.zsacRightWide)", handle: "before", key: "builder", min: 240, max: 760, def: 352 },

@@ -18,20 +18,9 @@ sap.ui.define([
         follow();
         if (dark.addEventListener) { dark.addEventListener("change", follow); }
       }
-      // phone and narrow panes: start with the navigation collapsed
-      this._narrow = () => window.innerWidth < 900;
-      this.byId("toolPage").setSideExpanded(!this._narrow());
-      // on a narrow screen the navigation is a drawer over the page: a tap on the page (or on the button) closes it
-      this.byId("toolPage").addEventDelegate({ onAfterRendering: () => {
-        const main = this.byId("pages").getDomRef();
-        if (main && !main.dataset.zsacClose) {
-          main.dataset.zsacClose = "1";
-          main.addEventListener("click", () => { if (this._narrow() && this.byId("toolPage").getSideExpanded()) { this.byId("toolPage").setSideExpanded(false); } }, true);
-        }
-      } });
       this.router().attachRouteMatched((e) => {
         const key = ROUTE_TO_KEY[e.getParameter("name")];
-        if (key) { this.byId("side").setSelectedKey(key); }
+        if (key) { this._markNav(key); }
         this._refreshBell();
       });
       sap.ui.getCore().getEventBus().subscribe("zsac", "remindersChanged", () => this._refreshBell());
@@ -54,15 +43,22 @@ sap.ui.define([
 
     onBell() { this.navTo("calendar", { query: { reminders: "1" } }); },
 
-    onToggleSide() {
-      const page = this.byId("toolPage");
-      page.setSideExpanded(!page.getSideExpanded());
+    /** The floating button opens (or closes) the navigation menu above it. */
+    onToggleSide(e) {
+      const menu = this.byId("navMenu");
+      if (menu.isOpen()) { menu.close(); } else { menu.openBy(e.getSource()); }
+    },
+
+    /** The item of the page that is open is marked in the menu. */
+    _markNav(key) {
+      this._navKey = key;
+      this.byId("side").getItems().forEach((i) => i.setSelected(i.data("key") === key));
     },
 
     onNavSelect(e) {
-      const key = e.getParameter("item").getKey();
+      const key = e.getParameter("listItem").data("key");
+      this.byId("navMenu").close();
       if (key) { this.navTo(key); }
-      if (this._narrow()) { this.byId("toolPage").setSideExpanded(false); }
     },
 
     onResetMock: function () {

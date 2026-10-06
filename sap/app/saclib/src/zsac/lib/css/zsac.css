@@ -301,8 +301,6 @@ path.zsacCp { fill-opacity: .35; } .zsacCpDot { display: inline-block; width: .7
 .zsacSplitter:hover, .zsacSplitterOn, .zsacSplitter:focus-visible { background: var(--sapContent_FocusColor, #0070f2); opacity: .45; outline: none; }
 .zsacSplitter-inside { position: absolute; top: 0; bottom: 0; right: 0; margin: 0; }
 body.zsacResizing { user-select: none; cursor: col-resize; } body.zsacResizing iframe { pointer-events: none; }
-.zsacShell .sapTntSideNavigation:not(.sapTntSideNavigationNotExpanded) { width: var(--zsacNavW, 15rem); min-width: var(--zsacNavW, 15rem); }
-.sapTntToolPageAside:has(.sapTntSideNavigationNotExpanded) + .zsacSplitter { display: none !important; }
 
 .zsacCalLinks { position: absolute; left: 0; pointer-events: none; z-index: 1; overflow: visible; }
 .zsacCalLink { stroke: #5b738b; stroke-width: 1.3; } .zsacCalLinkBad { stroke: #bb0000; stroke-width: 1.6; } .zsacCalArrow { fill: #5b738b; } .zsacCalArrowBad { fill: #bb0000; }

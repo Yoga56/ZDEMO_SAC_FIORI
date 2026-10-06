@@ -44,15 +44,15 @@
 }
 
 /* navigation button: a floating action button over the page, bottom left */
-.zsacFab { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; width: 3.25rem; height: 3.25rem; min-width: 3.25rem; border-radius: 50%; box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .35); }
-.zsacFab .sapMBtnInner { border-radius: 50%; }
-/* the button must not cover the last items of the navigation */
-.zsacShell .sapTntSideNavigationFixed { padding-bottom: 4.5rem; }
-/* a narrow screen: the navigation opens as a drawer over the page, and is gone (not a thin rail) when closed */
-@media (max-width: 899px) {
-  .zsacShell .sapTntToolPageAside { position: fixed; top: 3rem; bottom: 0; left: 0; z-index: 50; box-shadow: .25rem 0 1rem rgba(0, 0, 0, .35); }
-  .zsacShell .sapTntToolPageAside:has(.sapTntSideNavigationNotExpanded) { display: none; }
-  .zsacShell .sapTntToolPageAside { width: min(16rem, 80vw) !important; }
-  .zsacShell .sapTntSideNavigation:not(.sapTntSideNavigationNotExpanded) { width: 100% !important; min-width: 0 !important; }
-  .zsacFab { bottom: 1.25rem; }
-}
+.zsacFab.sapMBtn { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; width: 3.5rem !important; height: 3.5rem !important; min-width: 3.5rem; border-radius: 1rem; box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .35); }
+.zsacFab .sapMBtnInner { border-radius: 1rem; width: 100% !important; height: 100% !important; min-width: 0; }
+.zsacFab .sapMBtnIcon { font-size: 1.5rem; }
+
+/* the floating navigation menu (Material 3 style): a rounded raised surface above the button, the open page marked */
+.zsacNavMenu.sapMPopover { border-radius: 1rem; box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .3), 0 .5rem 1.5rem rgba(0, 0, 0, .25); margin-bottom: .5rem; }
+.zsacNavMenu .sapMPopoverCont, .zsacNavMenu .sapMPopoverScroll { border-radius: 1rem; }
+.zsacNavMenu .sapMList { padding: .25rem .5rem; background: transparent; }
+.zsacNavMenu .sapMLIB { border-radius: .75rem; margin: .125rem 0; border-bottom: 0; }
+.zsacNavMenu .sapMLIBSelected { background: var(--sapList_SelectionBackgroundColor, #e5f0fa); font-weight: 600; }
+.zsacNavMenuSoon { border-top: 1px solid var(--sapList_BorderColor, #e5e5e5); }
+.zsacNavMenuSoon .sapMLIB { opacity: .6; }
