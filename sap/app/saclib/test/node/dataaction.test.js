@@ -111,3 +111,43 @@ test("legacy steps are upgraded; validation reports what is wrong", () => {
   assert.ok(Schema.validate(Schema.normalizeAction(loop[0]), { model, versions, actions: loop.map(Schema.normalizeAction) }).some((x) => /loop/.test(x.message)));
   assert.deepStrictEqual(Schema.usage(Schema.normalizeAction(act([{ StepType: "SCALE", Factor: "@U" }], { Parameters: [{ Id: "U", Type: "NUMBER" }] }))), { U: ["Scale 1"] });
 });
+
+test("currency conversion: member currency, rates by month, quarter, year and inverse, missing rate stops the action", () => {
+  const Schema = req("zsac/lib/planning/DataActionSchema");
+  const Engine = req("zsac/lib/planning/DataActionEngine");
+  const parsed = Schema.parseRates("USD>EUR=0.9; USD>EUR@2026-Q2=0.8\nUSD>EUR@2026-04=0.7\nbroken; GBP>USD=2");
+  assert.strictEqual(parsed.rates.length, 4);
+  assert.strictEqual(parsed.errors.length, 1);
+  assert.strictEqual(Schema.rateFor(parsed.rates, "usd", "EUR", "2026-04"), 0.7);       // the month wins
+  assert.strictEqual(Schema.rateFor(parsed.rates, "USD", "EUR", "2026-05"), 0.8);       // then the quarter
+  assert.strictEqual(Schema.rateFor(parsed.rates, "USD", "EUR", "2026-01"), 0.9);       // then the plain rate
+  assert.strictEqual(Schema.rateFor(parsed.rates, "EUR", "USD", "2026-01"), 1 / 0.9);   // and back
+  assert.strictEqual(Schema.rateFor(parsed.rates, "EUR", "EUR", "2026-01"), 1);
+  assert.strictEqual(Schema.rateFor(parsed.rates, "JPY", "EUR", "2026-01"), null);
+
+  const model = { ModelId: "M", Dimensions: [{ DimId: "ENTITY", Label: "Entity", Slot: 1, Attributes: [{ Id: "CURRENCY" }], Members: [{ Id: "US", Props: { CURRENCY: "USD" } }, { Id: "DE", Props: { CURRENCY: "EUR" } }, { Id: "XX", Props: {} }] }],
+    Measures: [{ MeasureId: "AMT", Label: "Amount" }, { MeasureId: "AMT_EUR", Label: "Amount in EUR" }] };
+  const f = (e, p, v) => ({ ModelId: "M", VersionId: "BUD", Period: p, Measure: "AMT", Dim1: e, Dim2: "", Dim3: "", Dim4: "", Dim5: "", Value: v });
+  const facts = [f("US", "2026-01", 100), f("US", "2026-05", 100), f("DE", "2026-01", 50)];
+  const action = (extra) => ({ Id: "A", ModelId: "M", Name: "Convert", Steps: [Object.assign({ StepType: "CONVERT", Name: "To EUR", CurrencyDim: "ENTITY", ToCurrency: "EUR", Rates: "USD>EUR=0.9; USD>EUR@2026-Q2=0.8", TgtMeasure: "AMT_EUR" }, extra)] });
+  const r = Engine.run(model, facts, action({}), {}, { versions: [] });
+  assert.strictEqual(r.status, "S", r.error);
+  const get = (e, p, m) => r.facts.find((x) => x.Dim1 === e && x.Period === p && x.Measure === m).Value;
+  assert.strictEqual(get("US", "2026-01", "AMT_EUR"), 90);
+  assert.strictEqual(get("US", "2026-05", "AMT_EUR"), 80);
+  assert.strictEqual(get("DE", "2026-01", "AMT_EUR"), 50);          // already EUR: rate 1
+  assert.strictEqual(get("US", "2026-01", "AMT"), 100);             // the source stays
+  const missing = Engine.run(model, facts, action({ Rates: "" }), {}, { versions: [] });
+  assert.strictEqual(missing.status, "E");
+  assert.match(missing.error, /no rate from USD to EUR for 2026-01/);
+  assert.strictEqual(missing.facts.length, 3);                       // nothing written
+  const noCur = Engine.run(model, [f("XX", "2026-01", 1)], action({}), {}, { versions: [] });
+  assert.match(noCur.error, /XX of Entity has no currency/);
+  // fixed source currency, converted in place into another version
+  const fixed = Engine.run(model, facts, action({ CurrencyDim: "", FromCurrency: "USD", Rates: "USD>EUR=0.5", TgtMeasure: "", TgtVersion: "FCT" }), {}, { versions: [] });
+  assert.strictEqual(fixed.facts.find((x) => x.VersionId === "FCT" && x.Dim1 === "US" && x.Period === "2026-01").Value, 50);
+  // validation
+  const A = Schema.normalizeAction(action({ ToCurrency: "", Rates: "oops", CurrencyDim: "", FromCurrency: "" }));
+  const msgs = Schema.validate(A, { model, versions: [], actions: [] }).map((x) => x.message).join("\n");
+  ["choose the currency to convert into", "not like USD>EUR", "dimension that holds the currency"].forEach((t) => assert.ok(msgs.indexOf(t) >= 0, t));
+});

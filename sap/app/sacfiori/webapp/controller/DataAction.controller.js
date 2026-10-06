@@ -313,6 +313,7 @@ sap.ui.define([
       if (s.StepType === "COPY") { this._copyEditor(edit, s); }
       if (s.StepType === "SCALE") { this._field(edit, "Factor", this._combo(s, "Factor", "NUMBER", true), "A number, or a number parameter."); }
       if (s.StepType === "ALLOCATE") { this._allocEditor(edit, s); }
+      if (s.StepType === "CONVERT") { this._convertEditor(edit, s); }
     },
 
     /** ComboBox whose list holds the matching parameters (as @Id) and whose text can also be typed: a number or a member id. */
@@ -404,6 +405,22 @@ sap.ui.define([
       this._field(edit, "Write mode", new Select({ width: "14rem", selectedKey: s.WriteMode, items: [new Item({ key: "OVERWRITE", text: "Overwrite" }), new Item({ key: "APPEND", text: "Append (add to existing)" })],
         change: (e) => { s.WriteMode = e.getParameter("selectedItem").getKey(); this._changed(false); } }));
       edit.addItem(new CheckBox({ text: "Clear the source values after allocating", selected: s.ClearSource, select: (e) => { s.ClearSource = e.getParameter("selected"); this._changed(false); } }));
+    },
+
+    _convertEditor(edit, s) {
+      edit.addItem(new Title({ text: "Currency conversion", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      const dimsWithCurrency = (this._model.Dimensions || []).filter((d) => (d.Attributes || []).some((x) => x.Id === "CURRENCY"));
+      this._field(edit, "Currency comes from dimension", new Select({ width: "14rem", selectedKey: s.CurrencyDim, forceSelection: false,
+        items: [new Item({ key: "", text: "One currency (below)" })].concat(dimsWithCurrency.map((d) => new Item({ key: d.DimId, text: d.Label }))),
+        change: (e) => { s.CurrencyDim = e.getParameter("selectedItem").getKey(); this._changed(true); } }), "The CURRENCY attribute of its members says what currency their values are in.");
+      if (!s.CurrencyDim) { this._field(edit, "Convert from", this._combo(s, "FromCurrency", "MEMBER", false, "", []), "A currency code, for example USD."); }
+      this._field(edit, "Convert into", this._combo(s, "ToCurrency", "MEMBER", false, "", []), "A currency code, or a parameter.");
+      this._field(edit, "Rates", new TextArea({ width: "100%", rows: 5, value: s.Rates, placeholder: "USD>EUR=0.92\nUSD>EUR@2026-Q2=0.94\nUSD>EUR@2026-03=0.93",
+        liveChange: (e) => { s.Rates = e.getParameter("value"); this._changed(false); } }), "One rate per line. A rate for a month wins over its quarter, its year, then one without a period; a pair also converts back.");
+      this._field(edit, "Write into version", this._combo(s, "TgtVersion", "MEMBER", false, "VERSION", this._members("VERSION")), "Empty keeps the version of the values.");
+      this._field(edit, "Write into measure", new Select({ width: "14rem", selectedKey: s.TgtMeasure, forceSelection: false,
+        items: [new Item({ key: "", text: "Same measure" })].concat((this._model.Measures || []).map((m) => new Item({ key: m.MeasureId, text: m.Label }))),
+        change: (e) => { s.TgtMeasure = e.getParameter("selectedItem").getKey(); this._changed(false); } }), "Converting in place needs a target version or measure to keep the original.");
     },
 
     _embedEditor(edit, s) {

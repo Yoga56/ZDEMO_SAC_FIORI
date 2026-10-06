@@ -10,6 +10,7 @@
  *            SCALE     Factor
  *            DELETE    (the filter only)
  *            ALLOCATE  TargetDim, TargetMembers, TgtVersion, Driver (EQUAL|PROPORTIONAL|REFERENCE), DriverVersion, WriteMode, ClearSource
+ *            CONVERT   CurrencyDim | FromCurrency, ToCurrency, Rates (text, see parseRates), TgtVersion, TgtMeasure, WriteMode
  *            EMBED     ActionId, ParamMap: { childParam: value | "@parentParam" } }
  * A value written "@Name" is the parameter Name, asked for when the action runs.
  */
@@ -19,6 +20,7 @@ sap.ui.define([], function () {
   const STEP_TYPES = {
     COPY: { label: "Copy", icon: "sap-icon://duplicate", hint: "Copy facts onto other members (another version, another year ...), optionally aggregated, overwriting or adding" },
     ALLOCATE: { label: "Allocation", icon: "sap-icon://share-2", hint: "Spread values over members: equally, in proportion to existing values, or like a reference version" },
+    CONVERT: { label: "Currency Conversion", icon: "sap-icon://money-bills", hint: "Convert values from the currency of their members (or one currency) into another with the rates you give" },
     SCALE: { label: "Scale", icon: "sap-icon://measure", hint: "Multiply the selected values by a factor" },
     DELETE: { label: "Fact Deletion", icon: "sap-icon://delete", hint: "Delete the selected facts" },
     EMBED: { label: "Embedded Data Action", icon: "sap-icon://workflow-tasks", hint: "Run another data action of the model, with its own parameters" }
@@ -43,7 +45,8 @@ sap.ui.define([], function () {
     const type = STEP_TYPES[step.StepType] ? step.StepType : "COPY";
     const s = Object.assign({
       Name: "", Description: "", Active: true, Filter: {}, Rules: [], AggregateTo: [], WriteMode: "OVERWRITE", Factor: 1,
-      TargetDim: "", TargetMembers: [], TgtVersion: "", Driver: "EQUAL", DriverVersion: "", ClearSource: false, ActionId: "", ParamMap: {}
+      TargetDim: "", TargetMembers: [], TgtVersion: "", Driver: "EQUAL", DriverVersion: "", ClearSource: false, ActionId: "", ParamMap: {},
+      CurrencyDim: "", FromCurrency: "", ToCurrency: "", Rates: "", TgtMeasure: ""
     }, clone(step), { StepType: type });
     s.Filter = s.Filter || {};
     if (step.SrcVersion !== undefined || ((type === "SCALE" || type === "DELETE") && s.TgtVersion)) {
@@ -78,6 +81,40 @@ sap.ui.define([], function () {
     return normalizeStep({ StepType: type, StepNo: (index + 1) * 10, Id: "S" + Date.now().toString(36) + index }, index);
   }
 
+  /**
+   * Conversion rates written as lines (or separated by ;):  USD>EUR=0.92   USD>EUR@2026-03=0.93   USD>EUR@2026-Q2=0.94   USD>EUR@2026=0.95
+   * A rate for a month wins over one for its quarter, then its year, then one without a period. A pair written one way also converts back (1/rate).
+   * @returns {{rates: {from, to, rate, period}[], errors: string[]}}
+   */
+  function parseRates(text) {
+    const rates = []; const errors = [];
+    String(text || "").split(/[;\n]/).forEach((raw) => {
+      const line = raw.trim();
+      if (!line) { return; }
+      const m = /^([A-Za-z0-9]{1,5})\s*>\s*([A-Za-z0-9]{1,5})\s*(?:@\s*(\d{4}(?:-\d{2}|-Q[1-4])?))?\s*=\s*(-?\d+(?:[.,]\d+)?)$/.exec(line);
+      if (!m) { errors.push("'" + line + "' is not like USD>EUR=0.92 or USD>EUR@2026-03=0.93"); return; }
+      const rate = Number(m[4].replace(",", "."));
+      if (!(rate > 0)) { errors.push("'" + line + "': the rate must be above 0"); return; }
+      rates.push({ from: m[1].toUpperCase(), to: m[2].toUpperCase(), rate, period: m[3] || "" });
+    });
+    return { rates, errors };
+  }
+
+  /** The rate to convert `from` into `to` in `period` (a month): see parseRates for the order of preference; null when there is none. */
+  function rateFor(rates, from, to, period) {
+    from = String(from).toUpperCase(); to = String(to).toUpperCase();
+    if (from === to) { return 1; }
+    const q = period ? period.slice(0, 4) + "-Q" + (Math.floor((+period.slice(5) - 1) / 3) + 1) : "";
+    const keys = [period, q, period ? period.slice(0, 4) : "", ""];
+    for (const k of keys) {
+      const direct = rates.find((r) => r.from === from && r.to === to && r.period === k);
+      if (direct) { return direct.rate; }
+      const back = rates.find((r) => r.from === to && r.to === from && r.period === k);
+      if (back) { return 1 / back.rate; }
+    }
+    return null;
+  }
+
   /** Every "@Param" in a step, so the designer can say where a parameter is used. */
   function refsOf(step) {
     const out = new Set();
@@ -86,7 +123,7 @@ sap.ui.define([], function () {
     (step.Rules || []).forEach((r) => { add(r.From); add(r.To); });
     (step.AggregateTo || []).forEach((x) => add(x.Member));
     (step.TargetMembers || []).forEach(add);
-    [step.Factor, step.TgtVersion, step.DriverVersion].forEach(add);
+    [step.Factor, step.TgtVersion, step.DriverVersion, step.ToCurrency, step.FromCurrency].forEach(add);
     Object.keys(step.ParamMap || {}).forEach((k) => { const v = step.ParamMap[k]; (Array.isArray(v) ? v : [v]).forEach(add); });
     return out;
   }
@@ -182,6 +219,22 @@ sap.ui.define([], function () {
           factorOk(s.Factor, i);
           break;
         }
+        case "CONVERT": {
+          const parsed = parseRates(s.Rates);
+          parsed.errors.forEach((m) => err(i, where + ": " + m));
+          if (!isRef(s.ToCurrency) && !String(s.ToCurrency || "").trim()) { err(i, where + ": choose the currency to convert into"); } else { memberRef(s.ToCurrency, i, "To currency"); }
+          if (!s.CurrencyDim && !String(s.FromCurrency || "").trim()) { err(i, where + ": choose the dimension that holds the currency, or the currency to convert from"); }
+          if (s.CurrencyDim) {
+            const dim = ((model && model.Dimensions) || []).find((d) => d.DimId === s.CurrencyDim);
+            if (!dim) { err(i, where + ": unknown dimension " + s.CurrencyDim); } else if (!(dim.Attributes || []).some((a) => a.Id === "CURRENCY")) { err(i, where + ": the dimension " + s.CurrencyDim + " has no CURRENCY attribute"); }
+          } else { memberRef(s.FromCurrency, i, "From currency"); }
+          if (!parsed.rates.length && !parsed.errors.length) { warn(i, where + ": no rates, only values already in the target currency are accepted"); }
+          versionOk(s.TgtVersion, i, "Target version", true);
+          if (s.TgtMeasure && !((model && model.Measures) || []).some((m) => m.MeasureId === s.TgtMeasure)) { err(i, where + ": measure " + s.TgtMeasure + " does not exist"); }
+          if (!s.TgtVersion && !s.TgtMeasure) { warn(i, where + ": without a target version or measure the values are converted in place"); }
+          filterVersions.forEach((v) => { if (!isRef(v) && !s.TgtVersion && versions.get(v) && versions.get(v).Locked) { err(i, where + ": version " + v + " is locked"); } });
+          break;
+        }
         case "SCALE":
           factorOk(s.Factor, i);
           filterVersions.forEach((v) => { if (!isRef(v) && versions.get(v) && versions.get(v).Locked) { err(i, where + ": version " + v + " is locked"); } });
@@ -224,5 +277,5 @@ sap.ui.define([], function () {
     return out;
   }
 
-  return { STEP_TYPES, BUILTIN_DIMS, isRef, refName, normalizeAction, normalizeStep, normalizeParameter, newStep, refsOf, usage, resolveValues, validate };
+  return { parseRates, rateFor, STEP_TYPES, BUILTIN_DIMS, isRef, refName, normalizeAction, normalizeStep, normalizeParameter, newStep, refsOf, usage, resolveValues, validate };
 });

@@ -6,6 +6,8 @@
  *             optionally aggregated onto one member (Aggregate To), times a factor, overwriting or adding to what is there
  *   SCALE     the selected facts are multiplied by a factor
  *   DELETE    the selected facts are removed
+ *   CONVERT   values are multiplied by a conversion rate: from the currency of a member (the CURRENCY attribute of a dimension) or one
+ *             currency, into another, optionally into another version or measure; a missing rate stops the action
  *   ALLOCATE  the sum of the selected facts, per period/measure/other members, is spread over members of a dimension: equally, in proportion
  *             to the values already there, or in proportion to a reference version; overwriting or adding; optionally clearing the source
  *   EMBED     another data action of the model runs with its own parameters
@@ -125,6 +127,29 @@ sap.ui.define([
             work.set(k, Object.assign({}, t, { Value: round((append && old ? old.Value : 0) + t.Value) }));
             touched++;
           });
+          break;
+        }
+        case "CONVERT": {
+          const parsed = Schema.parseRates(step.Rates);
+          const to = one(step.ToCurrency).toUpperCase();
+          const fixedFrom = one(step.FromCurrency).toUpperCase();
+          const dim = step.CurrencyDim ? (model.Dimensions || []).find((d) => d.DimId === step.CurrencyDim) : null;
+          const currencyOf = new Map(dim ? (dim.Members || []).map((m) => [m.Id, String((m.Props || {}).CURRENCY || "").toUpperCase()]) : []);
+          const field = dim ? QueryEngine.fieldOf(model, dim.DimId) : "";
+          const tgtVersion = one(step.TgtVersion);
+          const tgtMeasure = one(step.TgtMeasure);
+          const target = new Map();
+          select(step).forEach((f) => {
+            const from = dim ? currencyOf.get(f[field]) : fixedFrom;
+            if (!from) { throw new Error(step.Name + ": " + (dim ? f[field] + " of " + dim.Label + " has no currency" : "no currency to convert from")); }
+            const rate = Schema.rateFor(parsed.rates, from, to, f.Period);
+            if (rate === null) { throw new Error(step.Name + ": no rate from " + from + " to " + to + (f.Period ? " for " + f.Period : "")); }
+            const t = Object.assign({}, f, { Value: round(f.Value * rate) });
+            if (tgtVersion) { t.VersionId = tgtVersion; }
+            if (tgtMeasure) { t.Measure = tgtMeasure; }
+            target.set(keyOf(t), t);
+          });
+          target.forEach((t, k) => { work.set(k, t); touched++; });
           break;
         }
         case "SCALE": {
