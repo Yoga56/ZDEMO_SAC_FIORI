@@ -21,6 +21,7 @@ define root view entity ZC_SAC_MODEL
   LockDefault,
   LockJson,
   ValidJson,
+  CalcJson,
   CreatedBy,
   CreatedAt,
   LastChangedBy,

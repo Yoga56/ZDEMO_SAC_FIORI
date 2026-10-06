@@ -2,14 +2,14 @@
  * Model definition helpers (pure): defaults for measure properties, normalisation of models coming from any
  * provider, and the validation the Modeller runs before saving.
  *
- * model   = { ModelId, Name, Description, Currency, PeriodFrom, PeriodTo, PlanningEnabled, DataLocking, LockDefault, LockRegions, ValidationRules, DataAudit, DataSource,
+ * model   = { ModelId, Name, Description, Currency, PeriodFrom, PeriodTo, PlanningEnabled, DataLocking, LockDefault, LockRegions, ValidationRules, CalcMeasures: [{ MeasureId, Label, Formula, Percent, Unit, Decimals }], DataAudit, DataSource,
  *             Dimensions: [{ DimId, Label, Slot, Type, Attributes: [{Id, Label}], Members: [{Id, Text, Props}],
  *                            Hierarchies: [{Id, Label, Parents: {childId: parentId}}] }],
  *             Measures:   [{ MeasureId, Label, DataType, Aggregation, ExceptionAggregation, ExceptionDims, UnitType, Unit, Scale, Decimals }],
  *             Source:     null | { Type: "CDS", Mode: "LIVE" | "IMPORT", Service, Entity, Version, PeriodField, PeriodFormat, Dims, Texts, Measures, MaxRows } }
  * A model with a LIVE source reads its data from the source on demand: it is read only, so planning is switched off (see provider/LiveSource).
  */
-sap.ui.define(["./HierarchyEngine", "../provider/LiveSource"], function (HierarchyEngine, LiveSource) {
+sap.ui.define(["./HierarchyEngine", "./CalcMeasures", "../provider/LiveSource"], function (HierarchyEngine, CalcMeasures, LiveSource) {
   "use strict";
 
   const AGGREGATIONS = ["SUM", "AVG", "MIN", "MAX", "COUNT"];
@@ -55,6 +55,7 @@ sap.ui.define(["./HierarchyEngine", "../provider/LiveSource"], function (Hierarc
     return Object.assign({ Description: "", Currency: "", PlanningEnabled: true, DataLocking: false, LockDefault: "OPEN", DataAudit: false, DataSource: "" }, model, {
       LockRegions: Array.isArray(model.LockRegions) ? model.LockRegions : [],
       ValidationRules: Array.isArray(model.ValidationRules) ? model.ValidationRules : [],
+      CalcMeasures: CalcMeasures.normalize(model.CalcMeasures),
       Dimensions: (model.Dimensions || []).map(normalizeDimension),
       Measures: (model.Measures || []).map(normalizeMeasure),
       Source: source
@@ -99,6 +100,7 @@ sap.ui.define(["./HierarchyEngine", "../provider/LiveSource"], function (Hierarc
       HierarchyEngine.validate(d).forEach((x) => p.push(x));
     });
     LiveSource.validate(model).forEach((x) => p.push(x));
+    CalcMeasures.validate(model, model.CalcMeasures || []).forEach((x) => p.push(x));
     const known = dims.map((d) => d.DimId).concat(["PERIOD", "VERSION"]);
     measures.forEach((x) => {
       if (AGGREGATIONS.indexOf(x.Aggregation) < 0) { p.push("Measure " + x.MeasureId + ": unknown aggregation " + x.Aggregation); }

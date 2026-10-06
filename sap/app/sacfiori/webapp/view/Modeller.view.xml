@@ -100,10 +100,37 @@
           </VBox>
 
           <!-- Calculations -->
-          <VBox id="calculations" visible="false" class="zsacCalcNote">
-            <core:Icon src="sap-icon://simulate" size="2.5rem"/>
-            <Title text="Calculations" level="H3" class="sapUiSmallMarginTop"/>
-            <Text text="Calculated measures (formulas on measures) are not part of this release. Measures are defined under Model Structure; planning logic lives in Data Actions."/>
+          <VBox id="calculations" visible="false">
+            <OverflowToolbar style="Clear">
+              <Title text="Calculated measures" level="H4"/>
+              <ToolbarSpacer/>
+              <Button icon="sap-icon://add" text="Add calculation" press=".onAddCalc"/>
+            </OverflowToolbar>
+            <Text class="sapUiSmallMarginBeginEnd" text="A calculated measure is worked out for every cell from the aggregated numbers of other measures, so a margin of a total is the margin of the totals. Write a formula with measure ids and + - * / ( ), for example REVENUE - COST. A calculation can use the ones above it. It is read only: it shows in stories and the analyser, and is not planned."/>
+            <Table items="{path: 'm>/CalcMeasures', templateShareable: false}" noDataText="No calculated measures">
+              <columns>
+                <Column width="9rem"><Text text="ID"/></Column>
+                <Column><Text text="Label"/></Column>
+                <Column width="18rem"><Text text="Formula"/></Column>
+                <Column width="6rem"><Text text="Unit"/></Column>
+                <Column width="5rem"><Text text="Decimals"/></Column>
+                <Column width="5rem"><Text text="Percent"/></Column>
+                <Column width="3rem"/>
+              </columns>
+              <items>
+                <ColumnListItem>
+                  <cells>
+                    <Input value="{m>MeasureId}" placeholder="PROFIT"/>
+                    <Input value="{m>Label}" placeholder="Profit"/>
+                    <Input value="{m>Formula}" placeholder="REVENUE - COST"/>
+                    <Input value="{m>Unit}" enabled="{= !${m>Percent}}"/>
+                    <Input value="{m>Decimals}" type="Number"/>
+                    <CheckBox selected="{m>Percent}"/>
+                    <Button icon="sap-icon://delete" type="Transparent" press=".onDeleteCalc"/>
+                  </cells>
+                </ColumnListItem>
+              </items>
+            </Table>
           </VBox>
 
           <!-- Data Management -->

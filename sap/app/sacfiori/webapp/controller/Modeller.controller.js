@@ -79,7 +79,8 @@ sap.ui.define([
           DimId: d.DimId, Label: d.Label, Type: d.Type, existing: !model.isNew, builtin: false, CountText: "",
           Attributes: JSON.parse(JSON.stringify(d.Attributes)), Hierarchies: JSON.parse(JSON.stringify(d.Hierarchies)),
           Members: JSON.parse(JSON.stringify(d.Members)), lockedIds: model.isNew ? [] : d.Members.map((x) => x.Id) }))),
-        Measures: model.Measures.map((x) => Object.assign({}, x, { existing: !model.isNew, ScaleKey: String(x.Scale || 1) }))
+        Measures: model.Measures.map((x) => Object.assign({}, x, { existing: !model.isNew, ScaleKey: String(x.Scale || 1) })),
+        CalcMeasures: JSON.parse(JSON.stringify(model.CalcMeasures || []))
       }));
       this.byId("tabs").setSelectedKey("model");
       await this._related(model);
@@ -157,6 +158,18 @@ sap.ui.define([
       list.push(ModelSchema.normalizeMeasure({ MeasureId: "", Label: "", UnitType: "None", existing: false, ScaleKey: "1" }));
       this._m.setProperty("/Measures", list);
       this._pick("measures", list.length - 1, "measure");
+    },
+
+    onAddCalc() {
+      const list = this._m.getProperty("/CalcMeasures") || [];
+      list.push({ MeasureId: "", Label: "", Formula: "", Percent: false, Unit: "", Decimals: 2 });
+      this._m.setProperty("/CalcMeasures", list);
+    },
+
+    onDeleteCalc(e) {
+      const list = this._m.getProperty("/CalcMeasures");
+      list.splice(Number(e.getSource().getBindingContext("m").getPath().split("/").pop()), 1);
+      this._m.setProperty("/CalcMeasures", list);
     },
 
     onAddDim() {
@@ -291,7 +304,8 @@ sap.ui.define([
       const dims = d.Dimensions.filter((x) => !x.builtin);
       return {
         ModelId: d.ModelId, Name: (d.Name || "").trim(), Description: d.Description || "", Currency: d.Currency || "", PeriodFrom: d.PeriodFrom, PeriodTo: d.PeriodTo,
-        PlanningEnabled: !!d.PlanningEnabled, DataLocking: !!d.DataLocking, DataAudit: !!d.DataAudit, DataSource: d.DataSource || "", Source: d.Source || null,
+        PlanningEnabled: !!d.PlanningEnabled, DataLocking: !!d.DataLocking, LockDefault: d.LockDefault || "OPEN", LockRegions: d.LockRegions || [], ValidationRules: d.ValidationRules || [],
+        CalcMeasures: (d.CalcMeasures || []).map((c) => ({ MeasureId: String(c.MeasureId || "").trim(), Label: c.Label || c.MeasureId, Formula: c.Formula, Percent: !!c.Percent, Unit: c.Percent ? "" : c.Unit || "", Decimals: c.Decimals === "" ? undefined : c.Decimals })), DataAudit: !!d.DataAudit, DataSource: d.DataSource || "", Source: d.Source || null,
         Dimensions: dims.map((x, i) => ({ DimId: x.DimId, Label: x.Label || x.DimId, Slot: i + 1, Type: x.Type || "GENERIC",
           Attributes: (x.Attributes || []).filter((a) => a.Id).map((a) => ({ Id: a.Id, Label: a.Label || a.Id })),
           Hierarchies: (x.Hierarchies || []).map((h) => ({ Id: h.Id, Label: h.Label || h.Id, Parents: h.Parents || {} })),

@@ -43,6 +43,10 @@ SALES = {
         {"MeasureId": "REVENUE", "Label": "Revenue", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0},
         {"MeasureId": "COST", "Label": "Cost", "DataType": "Decimal", "Aggregation": "SUM", "UnitType": "Currency", "Unit": "USD", "Scale": 1, "Decimals": 0},
     ],
+    "CalcMeasures": [
+        {"MeasureId": "PROFIT", "Label": "Profit", "Formula": "REVENUE - COST", "Unit": "USD", "Decimals": 0},
+        {"MeasureId": "MARGIN", "Label": "Margin %", "Formula": "PROFIT / REVENUE", "Percent": True, "Decimals": 1},
+    ],
 }
 OPEX = {
     "ModelId": "OPEX_PLAN", "Name": "Opex Plan", "Description": "Operating expense by department and account",

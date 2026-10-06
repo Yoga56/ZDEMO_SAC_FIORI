@@ -22,10 +22,11 @@ sap.ui.define([
   "../core/WidgetRegistry",
   "../core/FilterEngine",
   "../core/QueryEngine",
+  "../core/CalcMeasures",
   "../widget/Widgets",
   "./FilterEditor"
 ], function (Control, Item, VBox, HBox, Label, Input, TextArea, Select, MultiComboBox, CheckBox, StepInput, Button, Title, Text,
-  WidgetRegistry, FilterEngine, QueryEngine, Widgets, FilterEditor) {
+  WidgetRegistry, FilterEngine, QueryEngine, CalcMeasures, Widgets, FilterEditor) {
   "use strict";
 
   const BUILTIN = [{ DimId: "VERSION", Label: "Version" }, { DimId: "PERIOD", Label: "Period" }, { DimId: "MEASURE", Label: "Measure" }];
@@ -168,7 +169,7 @@ sap.ui.define([
         }
         case "measure": {
           const sel = new Select({ width: "100%", selectedKey: val || "" });
-          ((env.model && env.model.Measures) || []).forEach((m) => sel.addItem(new Item({ key: m.MeasureId, text: m.Label })));
+          CalcMeasures.all(env.model).forEach((m) => sel.addItem(new Item({ key: m.MeasureId, text: m.Label + (m.Calculated ? " (calculated)" : "") })));
           sel.attachChange((e) => this._set(f.key, e.getParameter("selectedItem").getKey()));
           return sel;
         }

@@ -9,7 +9,7 @@
  * A dimension listed in `hierarchies` is expanded to the nodes of that hierarchy: every fact counts for its own member and for each
  * ancestor, so a parent node holds the total of its subtree. Grand and axis totals still count every fact once.
  */
-sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
+sap.ui.define(["./HierarchyEngine", "./CalcMeasures"], function (HierarchyEngine, CalcMeasures) {
   "use strict";
 
   const SEP = "\u0001";
@@ -41,8 +41,9 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
   function expandFilters(model, filters) {
     const out = {};
     Object.keys(filters || {}).forEach((dimId) => {
-      const members = (filters[dimId] || []).map(String);
+      let members = (filters[dimId] || []).map(String);
       if (!members.length) { return; }
+      if (dimId === "MEASURE" && model && (model.CalcMeasures || []).length) { members = CalcMeasures.baseIds(model, members); }     // a calculated measure reads what it is made of
       const set = new Set(members);
       if (dimId === "PERIOD") {
         const time = HierarchyEngine.buildTime(periodList(model, []));
@@ -150,6 +151,8 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
    * `measure` is the measure definition when the result holds exactly one measure, else null (formatting hint).
    */
   function aggregate(model, facts, spec) {
+    const wanted = (spec.filters && spec.filters.MEASURE) || [];
+    if (wanted.length === 1 && model && CalcMeasures.find(model, wanted[0])) { return aggregateCalc(model, facts, spec, CalcMeasures.find(model, wanted[0])); }
     const rowDims = spec.rows || [];
     const colDims = spec.columns || [];
     const rowFields = rowDims.map((d) => fieldOf(model, d));
@@ -255,6 +258,49 @@ sap.ui.define(["./HierarchyEngine"], function (HierarchyEngine) {
       cellFacts: (r, c) => cells.get(r.join(SEP) + "|" + c.join(SEP)) || [],
       rowTotal: (r) => rowTotals.get(r.join(SEP)) || 0,
       colTotal: (c) => colTotals.get(c.join(SEP)) || 0
+    };
+  }
+
+  /** A calculated measure: each cell is the formula over the aggregated cells of the measures it uses. */
+  function aggregateCalc(model, facts, spec, calc) {
+    const f = CalcMeasures.compile(calc.Formula);
+    if (f.error) { throw new Error("Calculated measure " + calc.MeasureId + ": " + f.error); }
+    const ids = f.names.map((n) => { const r = CalcMeasures.resolve(model, n); if (!r) { throw new Error("Calculated measure " + calc.MeasureId + ": " + n + " is not a measure of the model"); } return r.id; });
+    const parts = ids.map((id) => aggregate(model, facts, Object.assign({}, spec, { filters: Object.assign({}, spec.filters, { MEASURE: [id] }) })));
+    const first = parts[0];
+    const evalAt = (get) => {
+      let any = false;
+      const refs = {};
+      f.names.forEach((n, i) => { const v = get(parts[i]); if (v !== undefined) { any = true; } refs[n] = v === undefined ? 0 : v; });
+      if (!any) { return undefined; }
+      try { const v = f.evaluate({ current: 0, refs }); return Number.isFinite(v) ? (calc.Percent ? v * 100 : v) : undefined; } catch (e) { return undefined; }
+    };
+    const union = (pick) => {
+      const seen = new Set(); const out = [];
+      parts.forEach((p) => pick(p).forEach((k) => { const s = k.join(SEP); if (!seen.has(s)) { seen.add(s); out.push(k); } }));
+      return out;
+    };
+    const rowKeys = union((p) => p.rowKeys);
+    const colKeys = union((p) => p.colKeys);
+    const cell = (r, c) => evalAt((p) => p.cell(r, c));
+    const flat = [];
+    rowKeys.forEach((r) => colKeys.forEach((c) => {
+      const v = cell(r, c);
+      if (v === undefined) { return; }
+      const row = {};
+      first.rowDims.forEach((d, i) => { row[d] = r[i]; });
+      first.colDims.forEach((d, i) => { row[d] = c[i]; });
+      row.Value = v;
+      flat.push(row);
+    }));
+    const grand = evalAt((p) => p.grand);
+    return {
+      rowDims: first.rowDims, colDims: first.colDims, rowKeys, colKeys, flat, grand: grand === undefined ? 0 : grand,
+      measure: { MeasureId: calc.MeasureId, Label: calc.Label || calc.MeasureId, Aggregation: "SUM", Decimals: calc.Decimals, Unit: calc.Percent ? "%" : calc.Unit, UnitType: calc.Percent ? "Percent" : calc.Unit ? "Currency" : "None", Calculated: true },
+      rowInfo: first.rowInfo, colInfo: first.colInfo, cell,
+      cellFacts: () => [],
+      rowTotal: (r) => { const v = evalAt((p) => p.rowTotal(r)); return v === undefined ? 0 : v; },
+      colTotal: (c) => { const v = evalAt((p) => p.colTotal(c)); return v === undefined ? 0 : v; }
     };
   }
 

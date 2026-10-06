@@ -53,7 +53,9 @@ ENTITIES = [
         # data locking: the default state outside every region (OPEN or LOCKED) and the JSON list of regions (see zsac.lib LockEngine)
         ("LOCK_DEFAULT", "CHAR 10"), ("LOCK_JSON", "STRG"),
         # validation rules: JSON list of limits a plan value must keep (zsac.lib ValidationEngine)
-        ("VALID_JSON", "STRG")],
+        ("VALID_JSON", "STRG"),
+        # calculated measures: JSON list of { MeasureId, Label, Formula, Percent, Unit, Decimals } (zsac.lib CalcMeasures)
+        ("CALC_JSON", "STRG")],
         validations=[("CheckStructure", "ModelName")],
         determinations=[("SetOwner", "on modify", "create;")],
         readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="MODEL", share_id="ModelId"),
