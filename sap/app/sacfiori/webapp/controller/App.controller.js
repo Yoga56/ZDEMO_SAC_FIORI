@@ -88,7 +88,14 @@ sap.ui.define([
     onToggleSide(e) {
       if (this._fabDragged) { return; }
       const menu = this.byId("navMenu");
-      if (menu.isOpen()) { menu.close(); } else { menu.openBy(e.getSource()); }
+      if (menu.isOpen()) { menu.close(); return; }
+      // the menu opens upward when it fits above the button, else downward; if neither side has room it takes the larger one and scrolls
+      const r = e.getSource().getDomRef().getBoundingClientRect();
+      const need = menu.getContent().reduce((h, l) => h + l.getItems().length * 44 + 16, 0) + 16;
+      const above = r.top - 8, below = window.innerHeight - r.bottom - 8;
+      menu.setPlacement(above >= need || above >= below ? "Top" : "Bottom");
+      menu.setContentHeight(need > Math.max(above, below) ? Math.floor(Math.max(above, below)) + "px" : "auto");
+      menu.openBy(e.getSource());
     },
 
     /** The item of the page that is open is marked in the menu. */
