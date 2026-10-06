@@ -56,7 +56,7 @@ sap.ui.define(["sap/ui/core/Control", "../core/Format", "../core/QueryEngine", "
       const head = r.rowDims.map((d) => QueryEngine.labelOf(model, d)).concat(r.colKeys.map((c) => c.join(" / ") || "Value"));
       const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
       const lines = [head.map(q).join(",")];
-      r.rowKeys.forEach((rk) => lines.push(rk.map(q).concat(r.colKeys.map((ck) => r.cell(rk, ck) || 0)).join(",")));
+      r.rowKeys.forEach((rk) => lines.push(rk.map(q).concat(r.colKeys.map((ck) => Math.round((r.cell(rk, ck) || 0) * 1e6) / 1e6)).join(",")));   // the sums carry binary noise (4095.7200000000003)
       return lines.join("\n");
     },
 
