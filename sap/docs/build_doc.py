@@ -101,6 +101,13 @@ P.append("""<h2>Key design decisions</h2><ul>
 <li><b>Metadata is data.</b> Stories, models, actions and files are rows (with JSON for the parts that depend on type), edited by the same UI that shows them.</li></ul>""")
 
 P.append("<h1>3. The application: pages and features</h1>")
+P.append("<h2>3.0 Navigation: the floating menu</h2><p>The application has no side bar. A <b>floating button</b> (a rounded square with a grid icon, bottom left) opens a floating menu above it; the button unfolds its text <i>Menu</i> when the pointer is on it, while it is pressed and while the menu is open. The menu lists the pages in the order of the work: <b>Home</b> and <b>Files</b>; <b>Prepare data</b> (Datasets, Modeller); <b>Plan</b> (Planning, Data Actions, Multi Actions, Calendar); <b>Report</b> (Data Analyser, Stories). The page that is open is marked. Choosing a page closes the menu; a tap outside closes it too.</p>"
+"<ul><li>The button can be <b>dragged</b> anywhere and remembers its place (per browser); it stays inside the window. A drag does not open the menu.</li>"
+"<li>The menu <b>opens upward</b> when it fits above the button, otherwise downward; if neither side has room it takes the larger side and scrolls.</li>"
+"<li>Pages that scroll have extra space at the bottom, so the last rows can be scrolled clear of the button.</li>"
+"<li>The button is separate from the menu of the SAP shell bar above the app, so the two cannot be mistaken for each other.</li></ul>")
+P.append(fig("nav-button.jpg","The navigation button unfolded on a Planning page"))
+P.append(fig("nav-menu-open.jpg","The floating menu: pages grouped in the order of the work, the open page marked"))
 P.append("<h2>3.1 Home and Files</h2><p>Home shows key metrics, recently changed objects and open tasks. Files lists all objects with folders, favourites, a search, and filters for stories, datasets and actions. Objects are opened, duplicated, moved or deleted from here.</p>")
 P.append(fig("01-home.png","Home: metrics, recently changed objects, tasks due"))
 P.append(fig("02-files.png","Files: folders, stories, datasets, actions"))
@@ -116,6 +123,7 @@ P.append(table(["Widget","Purpose"],[
  ["variance","Headline and top contributors for the difference between two versions, with a link into the explorer"]]))
 P.append(fig("03-story-overview.png","Story viewer: KPI tiles, charts, input control"))
 P.append(fig("04-story-detail.png","Story page with tables and the variance explainer widget"))
+P.append("<p><b>Layout of a story.</b> In edit mode a selected widget is moved by its title bar, resized from any of its four edges and four corners, and moved with the arrow keys (Shift and the arrow keys resize it). A widget that lands on others pushes them down. <b>Tidy up</b> moves every widget of the page up as far as it can go and closes the gaps.</p>")
 P.append("<h2>3.3 Data Analyser</h2><p>Pick a model, put dimensions on rows and columns, filter, and switch between table and chart. The same query engine as the stories is used, including hierarchies and the Date hierarchy (year, quarter, month).</p>")
 P.append(fig("07-analyser.png","Data Analyser"))
 P.append("<h2>3.4 Datasets and Modeller</h2><p>Datasets lists the models with their data. The Modeller follows the SAC layout: model structure on the left (measures, dimensions), details on the right.</p>")
@@ -229,7 +237,7 @@ P.append(table(["Script","Backend destination"],[
 P.append("""<h2>9.3 CDS source on another system</h2><p>Use a relative service URL so the proxy and the destination add host and login. The app and the CDS data can live on different destinations only for testing (second backend entry in <code>ui5.yaml</code>); a deployed app reads the system it is deployed on.</p>
 <h2>9.4 Data provider</h2><p>The provider is chosen by the URL parameter <code>?provider=odata</code> or <code>mock</code>, else by <code>sap.ui5/config/provider</code> of the manifest (mock). The header shows the active provider.</p>""")
 
-P.append("<h1>10. Verification status</h1><h2>10.1 Automated tests</h2><p><b>221 unit tests</b> in 31 files run with <code>node --test</code> (<code>npm test</code> in <code>sap/app/saclib</code>): engines, providers, schemas, planning, locking, sharing, CDS source, variance, steps, charts, story layout. All pass. The separate document <i>Unit Testing</i> (<code>sap/docs/SAC_Fiori_Unit_Testing.docx</code>) describes them.</p><h2>10.2 Sample data (browser)</h2><p>All pages and dialogs shown in this document were exercised in the browser on the sample data, also at phone width.</p>")
+P.append("<h1>10. Verification status</h1><h2>10.1 Automated tests</h2><p><b>221 unit tests</b> in 31 files run with <code>node --test</code> (<code>npm test</code> in <code>sap/app/saclib</code>): engines, providers, schemas, planning, locking, sharing, CDS source, variance, steps, charts, story layout. All pass. The separate document <i>Testing</i> (<code>sap/docs/SAC_Fiori_Unit_Testing.docx</code>) lists every test with its goal and has the end-to-end checks with screenshots.</p><h2>10.2 Sample data (browser)</h2><p>All pages and dialogs shown in this document were exercised in the browser on the sample data, also at phone width.</p>")
 P.append("<h2>10.3 End-to-end test on the real system</h2><p>The deployed app (S/4HANA Cloud, client 100, launchpad tile) was tested page by page with two accounts: the owner in one browser window and a second user in a private window. Everything created for the test is kept on the system as history data.</p>")
 P.append(table(["Area","Result"],[
  ["Home, Files, Stories (create, edit, save, publish, duplicate), pages and filters","<span class='ok'>works</span>"],
@@ -256,9 +264,10 @@ P.append(table(["No.","Found","Fix"],[
  ["8","Planning CSV had the expand and collapse triangles in the headers","The triangles are removed on export"],
  ["9","Modeller panel got a height of 500 033 px; dialogs were clipped","Flex basis and dialog content rules in CSS"],
  ["10","Phone: planning chart card wider than the screen, designers and analyser side by side","Cards fit the screen; flow and settings stack"],
- ["11","Chart text (legend, axes) dark on dark in the dark theme","Chart text inherited a dark stroke from the page and was drawn with an outline; chart text never has a stroke now, and has explicit light colours in dark mode"],
- ["12","The header burger looked like the menu of the SAP shell bar and expanded to the full width on a phone","A floating action button opens the navigation: a drawer over the page on narrow screens"],
- ["13","Side navigation: no icons on the items under <i>Apps</i>","The items are first level, so every item shows its icon"]]))
+ ["11","Chart text (legend, axes) dark on dark in the dark theme","Chart text inherited a dark stroke from the page and was drawn with an outline; chart text never has a stroke now, and has explicit light colours in dark mode (figure below)"],
+ ["12","The header burger looked like the menu of the SAP shell bar and the side bar expanded to the full width on a phone; the button covered content, was oval, lost its background while dragged and had a black focus frame","The side bar is gone: a draggable squircle button opens a floating menu (up or down as there is room, grouped in the order of the work); solid blue while pressed, no focus frame (section 3.0)"],
+ ["13","Side navigation: no icons on the items under <i>Apps</i>; placeholders for Compass and Predictive Scenarios","All items have icons; the placeholders are removed"]]))
+P.append(fig("chart-readable-dark.jpg","Planning chart in the dark theme after fix 11: legend, axes and periods are readable"))
 P.append("<p>The abapGit pull on the test system failed (conversion error, lock); the access controls were created by hand in ADT following the manual in <code>sap/docs/adt-manual-access-controls.txt</code>.</p>")
 
 P.append("<h1>11. Known limits and open items</h1><h2>Open items</h2><ul>")
