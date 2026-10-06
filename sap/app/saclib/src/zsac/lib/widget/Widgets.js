@@ -18,17 +18,20 @@ sap.ui.define([
   "./ChartData",
   "../core/ModelSchema",
   "../core/HierarchyEngine",
+  "../core/Format",
   "../planning/PlanGrid",
   "../planning/PlanPublisher",
   "../planning/DataActionRun",
   "../core/VarianceEngine",
   "./VarianceView",
   "./VarianceDialog",
+  "../core/ValueTree",
+  "./ValueTreeView",
   "sap/ui/core/HTML",
   "sap/m/Link",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
-], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine,
-  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, HTML, Link, VBox, Button, MessageBox, MessageToast) {
+], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
+  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, ValueTree, ValueTreeView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -225,6 +228,79 @@ sap.ui.define([
           lowerIsBetter: !!widget.Props.LowerIsBetter, labels }, side));
         const measure = (model.Measures || []).find((m) => m.MeasureId === b.Measure);
         holder.setContent("<div>" + (aligned.note ? '<div class="zsacVMsg">' + aligned.note + "</div>" : "") + VarianceView.summaryHtml(r, labels, measure && measure.UnitType !== "None" ? measure.Unit : "") + (r.dims[0] ? VarianceView.barsHtml(Object.assign({}, r.dims[0], { rows: r.dims[0].rows.slice(0, 5) }), 5).replace(/<div class="zsacVRow" data-m=/g, '<div class="zsacVRow" data-x=') : "") + "</div>");
+      });
+    }
+  });
+
+  WidgetRegistry.register("valuetree", {
+    name: "Value driver tree", icon: "sap-icon://tree", group: "Indicators", size: { w: 12, h: 8 },
+    defaults: { Binding: emptyBinding(), Props: { Tree: "", CompareVersion: "", LowerIsBetter: false, Simulate: true } },
+    builder: baseBuilder.concat([
+      { key: "Binding.Measure", label: "Measure (for nodes that name none)", kind: "measure" },
+      { key: "Binding.Filters", label: "Filters", kind: "filters" },
+      { key: "Props.Tree", label: "Tree: one node per line, indent for drivers: label | operator | DIMENSION=member; measure=ID", kind: "textarea" },
+      { key: "Props.CompareVersion", label: "Compare with version", kind: "version" },
+      { key: "Props.LowerIsBetter", label: "Lower is better (nodes can say good=up or good=down)", kind: "bool" },
+      { key: "Props.Simulate", label: "Allow simulation (change a driver, see the effect)", kind: "bool", default: true }
+    ]),
+    create(widget, ctx) {
+      const holder = new HTML({ content: "<div></div>" });
+      let state = null; // { tree, values, compare, labels, unit }
+      const overrides = {};
+      const draw = () => {
+        if (!state) { return; }
+        const live = Object.keys(overrides).reduce((o, k) => { if (overrides[k].pct !== "" && overrides[k].pct !== undefined) { o[k] = overrides[k]; } return o; }, {});
+        const tree = ValueTree.annotate(state.tree, state.values, { compare: state.compare, overrides: live, lowerIsBetter: !!widget.Props.LowerIsBetter });
+        holder.setContent("<div>" + (state.errors.length ? '<div class="zsacVMsg">' + state.errors.map((e) => Format.esc(e)).join("<br>") + "</div>" : "")
+          + '<div class="zsacVTBar">' + (Object.keys(live).length ? '<a class="zsacVTReset" href="#">Reset simulation</a>' : (widget.Props.Simulate !== false ? '<span class="zsacVMsg">Type a % under a driver to simulate its effect on the top.</span>' : "")) + "</div>"
+          + ValueTreeView.html(tree, { hasCompare: !!state.compare, compareLabel: state.labels.compare, simulate: widget.Props.Simulate !== false, overrides: live, unit: state.unit }) + "</div>");
+        bind(); // setContent updates a rendered control in place, without an afterRendering
+      };
+      const bind = () => {
+        const el = holder.getDomRef();
+        if (!el) { return; }
+        el.querySelectorAll(".zsacVTPct").forEach((inp) => inp.addEventListener("change", () => {
+          const id = inp.getAttribute("data-n");
+          if (inp.value === "") { delete overrides[id]; } else { overrides[id] = { pct: Number(inp.value) }; }
+          draw();
+        }));
+        const reset = el.querySelector(".zsacVTReset");
+        if (reset) { reset.addEventListener("click", (e) => { e.preventDefault(); Object.keys(overrides).forEach((k) => { delete overrides[k]; }); draw(); }); }
+      };
+      holder.addEventDelegate({ onAfterRendering: bind });
+      const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: holder });
+      return wire(card, widget, async () => {
+        const b = widget.Binding;
+        const parsed = ValueTree.parse(widget.Props.Tree);
+        if (!parsed.tree) { holder.setContent('<div class="zsacVMsg">' + Format.esc(parsed.errors[0] || "Write the tree in the builder panel.") + "</div>"); state = null; return; }
+        const model = await ctx.provider.getModel(b.ModelId);
+        const versions = widget.Props.CompareVersion ? await ctx.provider.listVersions(b.ModelId) : [];
+        const leaves = ValueTree.leaves(parsed.tree);
+        const problems = parsed.errors.slice();
+        leaves.forEach((l) => {
+          if (!(l.measure || b.Measure)) { problems.push("'" + l.label + "' needs a measure (measure=ID) or a measure in the builder panel"); }
+          Object.keys(l.filters).forEach((d) => { if (d !== "PERIOD" && d !== "VERSION" && !(model.Dimensions || []).some((x) => x.DimId === d)) { problems.push("'" + l.label + "': " + d + " is not a dimension of the model"); } });
+        });
+        const read = async (version) => {
+          const out = {};
+          await Promise.all(leaves.map(async (l) => {
+            if (!(l.measure || b.Measure)) { return; }
+            const r = await runQuery(widget, ctx, (f) => {
+              Object.keys(l.filters).forEach((d) => { f[d] = l.filters[d]; });
+              f.MEASURE = [l.measure || b.Measure];
+              if (version) { f.VERSION = [version]; }
+            });
+            out[l.id] = r.grand;
+          }));
+          return out;
+        };
+        const values = await read(null);
+        const compare = widget.Props.CompareVersion ? await read(widget.Props.CompareVersion) : null;
+        const ver = versions.find((v) => v.VersionId === widget.Props.CompareVersion);
+        const m = (model.Measures || []).find((x) => x.MeasureId === b.Measure);
+        state = { tree: parsed.tree, values, compare, errors: problems, labels: { compare: ver ? ver.Name || ver.VersionId : widget.Props.CompareVersion },
+          unit: m && m.UnitType !== "None" && leaves.every((l) => !l.measure) ? m.Unit : "" };
+        draw();
       });
     }
   });
