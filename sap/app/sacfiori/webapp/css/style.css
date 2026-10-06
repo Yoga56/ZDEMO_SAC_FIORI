@@ -22,7 +22,7 @@
   .zsacModeller .zsacStage { overflow: visible; }
 }
 .zsacAnalysisCard { height: calc(100vh - 11rem); min-height: 22rem; width: 100%; }
-.zsacPlanChart { width: 32rem; max-width: 100%; height: 11rem; }
+.zsacPlanChart { width: min(32rem, calc(100vw - 3rem)); max-width: 100%; height: 11rem; }   /* a phone is narrower than 32rem */
 .zsacMetric { width: 16rem; height: 8rem; }
 .zsacRightWide { width: 26rem; flex: 0 0 26rem; min-width: 0; max-width: 60vw; }   /* the scroll container writes width:auto inline: the basis keeps the panel from growing with a wide tab */
 .zsacCalcNote { align-items: center; text-align: center; padding: 4rem 2rem; color: var(--sapContent_LabelColor, #556b82); }
