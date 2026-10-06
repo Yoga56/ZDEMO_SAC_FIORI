@@ -5,7 +5,7 @@
    <DDLS>
     <DDLNAME>ZR_SAC_CALTASK</DDLNAME>
     <DDLANGUAGE>E</DDLANGUAGE>
-    <DDTEXT>Calendar Task</DDTEXT>
+    <DDTEXT>Calendar Event</DDTEXT>
     <SOURCE_TYPE>W</SOURCE_TYPE>
    </DDLS>
   </asx:values>

@@ -37,8 +37,8 @@ CLASS lhc_share IMPLEMENTATION.
 
     LOOP AT shares INTO DATA(share).
       DATA(problem) = ``.
-      IF share-ObjectKind <> 'STORY' AND share-ObjectKind <> 'MODEL' AND share-ObjectKind <> 'DATAACTION' AND share-ObjectKind <> 'MULTIACTION'.
-        problem = `Only stories, models, data actions and multi actions can be shared`.
+      IF share-ObjectKind <> 'STORY' AND share-ObjectKind <> 'MODEL' AND share-ObjectKind <> 'DATAACTION' AND share-ObjectKind <> 'MULTIACTION' AND share-ObjectKind <> 'CALEVENT'.
+        problem = `Only stories, models, actions and calendar events can be shared`.
       ELSEIF share-AccessLevel <> 'READ' AND share-AccessLevel <> 'WRITE'.
         problem = `The access of a share is READ or WRITE`.
       ELSEIF share-Principal IS INITIAL.

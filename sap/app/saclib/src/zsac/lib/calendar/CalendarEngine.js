@@ -288,6 +288,33 @@ sap.ui.define([], function () {
     return Object.assign({}, e, { Status: f.to, Progress: f.progress !== undefined ? f.progress : (f.to === "OPEN" ? 0 : e.Progress) });
   }
 
+  // ---- people and work files --------------------------------------------------------------------------------------------------------------
+  /**
+   * Who may do what with an event, as shares for the sharing of the data source (see core/Access): owners and assignees may edit it, viewers may look at it,
+   * "*" among the viewers is everyone. The creator is the owner of the row, so never gets a share.
+   */
+  function sharesOf(event) {
+    const e = normalize(event);
+    const best = new Map();
+    const add = (list, level) => list.forEach((u) => { const k = String(u).trim().toUpperCase(); if (k && !(best.get(k) === "WRITE")) { best.set(k, level); } });
+    add(e.People.Viewers, "READ");
+    add(e.People.Owners, "WRITE");
+    add(e.People.Assignees, "WRITE");
+    return Array.from(best.entries()).map(([Principal, Access]) => ({ Principal, Access }));
+  }
+
+  /** A work file is a story, model or action of this system (Type and Id) or a web address (Type URL). */
+  const FILE_TYPES = { STORY: "Story", MODEL: "Dataset", DATAACTION: "Data action", MULTIACTION: "Multi action", URL: "Web address" };
+  function addFile(event, file) {
+    const e = normalize(event);
+    const f = { Type: file.Type, Id: file.Id || "", Name: String(file.Name || file.Url || file.Id || "").slice(0, 80), Url: file.Url || "" };
+    if (!FILE_TYPES[f.Type]) { throw new Error("A work file is a story, a dataset, an action or a web address"); }
+    if (f.Type === "URL" ? !f.Url : !f.Id) { throw new Error("Choose the file"); }
+    if (e.Files.some((x) => x.Type === f.Type && x.Id === f.Id && x.Url === f.Url)) { return e.Files; } // once is enough
+    if (e.Files.length >= 20) { throw new Error("An event can have 20 work files"); }
+    return e.Files.concat([f]);
+  }
+
   // ---- planning tasks: what a run leaves behind ------------------------------------------------------------------------------------------
   const RUNNABLE = { DATAACTION: "data action", MULTIACTION: "multi action", LOCK: "version" };
   const isRunnable = (event) => !!RUNNABLE[event.Type];
@@ -371,5 +398,5 @@ sap.ui.define([], function () {
     return [process].concat(tasks);
   }
 
-  return { TYPES, STATUSES, FLOW, TEMPLATES, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
+  return { TYPES, STATUSES, FLOW, TEMPLATES, FILE_TYPES, sharesOf, addFile, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
 });

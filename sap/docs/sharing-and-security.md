@@ -1,8 +1,8 @@
-# Sharing and security of stories, models and actions
+# Sharing and security of stories, models, actions and calendar events
 
 ## What a user can do
 
-Every story, model, data action and multi action has an **owner**, the user who created it. The owner shares it with named users or with everyone:
+Every story, model, data action, multi action and calendar event has an **owner**, the user who created it. The owner shares it with named users or with everyone:
 
 | Level | Can open and use (an action: also run it) | Can edit (and write plan data of a model) | Can delete and share |
 |---|---|---|---|
@@ -13,7 +13,7 @@ Every story, model, data action and multi action has an **owner**, the user who 
 
 Content **without an owner** (the sample data, content saved before sharing existed, owner `*`) belongs to nobody: everyone can open, edit and delete it, and it cannot be shared. `ZCL_SAC_CLAIM_OWNERS` (F9) gives existing content to the user who created it.
 
-A share is a row of `ZSAC_SHARE`: object kind (STORY, MODEL, DATAACTION or MULTIACTION), object id, principal (a user name in capitals, or `*` for everyone) and READ or WRITE. A user who is shared with several ways (named and everyone) has the strongest. Editing a shared object never moves its ownership.
+A share is a row of `ZSAC_SHARE`: object kind (STORY, MODEL, DATAACTION, MULTIACTION or CALEVENT), object id, principal (a user name in capitals, or `*` for everyone) and READ or WRITE. A user who is shared with several ways (named and everyone) has the strongest. Editing a shared object never moves its ownership.
 
 In the app: **Files** has a share button on stories, datasets and actions and a *Shared with me* view; the story designer, the Modeller, the two action lists and the two action designers have a **Share** button (owner only) and say who shared the object with you. Copying a shared action (Duplicate) makes your own action that you own.
 
@@ -24,9 +24,9 @@ Running an action uses the rights of the person who runs it: a data action write
 | Rule | Client (`zsac.lib`) | Mock provider | ABAP backend |
 |---|---|---|---|
 | Rules (`core/Access.js`) | yes | same code | `ZCL_SAC_ACCESS` (same rules) |
-| Who may read a story, model, action or its file | lists and opens only what is allowed | refuses | access control `ZR_SAC_STORY`, `_MODEL`, `_DATAACT`, `_MULTIACT`, `_FILE` |
+| Who may read a story, model, action or its file | lists and opens only what is allowed | refuses | access control `ZR_SAC_STORY`, `_MODEL`, `_DATAACT`, `_MULTIACT`, `_CALTASK`, `_FILE` |
 | Widgets, dimensions, measures, steps of an action, versions, plan data and comments of an object a user cannot read | not requested | refuses | access controls that inherit the conditions of the story, model or action |
-| Who may change or delete | buttons hidden, view mode | refuses | instance authorization in `ZBP_R_SAC_STORY`, `_MODEL`, `_DATAACT` and `_MULTIACT` |
+| Who may change or delete | buttons hidden, view mode | refuses | instance authorization in `ZBP_R_SAC_STORY`, `_MODEL`, `_DATAACT`, `_MULTIACT` and `_CALTASK` |
 | Who may write plan data of a model | provider refuses | refuses | `WriteFacts` and `DeleteFacts` check the model (`ZBP_R_SAC_FACT`) |
 | Who may share | owner only | refuses | instance authorization and validation `CheckShare` in `ZBP_R_SAC_SHARE` |
 | Who sees the shares | owner: all; others: only rows about them or everyone | same | access control `ZR_SAC_SHARE` |
@@ -35,7 +35,7 @@ The client hides what the server would refuse, but the server is the protection:
 
 ## Not protected (known gaps)
 
-* **Calendar tasks, versions and cell comments are not owned.** Anyone with access to the service can change or delete them. Reading versions, plan data and comments follows the model, writing a version or a comment does not.
+* **Versions and cell comments are not owned.** Anyone with access to the service can change or delete them. Reading versions, plan data and comments follows the model, writing a version or a comment does not.
 * **The run history (Job Monitor) is not filtered on the server.** The app shows only the runs of actions the user can open, but a call to the service for `ActionRun` returns every run, with the action's name and log. Runs of a deleted action are no longer listed in the app.
 * **Plan data is written by actions and data actions that run in the browser.** The server checks the model on every write (above), but a data action is only as safe as the model it writes to.
 * **Folders are open**; the Files entry of a story, model or action follows the object.
@@ -58,3 +58,9 @@ If the system reports a problem in an access control, the app keeps working with
 4. `authorization master ( instance )` with the `%assoc-_Widget` / `%assoc-_Dimension` / `%assoc-_Measure` entries in `get_instance_authorizations`.
 
 After activation check, with two users A and B: A creates a story; B does not see it (Files, Stories, `GET /Story`); A shares it with B for viewing; B sees it and gets `403` on `PATCH`; A changes the share to editing; B can save; B cannot delete it or share it.
+
+## Calendar events
+
+An event (task or process) is owned by its creator. The people named on it become shares: **owners and assignees can edit it, viewers can look at it**, "Everyone can view" shares it with all users, and nobody else sees it. Only the owner of the event changes the people; an assignee can change the status, progress and dates. Events without an owner (the sample events, events saved before this) are open to everyone and their people lists are not enforced. A process whose child events a user cannot see shows only the events the user can see.
+
+A planning task (data action, multi action, data locking) runs with the rights of the user who presses *Run now*: the model checks still apply.

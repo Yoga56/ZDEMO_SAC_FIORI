@@ -83,7 +83,9 @@ Same flow as Estate Command.
 The ABAP sources were written without access to a system: activate, fix what the system reports and tell me. The first
 things to check are listed in [docs/technical-specification.md](sap/docs/technical-specification.md#known-gaps).
 
-Stories and models have owners and can be shared with users or everyone: see [docs/sharing-and-security.md](sap/docs/sharing-and-security.md)
+The planning calendar (list with timeline, month grid, processes, planning tasks that run actions and lock versions) is described in [docs/calendar.md](sap/docs/calendar.md).
+
+Stories, models, actions and calendar events have owners and can be shared with users or everyone: see [docs/sharing-and-security.md](sap/docs/sharing-and-security.md)
 (what is enforced where, what is not protected, and the parts of the ABAP to check first).
 
 Regenerate backend sources after changing `sap/tools/sac_spec.py`:

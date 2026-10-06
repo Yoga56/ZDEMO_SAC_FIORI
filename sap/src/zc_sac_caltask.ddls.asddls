@@ -1,6 +1,6 @@
 @Metadata.allowExtensions: true
 @Metadata.ignorePropagatedAnnotations: true
-@EndUserText.label: 'Calendar Task'
+@EndUserText.label: 'Calendar Event'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 define root view entity ZC_SAC_CALTASK
   provider contract transactional_query
@@ -15,9 +15,19 @@ define root view entity ZC_SAC_CALTASK
   Status,
   Approver,
   Notes,
+  EventType,
+  ParentId,
+  StartDate,
+  EndDate,
+  Progress,
+  PeopleJson,
+  FilesJson,
+  ConfigJson,
+  OwnerId,
   CreatedBy,
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
-  LocalLastChangedAt
+  LocalLastChangedAt,
+  CurrentUser
 }

@@ -150,7 +150,7 @@ sap.ui.define([
 
     async currentUser() {
       if (this._user) { return this._user; }
-      for (const set of ["/Story", "/Model"]) {
+      for (const set of ["/Story", "/Model", "/DataAction", "/CalendarTask"]) {
         const rows = await this._list(set, [], { $select: "CurrentUser", $top: 1 }).catch(() => []);
         this._noteUser(rows);
         if (this._user) { return this._user; }
@@ -454,12 +454,29 @@ sap.ui.define([
       return f;
     }
     deleteFile(id) { return this._invokeDelete("/File(FileId=" + quote(id) + ")"); }
-    _toTask(e) { return { Id: e.TaskId, Title: e.Title, ModelId: e.ModelId, VersionId: e.VersionId, Assignee: e.Assignee, DueDate: e.DueDate, Status: e.Status, Approver: e.Approver, Notes: e.Notes }; }
-    async listTasks() { return (await this._list("/CalendarTask")).map((e) => this._toTask(e)); }
+    /** An event of the calendar. The older columns (Assignee, DueDate, Notes) stay in step with the new ones (first assignee, end date, description). */
+    _toTask(e) {
+      return { Id: e.TaskId, Type: e.EventType || "GENERAL", ParentId: e.ParentId || "", Title: e.Title, ModelId: e.ModelId, VersionId: e.VersionId, Assignee: e.Assignee, DueDate: e.DueDate,
+        StartDate: e.StartDate || e.DueDate || null, EndDate: e.EndDate || e.DueDate || null, Progress: e.Progress || 0, Status: e.Status, Approver: e.Approver, Notes: e.Notes,
+        People: json(e.PeopleJson, {}), Files: json(e.FilesJson, []), Config: json(e.ConfigJson, {}), Owner: e.OwnerId || "" };
+    }
+    async listTasks() { const rows = await this._list("/CalendarTask"); this._noteUser(rows); return this._withAccess("CALEVENT", rows.map((e) => this._toTask(e))); }
+    async getTask(id) { const row = await this._one("/CalendarTask", ["TaskId", id]); this._noteUser([row]); return (await this._withAccess("CALEVENT", [this._toTask(row)]))[0]; }
+    _taskPayload(t) {
+      return { TaskId: t.Id, EventType: t.Type || "GENERAL", ParentId: t.ParentId || "", Title: String(t.Title || "").slice(0, 120), ModelId: t.ModelId || "", VersionId: t.VersionId || "",
+        Assignee: t.Assignee || "", DueDate: t.EndDate || t.DueDate || null, StartDate: t.StartDate || null, EndDate: t.EndDate || t.DueDate || null, Progress: Math.round(Number(t.Progress) || 0),
+        Status: t.Status || "OPEN", Approver: t.Approver || "", Notes: String(t.Notes || t.Description || "").slice(0, 255),
+        PeopleJson: str(t.People || {}), FilesJson: str(t.Files || []), ConfigJson: str(t.Config || {}) };
+    }
+    /** An event that exists is changed in place (so its owner and its shares stay); a new one is created and the server makes the user its owner. */
     async saveTask(t) {
-      await this._replace("/CalendarTask", "/CalendarTask(TaskId=" + quote(t.Id) + ")", { TaskId: t.Id, Title: t.Title, ModelId: t.ModelId || "", VersionId: t.VersionId || "",
-        Assignee: t.Assignee || "", DueDate: t.DueDate || null, Status: t.Status || "OPEN", Approver: t.Approver || "", Notes: t.Notes || "" });
-      return t;
+      const exists = (await this._list("/CalendarTask", [new Filter("TaskId", FilterOperator.EQ, t.Id)])).length > 0;
+      const payload = this._taskPayload(t);
+      if (exists) {
+        const own = Object.assign({}, payload); delete own.TaskId;
+        await this._request("PATCH", "/CalendarTask(TaskId=" + quote(t.Id) + ")", own, { "If-Match": "*" });
+      } else { await this._post("/CalendarTask", payload); }
+      return this.getTask(t.Id).catch(() => t);
     }
     deleteTask(id) { return this._invokeDelete("/CalendarTask(TaskId=" + quote(id) + ")"); }
   }

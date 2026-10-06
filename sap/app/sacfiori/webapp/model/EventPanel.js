@@ -2,8 +2,10 @@ sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/m/Title", "sap/m/VBox", "sap/m/HBox", "sap/m/TextArea", "sap/m/DatePicker", "sap/m/StepInput",
   "sap/m/MessageStrip", "sap/m/MultiComboBox", "sap/m/ObjectStatus", "sap/m/Link", "sap/m/FlexItemData",
-  "zsac/lib/calendar/CalendarEngine", "zsac/lib/calendar/TaskRunner", "zsac/lib/planning/DataActionRun"
-], function (Item, Button, Input, Select, Label, Text, Title, VBox, HBox, TextArea, DatePicker, StepInput, MessageStrip, MultiComboBox, ObjectStatus, Link, FlexItemData, Engine, TaskRunner, Run) {
+  "sap/m/MultiInput", "sap/m/Token", "sap/m/CheckBox", "sap/m/Dialog", "sap/m/List", "sap/m/StandardListItem", "sap/m/SearchField", "sap/m/MenuButton", "sap/m/Menu", "sap/m/MenuItem",
+  "zsac/lib/calendar/CalendarEngine", "zsac/lib/calendar/TaskRunner", "zsac/lib/planning/DataActionRun", "zsac/lib/core/Access", "zsac/lib/core/WebContent"
+], function (Item, Button, Input, Select, Label, Text, Title, VBox, HBox, TextArea, DatePicker, StepInput, MessageStrip, MultiComboBox, ObjectStatus, Link, FlexItemData,
+  MultiInput, Token, CheckBox, Dialog, List, StandardListItem, SearchField, MenuButton, Menu, MenuItem, Engine, TaskRunner, Run, Access, WebContent) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -11,7 +13,7 @@ sap.ui.define([
   /**
    * The details of one event, on the right of the calendar: its fields, what can be done with its status, Save and Delete.
    *
-   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, onRun(event), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
+   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, files, onRun(event), onOpenFile(file), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
    * Nothing is written until Save; a status change on an event that exists is saved at once, as in SAC.
    */
   function show(box, ctx) {
@@ -113,13 +115,75 @@ sap.ui.define([
       }
     }
 
+
+    // people: owners and assignees may edit the event, viewers look at it; only the owner of the event decides
+    const open = !ctx.isNew && Access.isOpen(ctx.event.Owner);
+    const canPeople = !readOnly && (ctx.isNew || ctx.event.Access === "OWNER");
+    body.addItem(new Title({ text: "People", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+    const peopleInput = (label, key) => {
+      const mi = new MultiInput({ width: "100%", placeholder: canPeople ? "User names" : "", enabled: canPeople, showValueHelp: false });
+      mi.addValidator((args) => { const t = String(args.text || "").trim().toUpperCase(); return t && t !== "*" ? new Token({ key: t, text: t }) : null; });
+      (draft.People[key] || []).filter((u) => u !== "*").forEach((u) => mi.addToken(new Token({ key: u, text: u })));
+      mi.attachTokenUpdate(() => setTimeout(() => { const keep = key === "Viewers" && draft.People.Viewers.indexOf("*") >= 0 ? ["*"] : []; draft.People[key] = keep.concat(mi.getTokens().map((t) => t.getKey())); }, 0));
+      field(label, mi);
+    };
+    peopleInput("Owners", "Owners"); peopleInput("Assignees", "Assignees"); peopleInput("Viewers", "Viewers");
+    body.addItem(new CheckBox({ text: "Everyone can view", selected: draft.People.Viewers.indexOf("*") >= 0, enabled: canPeople, select: (e) => {
+      draft.People.Viewers = draft.People.Viewers.filter((u) => u !== "*").concat(e.getParameter("selected") ? ["*"] : []);
+    } }));
+    body.addItem(new Text({ text: open ? "This event has no owner, so everyone can open and change it." : "The creator owns the event. Owners and assignees can edit it, viewers can look at it, and nobody else sees it." }).addStyleClass("zsacSmall"));
+
+    // work files: stories, datasets, actions of this system and web addresses
+    body.addItem(new Title({ text: "Work files", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+    const filesBox = new VBox();
+    const showFiles = () => {
+      filesBox.destroyItems();
+      draft.Files.forEach((f, i) => filesBox.addItem(new HBox({ alignItems: "Center", items: [
+        new Link({ text: Engine.FILE_TYPES[f.Type] + ": " + f.Name, wrapping: true, layoutData: new FlexItemData({ growFactor: 1 }), press: () => { if (ctx.onOpenFile) { ctx.onOpenFile(f); } } }),
+        new Button({ icon: "sap-icon://decline", type: "Transparent", tooltip: "Remove", visible: !readOnly, press: () => { draft.Files.splice(i, 1); showFiles(); } })] })));
+      if (!draft.Files.length) { filesBox.addItem(new Text({ text: "None" }).addStyleClass("zsacSmall")); }
+    };
+    const add = (f) => { try { draft.Files = Engine.addFile(draft, f); showFiles(); } catch (e) { note(e.message); } };
+    const pickFile = () => {
+      const q = new SearchField({ width: "100%", liveChange: (e) => fill(e.getParameter("newValue")) });
+      const list = new List({ mode: "SingleSelectMaster", noDataText: "Nothing found", selectionChange: (e) => { const f = e.getParameter("listItem").data("file"); dlg.close(); add(f); } });
+      const fill = (text) => {
+        list.destroyItems();
+        (ctx.files || []).filter((f) => !text || f.Name.toLowerCase().indexOf(String(text).toLowerCase()) >= 0).slice(0, 200)
+          .forEach((f) => list.addItem(new StandardListItem({ title: f.Name, description: Engine.FILE_TYPES[f.Type] }).data("file", f)));
+      };
+      fill("");
+      const dlg = new Dialog({ title: "Add a file", contentWidth: "24rem", contentHeight: "22rem", content: [new VBox({ items: [q, list] }).addStyleClass("sapUiSmallMargin")],
+        endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+      dlg.open();
+    };
+    const pickUrl = () => {
+      const url = new Input({ width: "100%", placeholder: "https://..." }); const name = new Input({ width: "100%", placeholder: "Name (optional)" });
+      const err = new VBox();
+      const dlg = new Dialog({ title: "Add a web address", contentWidth: "24rem", content: [new VBox({ items: [url, name, err] }).addStyleClass("sapUiSmallMargin")],
+        beginButton: new Button({ text: "Add", type: "Emphasized", press: () => {
+          const c = WebContent.check(url.getValue(), "page");
+          if (!c.ok || !/^https?:/i.test(c.url)) { err.destroyItems(); err.addItem(new MessageStrip({ text: c.error || "Only http and https addresses can be added", type: "Error", showIcon: true })); return; }
+          dlg.close(); add({ Type: "URL", Url: c.url, Name: name.getValue().trim() || c.url });
+        } }), endButton: new Button({ text: "Cancel", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+      dlg.open();
+    };
+    body.addItem(filesBox);
+    if (!readOnly) {
+      const menu = new Menu({ itemSelected: (e) => { if (e.getParameter("item").data("t") === "URL") { pickUrl(); } else { pickFile(); } } });
+      menu.addItem(new MenuItem({ text: "Story, dataset or action" }).data("t", "FILE")); menu.addItem(new MenuItem({ text: "Web address" }).data("t", "URL"));
+      body.addItem(new MenuButton({ text: "Add file", icon: "sap-icon://add", type: "Transparent", menu }));
+    }
+    showFiles();
+
     const buttons = new HBox({ justifyContent: "End", items: [
       new Button({ text: "Delete", type: "Reject", visible: !ctx.isNew && ctx.canDelete !== false, press: () => ctx.onDelete(draft) }).addStyleClass("sapUiTinyMarginEnd"),
       new Button({ text: ctx.isNew ? "Create" : "Save", type: "Emphasized", visible: !readOnly, press: () => {
         const r = Engine.validate(draft, ctx.events);
+        if (canPeople) { r.errors.push.apply(r.errors, Access.normalize(Engine.sharesOf(draft), "").errors); }
         if (r.errors.length) { note(r.errors.join("\n")); return; }
         note(r.warnings.join("\n"), "Warning");
-        ctx.onSave(clone(draft), {});
+        ctx.onSave(clone(draft), { shares: canPeople });
       } })] }).addStyleClass("sapUiSmallMarginTop");
     body.addItem(buttons); body.addItem(notes);
     if (readOnly) { body.addItem(new MessageStrip({ text: "You can look at this event but not change it.", type: "Information", showIcon: true }).addStyleClass("sapUiSmallMarginTop")); }

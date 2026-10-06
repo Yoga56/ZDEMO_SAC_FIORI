@@ -45,8 +45,12 @@ sap.ui.define([
     // ---- data -------------------------------------------------------------------------------------------------------------------------
     async _load() {
       this._p = await this.provider();
-      [this._events, this._models, this._versions, this._me, this._dataActions, this._multiActions] = await Promise.all([this._p.listTasks(), this._p.listModels(), this._p.listVersions(), this._p.currentUser(),
-        this._p.listDataActions(), this._p.listMultiActions()]).then(([e, m, v, u, d, mu]) => [e.map(Engine.normalize), m, v, u, d, mu]);
+      const [tasks, models, versions, me, das, mas, stories] = await Promise.all([this._p.listTasks(), this._p.listModels(), this._p.listVersions(), this._p.currentUser(),
+        this._p.listDataActions(), this._p.listMultiActions(), this._p.listStories()]);
+      this._events = tasks.map(Engine.normalize); this._models = models; this._versions = versions; this._me = me; this._dataActions = das; this._multiActions = mas;
+      // what a work file can point at: the stories, datasets and actions the user may open
+      this._files = stories.map((x) => ({ Type: "STORY", Id: x.Id, Name: x.Name })).concat(models.map((x) => ({ Type: "MODEL", Id: x.ModelId, Name: x.Name })),
+        das.map((x) => ({ Type: "DATAACTION", Id: x.Id, Name: x.Name })), mas.map((x) => ({ Type: "MULTIACTION", Id: x.Id, Name: x.Name })));
       if (this._selected && !this._events.some((e) => e.Id === this._selected)) { this._selected = ""; this._hidePanel(); }
       this._render();
     },
@@ -142,7 +146,7 @@ sap.ui.define([
       const children = this._events.some((e) => e.ParentId === event.Id);
       EventPanel.show(panel, {
         event, isNew, events: this._events.filter((e) => e.Id !== event.Id || !isNew), models: this._models, versions: this._versions, hasChildren: children,
-        provider: this._p, dataActions: this._dataActions, multiActions: this._multiActions, onRun: (e) => this._runTask(e),
+        provider: this._p, dataActions: this._dataActions, multiActions: this._multiActions, files: this._files, onRun: (e) => this._runTask(e), onOpenFile: (f) => this._openFile(f),
         canEdit: event.Access !== "READ", canDelete: event.Access === "OWNER" || !event.Owner,
         onSave: (e, o) => this._save(e, isNew, o), onDelete: (e) => this._deleteEvent(e), onClose: () => { this._selected = ""; this._hidePanel(); this._render(); },
         onOpenPlan: (e) => this.router().navTo("planning", { query: { model: e.ModelId, version: e.VersionId } })
@@ -161,6 +165,8 @@ sap.ui.define([
     async _save(event, isNew, opts) {
       try {
         await this._p.saveTask(Engine.toRecord(event));
+        // who may see and edit the event is kept as shares; only the owner of the event can change them
+        if (opts && opts.shares && this._p.capabilities && this._p.capabilities.sharing) { await this._p.saveShares("CALEVENT", event.Id, Engine.sharesOf(event)).catch((err) => { this.fail(err); }); }
         await this._load();
         this._selected = event.Id;
         this._showPanel(this._events.find((e) => e.Id === event.Id) || event, false);
@@ -168,6 +174,12 @@ sap.ui.define([
         this.toast(isNew ? "Event created" : "Saved");
       } catch (e) { this.fail(e); }
       void opts;
+    },
+
+    _openFile(f) {
+      if (f.Type === "URL") { window.open(f.Url, "_blank", "noopener,noreferrer"); return; }
+      const route = { STORY: "story", MODEL: "modeller", DATAACTION: "dataaction", MULTIACTION: "multiaction" }[f.Type];
+      if (route) { this.navTo(route, { id: f.Id }); }
     },
 
     // ---- running a planning task ------------------------------------------------------------------------------------------------------
@@ -215,7 +227,8 @@ sap.ui.define([
         }
         const start = today();
         const days = Engine.TYPES[key].container ? 13 : key === "LOCK" ? 0 : 6;
-        const draft = Engine.normalize({ Id: EventWizard.newId(), Type: key, Title: "", Status: "OPEN", StartDate: start, EndDate: Engine.addDays(start, days), ParentId: key === "PROCESS" ? "" : parentId });
+        const me = this._me ? [this._me] : [];
+        const draft = Engine.normalize({ Id: EventWizard.newId(), Type: key, Title: "", Status: "OPEN", StartDate: start, EndDate: Engine.addDays(start, days), ParentId: key === "PROCESS" ? "" : parentId, People: { Owners: me, Assignees: me, Viewers: [] } });
         this._selected = ""; this._showPanel(draft, true); this._render();
       })();
     },

@@ -1,0 +1,11 @@
+@EndUserText.label: 'Access control for calendar event'
+@MappingRole: true
+define role ZR_SAC_CALTASK
+{
+  grant select on ZR_SAC_CALTASK
+    where ( OwnerId ) = aspect user
+       or OwnerId = ''
+       or OwnerId = '*'
+       or ( _ShareMe.Principal ) = aspect user
+       or ( _ShareAll.Principal ) = '*';
+}

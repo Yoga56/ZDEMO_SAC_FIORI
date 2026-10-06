@@ -109,9 +109,17 @@ ENTITIES = [
         ("*COMMENT_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("VERSION_ID", "CHAR 12"), ("PERIOD", "CHAR 10"), ("MEASURE", "CHAR 20"),
         ("DIMS_JSON", "STRG"), ("COMMENT_TEXT", "STRG")]),
 
-    dict(id="CALTASK", table="ZSAC_CALTASK", label="Calendar Task", set="CalendarTask", admin=ADMIN, fields=[
+    # an event of the calendar: a task or a process (PARENT_ID puts a task inside a process). The dates are START_DATE and END_DATE; DUE_DATE, ASSIGNEE and NOTES
+    # are what the first calendar had and are kept in step (end date, first assignee, description). PEOPLE_JSON is { Owners, Assignees, Viewers }, FILES_JSON the
+    # work files, CONFIG_JSON what depends on the type (action, parameters, what a locking task does, what the event waits for, the last run).
+    # The people are shared through ZSAC_SHARE (kind CALEVENT), so the access control sees them.
+    dict(id="CALTASK", table="ZSAC_CALTASK", label="Calendar Event", set="CalendarTask", admin=ADMIN, fields=[
         ("*TASK_ID", "CHAR 32"), ("TITLE", "CHAR 120"), ("MODEL_ID", "CHAR 20"), ("VERSION_ID", "CHAR 12"), ("ASSIGNEE", "CHAR 12"),
-        ("DUE_DATE", "DATS"), ("STATUS", "CHAR 10"), ("APPROVER", "CHAR 12"), ("NOTES", "CHAR 255")]),
+        ("DUE_DATE", "DATS"), ("STATUS", "CHAR 10"), ("APPROVER", "CHAR 12"), ("NOTES", "CHAR 255"),
+        ("EVENT_TYPE", "CHAR 12"), ("PARENT_ID", "CHAR 32"), ("START_DATE", "DATS"), ("END_DATE", "DATS"), ("PROGRESS", "INT4"),
+        ("PEOPLE_JSON", "STRG"), ("FILES_JSON", "STRG"), ("CONFIG_JSON", "STRG"), ("OWNER_ID", "CHAR 12")],
+        determinations=[("SetOwner", "on modify", "create;")],
+        readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="CALEVENT", share_id="TaskId"),
 ]
 
 # abstract entities for action parameters / results: name -> (label, [(Element, abap type)])

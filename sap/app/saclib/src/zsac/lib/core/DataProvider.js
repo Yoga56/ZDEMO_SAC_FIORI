@@ -27,7 +27,7 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
     listShares(/* kind, id */) { return Promise.resolve([]); }
     /** Replaces the shares of an object (owner only). Returns the list that was stored. */
     saveShares(/* kind, id, shares */) { return Promise.reject(new Error("Sharing is not supported by the data source " + this.id)); }
-    /** What can be shared: STORY, MODEL, DATAACTION and MULTIACTION. The id of a model is ModelId, the id of the others is Id. */
+    /** What can be shared: STORY, MODEL, DATAACTION, MULTIACTION and CALEVENT (an event of the calendar). The id of a model is ModelId, the id of the others is Id. */
     static idOf(kind, object) { return kind === "MODEL" ? object.ModelId : object.Id; }
 
     /** The object a share is about, as the provider reads it (with its Owner and Access). */
@@ -37,6 +37,7 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
         case "MODEL": return this.getModel(id);
         case "DATAACTION": return this.getDataAction(id);
         case "MULTIACTION": return this.getMultiAction(id);
+        case "CALEVENT": return this.getTask(id);
         default: return Promise.reject(new Error("Cannot share a " + kind));
       }
     }
@@ -194,6 +195,7 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
     saveFile(/* file */) { return abstract("saveFile").call(this); }
     deleteFile(/* id */) { return abstract("deleteFile").call(this); }
     listTasks() { return abstract("listTasks").call(this); }
+    getTask(/* id */) { return abstract("getTask").call(this); }
     saveTask(/* task */) { return abstract("saveTask").call(this); }
     deleteTask(/* id */) { return abstract("deleteTask").call(this); }
 

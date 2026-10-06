@@ -184,3 +184,37 @@ test("sharing: the run history of an action the user cannot open is not shown", 
   await alice.saveShares("DATAACTION", "DA_H", [{ Principal: "BOB", Access: "READ" }]);
   assert.ok((await bob.listRuns(null, 50)).some((r) => r.ActionId === "DA_H"));
 });
+
+const CalendarEngine = req("zsac/lib/calendar/CalendarEngine");
+const event = (id, extra) => Object.assign({ Id: id, Type: "GENERAL", Title: "Event " + id, Status: "OPEN", StartDate: "2026-10-01", EndDate: "2026-10-05", People: { Owners: [], Assignees: [], Viewers: [] } }, extra);
+
+test("calendar events: private to their creator until the people on them are shared", async () => {
+  const { alice, bob, carl } = users();
+  const saved = await alice.saveTask(CalendarEngine.toRecord(event("EV1")));
+  assert.deepStrictEqual([saved.Owner, saved.Access], ["ALICE", "OWNER"]);
+  assert.ok(!(await bob.listTasks()).some((t) => t.Id === "EV1"));
+  await rejects(bob.getTask("EV1"), /not allowed to open the calendar event EV1/);
+  const ev = event("EV1", { People: { Owners: [], Assignees: ["bob"], Viewers: ["CARL"] } });
+  await alice.saveShares("CALEVENT", "EV1", CalendarEngine.sharesOf(ev));
+  assert.strictEqual((await bob.getTask("EV1")).Access, "WRITE"); // an assignee may edit it (progress, status)
+  assert.strictEqual((await carl.getTask("EV1")).Access, "READ");
+  const done = await bob.saveTask(CalendarEngine.toRecord(Object.assign({}, ev, { Status: "DONE", Progress: 100 })));
+  assert.deepStrictEqual([done.Status, done.Owner], ["DONE", "ALICE"]);
+  await rejects(carl.saveTask(CalendarEngine.toRecord(ev)), /not allowed to change the calendar event/);
+  await rejects(bob.deleteTask("EV1"), /not allowed to delete/);
+  await rejects(bob.saveShares("CALEVENT", "EV1", []), /Only the owner/);
+  await alice.deleteTask("EV1");
+  assert.ok(!alice._db.shares.some((x) => x.ObjectId === "EV1"));
+  assert.ok(!(await alice.listTasks()).some((t) => t.Id === "EV1"));
+});
+
+test("calendar events: the sample events have no owner and stay open; everyone can view with *", async () => {
+  const { alice, bob } = users();
+  const first = (await bob.listTasks())[0];
+  assert.strictEqual(first.Access, "WRITE");
+  await rejects(alice.saveShares("CALEVENT", first.Id, []), /no owner/);
+  await alice.saveTask(CalendarEngine.toRecord(event("EV2")));
+  await alice.saveShares("CALEVENT", "EV2", CalendarEngine.sharesOf(event("EV2", { People: { Viewers: ["*"] } })));
+  assert.strictEqual((await bob.getTask("EV2")).Access, "READ");
+  assert.strictEqual((await alice.getShareable("CALEVENT", "EV2")).Id, "EV2");
+});

@@ -286,3 +286,22 @@ test("locking task: locks the version, unlocks it, says so when nothing changes,
   await assert.rejects(TaskRunner.lock(p, ev("X")), /not a data locking task/);
   assert.strictEqual(TaskRunner.target(ev("A", { Type: "DATAACTION" })), "No action chosen");
 });
+
+test("people become shares: owners and assignees edit, viewers look, everyone with *", () => {
+  const e = ev("S", { People: { Owners: ["alice", "BOB"], Assignees: ["BOB", " carl "], Viewers: ["DAN", "*", "ALICE"] } });
+  assert.deepStrictEqual(C.sharesOf(e).sort((a, b) => a.Principal.localeCompare(b.Principal)), [
+    { Principal: "*", Access: "READ" }, { Principal: "ALICE", Access: "WRITE" }, { Principal: "BOB", Access: "WRITE" }, { Principal: "CARL", Access: "WRITE" }, { Principal: "DAN", Access: "READ" }]);
+  assert.deepStrictEqual(C.sharesOf(ev("N")), []);
+});
+
+test("work files: stories, datasets, actions and addresses, once each, at most twenty", () => {
+  const e = ev("F");
+  const one = C.addFile(e, { Type: "STORY", Id: "STORY_SALES", Name: "Sales Performance" });
+  assert.deepStrictEqual(one, [{ Type: "STORY", Id: "STORY_SALES", Name: "Sales Performance", Url: "" }]);
+  assert.strictEqual(C.addFile(Object.assign({}, e, { Files: one }), { Type: "STORY", Id: "STORY_SALES", Name: "again" }).length, 1);
+  assert.strictEqual(C.addFile(Object.assign({}, e, { Files: one }), { Type: "URL", Url: "https://example.com/doc" }).length, 2);
+  assert.throws(() => C.addFile(e, { Type: "FOLDER", Id: "x" }), /story, a dataset/);
+  assert.throws(() => C.addFile(e, { Type: "URL" }), /Choose the file/);
+  const many = Array.from({ length: 20 }, (_, i) => ({ Type: "URL", Url: "https://e.com/" + i, Id: "", Name: "n" }));
+  assert.throws(() => C.addFile(Object.assign({}, e, { Files: many }), { Type: "URL", Url: "https://e.com/new" }), /20 work files/);
+});

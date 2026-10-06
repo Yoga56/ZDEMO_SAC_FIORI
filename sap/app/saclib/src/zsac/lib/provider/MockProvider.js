@@ -29,7 +29,8 @@ sap.ui.define([
     STORY: { coll: "stories", id: "Id", noun: "story" },
     MODEL: { coll: "models", id: "ModelId", noun: "model" },
     DATAACTION: { coll: "dataactions", id: "Id", noun: "data action" },
-    MULTIACTION: { coll: "multiactions", id: "Id", noun: "multi action" }
+    MULTIACTION: { coll: "multiactions", id: "Id", noun: "multi action" },
+    CALEVENT: { coll: "tasks", id: "Id", noun: "calendar event" }
   };
 
   class MockProvider extends DataProvider {
@@ -367,9 +368,20 @@ sap.ui.define([
     }
     saveFile(file) { return Promise.resolve(this._upsert("files", file, (x) => x.Id)).then(clone); }
     deleteFile(id) { this._remove("files", (x) => x.Id === id); return Promise.resolve(); }
-    listTasks() { return wait(this._db.tasks); }
-    saveTask(task) { return Promise.resolve(this._upsert("tasks", task, (x) => x.Id)).then(clone); }
-    deleteTask(id) { this._remove("tasks", (x) => x.Id === id); return Promise.resolve(); }
+    listTasks() { return wait(this._db.tasks.filter((t) => this._can("CALEVENT", t, "read")).map((t) => this._withAccess("CALEVENT", t))); }
+    getTask(id) {
+      const t = this._db.tasks.find((x) => x.Id === id);
+      if (!t) { return Promise.reject(new Error("Event not found: " + id)); }
+      return this._can("CALEVENT", t, "read") ? wait(this._withAccess("CALEVENT", t)) : Promise.reject(this._denied("CALEVENT", t, "open"));
+    }
+    saveTask(task) { return this._putOwned("CALEVENT", task); }
+    deleteTask(id) {
+      const t = this._db.tasks.find((x) => x.Id === id);
+      if (t && !this._can("CALEVENT", t, "delete")) { return Promise.reject(this._denied("CALEVENT", t, "delete")); }
+      this._remove("shares", (x) => x.Kind === "CALEVENT" && x.ObjectId === id);
+      this._remove("tasks", (x) => x.Id === id);
+      return Promise.resolve();
+    }
   }
 
   return MockProvider;

@@ -76,3 +76,25 @@ test("odata sharing: access of data and multi actions follows the shares", async
   };
   assert.deepStrictEqual((await p.listMultiActions()).map((a) => a.Access), ["READ", "NONE"]);
 });
+
+test("odata calendar events: every field is read and written, the older columns follow, an existing event is patched", async () => {
+  const calls = []; const p = provider(calls);
+  p._list = async (path, filters) => {
+    if (path === "/CalendarTask" && filters && filters.length) { return [{ TaskId: "E1" }]; }
+    if (path === "/CalendarTask") { return [{ TaskId: "E1", EventType: "LOCK", ParentId: "P", Title: "Lock", ModelId: "M", VersionId: "BUD", Assignee: "ME", DueDate: "2026-10-16", StartDate: "2026-10-16", EndDate: "2026-10-16", Progress: 40, Status: "ACTIVE",
+      Approver: "", Notes: "n", PeopleJson: '{"Owners":["A"]}', FilesJson: '[{"Type":"URL","Url":"https://e.com"}]', ConfigJson: '{"After":["X"]}', OwnerId: "ALICE", CurrentUser: "ALICE" }]; }
+    return [];
+  };
+  const [t] = await p.listTasks();
+  assert.deepStrictEqual([t.Type, t.ParentId, t.Progress, t.People.Owners, t.Files[0].Url, t.Config.After, t.Owner, t.Access], ["LOCK", "P", 40, ["A"], "https://e.com", ["X"], "ALICE", "OWNER"]);
+  await p.saveTask({ Id: "E1", Type: "REVIEW", Title: "Changed", Status: "DONE", Progress: 100, StartDate: "2026-10-01", EndDate: "2026-10-02", Notes: "d", People: { Viewers: ["*"] }, Owner: "MALLORY", Access: "OWNER" });
+  const patch = calls.find((c) => c[0] === "PATCH");
+  assert.strictEqual(patch[1], "/CalendarTask(TaskId='E1')");
+  assert.deepStrictEqual([patch[2].EventType, patch[2].DueDate, patch[2].Progress, patch[2].PeopleJson], ["REVIEW", "2026-10-02", 100, '{"Viewers":["*"]}']);
+  assert.ok(!("TaskId" in patch[2]) && !JSON.stringify(calls).includes("MALLORY") && !JSON.stringify(calls).includes("OwnerId"));
+  const fresh = []; const p2 = provider(fresh);
+  p2._list = async () => [];
+  await p2.saveTask({ Id: "NEW", Title: "x".repeat(300), Status: "OPEN" });
+  const post = fresh.find((c) => c[0] === "POST");
+  assert.strictEqual(post[1], "/CalendarTask"); assert.strictEqual(post[2].Title.length, 120);
+});

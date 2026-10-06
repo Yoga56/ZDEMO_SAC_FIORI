@@ -6,7 +6,9 @@
 "ZSAC_CALTASK"
 ],
 "ASSOCIATED":
-[],
+[
+"ZR_SAC_SHARE"
+],
 "BASE":
 [],
 "ANNO_REF":
