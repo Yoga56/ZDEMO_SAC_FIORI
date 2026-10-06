@@ -1,4 +1,4 @@
-"! Who may open and edit a story or a model. The owner has everything; anyone else has what the owner shared with
+"! Who may open and edit a story, a model, a data action or a multi action. The owner has everything; anyone else has what the owner shared with
 "! them (READ or WRITE) or with everyone ('*'). Content without an owner (older content, the sample data, owner '*')
 "! belongs to nobody and is open to everyone to edit and delete, but cannot be shared.
 "!
@@ -18,7 +18,7 @@ CLASS zcl_sac_access DEFINITION PUBLIC FINAL CREATE PRIVATE.
     CLASS-METHODS user
       RETURNING VALUE(result) TYPE zsac_story-owner_id.
 
-    "! True when nobody owns the object (it does not exist, or its owner is empty or *). kind is STORY or MODEL.
+    "! True when nobody owns the object (it does not exist, or its owner is empty or *). kind is STORY, MODEL, DATAACTION or MULTIACTION.
     CLASS-METHODS is_open
       IMPORTING kind          TYPE zsac_share-object_kind
                 id            TYPE zsac_share-object_id
@@ -64,6 +64,10 @@ CLASS zcl_sac_access IMPLEMENTATION.
         SELECT SINGLE owner_id FROM zsac_story WHERE story_id = @id INTO @result.
       WHEN 'MODEL'.
         SELECT SINGLE owner_id FROM zsac_model WHERE model_id = @id INTO @result.
+      WHEN 'DATAACTION'.
+        SELECT SINGLE owner_id FROM zsac_dataact WHERE action_id = @id INTO @result.
+      WHEN 'MULTIACTION'.
+        SELECT SINGLE owner_id FROM zsac_multiact WHERE action_id = @id INTO @result.
     ENDCASE.
   ENDMETHOD.
 

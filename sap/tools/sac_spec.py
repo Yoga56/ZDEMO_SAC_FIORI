@@ -24,7 +24,7 @@ ENTITIES = [
     # who a story or a model is shared with: PRINCIPAL is a user name or * for everyone, ACCESS_LEVEL READ (open and use) or WRITE (edit).
     # OWNER_ID is the user who shared it. Anyone sees the rows that are about them or about everyone, the owner sees all rows of the object.
     dict(id="SHARE", table="ZSAC_SHARE", label="Share", set="Share", admin=ADMIN, fields=[
-        ("*OBJECT_KIND", "CHAR 8"), ("*OBJECT_ID", "CHAR 32"), ("*PRINCIPAL", "CHAR 12"), ("ACCESS_LEVEL", "CHAR 5"), ("OWNER_ID", "CHAR 12")],
+        ("*OBJECT_KIND", "CHAR 12"), ("*OBJECT_ID", "CHAR 32"), ("*PRINCIPAL", "CHAR 12"), ("ACCESS_LEVEL", "CHAR 5"), ("OWNER_ID", "CHAR 12")],
         validations=[("CheckShare", "AccessLevel")],
         determinations=[("SetOwner", "on modify", "create;")],
         readonly=["OWNER_ID"], auth="instance", dcl="share"),
@@ -83,14 +83,18 @@ ENTITIES = [
     # PARAMETERS is the JSON list of parameters; CONFIG of a step is the JSON of everything that depends on the step type
     # (filter, copy rules, factor, allocation settings, embedded action ...), so a new step option needs no new column.
     dict(id="DATAACT", table="ZSAC_DATAACT", label="Data Action", set="DataAction", admin=ADMIN, children=[("DASTEP", "_Step")], fields=[
-        ("*ACTION_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("PARAMETERS", "STRG")]),
-    dict(id="DASTEP", table="ZSAC_DASTEP", label="Data Action Step", set="DataActionStep", admin=LOCAL_ONLY, parent=("DATAACT", "_DataAction"), fields=[
+        ("*ACTION_ID", "CHAR 32"), ("MODEL_ID", "CHAR 20"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("PARAMETERS", "STRG"), ("OWNER_ID", "CHAR 12")],
+        determinations=[("SetOwner", "on modify", "create;")],
+        readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="DATAACTION", share_id="ActionId"),
+    dict(id="DASTEP", table="ZSAC_DASTEP", label="Data Action Step", set="DataActionStep", admin=LOCAL_ONLY, parent=("DATAACT", "_DataAction"), dcl="parent", fields=[
         ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 10"), ("STEP_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"),
         ("ACTIVE", BOOL), ("CONFIG", "STRG")]),
 
     dict(id="MULTIACT", table="ZSAC_MULTIACT", label="Multi Action", set="MultiAction", admin=ADMIN, children=[("MASTEP", "_Step")], fields=[
-        ("*ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("PARAMETERS", "STRG")]),
-    dict(id="MASTEP", table="ZSAC_MASTEP", label="Multi Action Step", set="MultiActionStep", admin=LOCAL_ONLY, parent=("MULTIACT", "_MultiAction"), fields=[
+        ("*ACTION_ID", "CHAR 32"), ("ACTION_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"), ("PARAMETERS", "STRG"), ("OWNER_ID", "CHAR 12")],
+        determinations=[("SetOwner", "on modify", "create;")],
+        readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="MULTIACTION", share_id="ActionId"),
+    dict(id="MASTEP", table="ZSAC_MASTEP", label="Multi Action Step", set="MultiActionStep", admin=LOCAL_ONLY, parent=("MULTIACT", "_MultiAction"), dcl="parent", fields=[
         ("*ACTION_ID", "CHAR 32"), ("*STEP_NO", "INT4"), ("STEP_TYPE", "CHAR 12"), ("STEP_NAME", "CHAR 80"), ("DESCRIPTION", "CHAR 255"),
         ("ACTIVE", BOOL), ("CONFIG", "STRG")]),
 
@@ -124,7 +128,7 @@ CLASSES = {
     "ZCL_SAC_VERSION_ENGINE": ("SAC: version publish and revert", None),
     "ZCL_SAC_SEED": ("SAC: sample models, plan data, stories", None),
     "ZCL_SAC_ACCESS": ("SAC: who may open and edit a story or model", None),
-    "ZCL_SAC_CLAIM_OWNERS": ("SAC: give existing stories and models to their creators", None),
+    "ZCL_SAC_CLAIM_OWNERS": ("SAC: give existing content to its creators", None),
 }
 
 

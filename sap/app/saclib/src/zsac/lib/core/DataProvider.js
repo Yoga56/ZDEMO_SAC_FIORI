@@ -27,12 +27,26 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
     listShares(/* kind, id */) { return Promise.resolve([]); }
     /** Replaces the shares of an object (owner only). Returns the list that was stored. */
     saveShares(/* kind, id, shares */) { return Promise.reject(new Error("Sharing is not supported by the data source " + this.id)); }
+    /** What can be shared: STORY, MODEL, DATAACTION and MULTIACTION. The id of a model is ModelId, the id of the others is Id. */
+    static idOf(kind, object) { return kind === "MODEL" ? object.ModelId : object.Id; }
+
+    /** The object a share is about, as the provider reads it (with its Owner and Access). */
+    getShareable(kind, id) {
+      switch (kind) {
+        case "STORY": return this.getStory(id);
+        case "MODEL": return this.getModel(id);
+        case "DATAACTION": return this.getDataAction(id);
+        case "MULTIACTION": return this.getMultiAction(id);
+        default: return Promise.reject(new Error("Cannot share a " + kind));
+      }
+    }
+
     /** The access of the current user to an object read from this provider: "OWNER" | "WRITE" | "READ" | "NONE". */
     async accessOf(kind, object) {
       const owner = object && object.Owner;
       if (Access.isOpen(owner)) { return "WRITE"; }
       const user = await this.currentUser();
-      return Access.level(user, owner, user && owner && String(owner).toUpperCase() === String(user).toUpperCase() ? [] : await this.listShares(kind, kind === "STORY" ? object.Id : object.ModelId));
+      return Access.level(user, owner, user && owner && String(owner).toUpperCase() === String(user).toUpperCase() ? [] : await this.listShares(kind, DataProvider.idOf(kind, object)));
     }
 
     // --- models (datasets) -------------------------------------------------------------------

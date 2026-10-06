@@ -16,7 +16,7 @@
           <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Steps"/></Column>
           <Column minScreenWidth="Tablet" demandPopin="true"><Text text="Parameters"/></Column>
           <Column minScreenWidth="Desktop" demandPopin="true"><Text text="Last run"/></Column>
-          <Column width="12rem" hAlign="End"><Text text=""/></Column>
+          <Column width="14rem" hAlign="End"><Text text=""/></Column>
         </columns>
         <items>
           <ColumnListItem type="Navigation" press=".onOpen">
@@ -28,7 +28,8 @@
               <HBox justifyContent="End">
                 <Button icon="sap-icon://play" tooltip="Run" type="Transparent" press=".onRunRow"/>
                 <Button icon="sap-icon://duplicate" tooltip="Duplicate" type="Transparent" press=".onDuplicateRow"/>
-                <Button icon="sap-icon://delete" tooltip="Delete" type="Transparent" press=".onDeleteRow"/>
+                <Button icon="sap-icon://share-2" tooltip="Share" type="Transparent" press=".onShareRow" visible="{= ${list>Access} === 'OWNER'}"/>
+                <Button icon="sap-icon://delete" tooltip="Delete" type="Transparent" press=".onDeleteRow" enabled="{= ${list>Access} === 'OWNER' || !${list>Owner} || ${list>Owner} === '*'}"/>
               </HBox>
             </cells>
           </ColumnListItem>

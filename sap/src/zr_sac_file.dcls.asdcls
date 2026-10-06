@@ -4,8 +4,6 @@ define role ZR_SAC_FILE
 {
   grant select on ZR_SAC_FILE
     where FileKind = 'FOLDER'
-       or FileKind = 'DATAACTION'
-       or FileKind = 'MULTIACTION'
        or ( OwnerId ) = aspect user
        or OwnerId = ''
        or OwnerId = '*'

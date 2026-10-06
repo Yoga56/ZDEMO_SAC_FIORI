@@ -28,7 +28,7 @@ CLASS lhc_share IMPLEMENTATION.
   ENDMETHOD.
 
 
-  " only the owner shares an object, only stories and models, only for reading or editing, with a user name in capitals or with everyone (*)
+  " only the owner shares an object, only stories, models and actions, only for reading or editing, with a user name in capitals or with everyone (*)
   METHOD checkshare.
     READ ENTITIES OF zr_sac_share IN LOCAL MODE
       ENTITY share
@@ -37,8 +37,8 @@ CLASS lhc_share IMPLEMENTATION.
 
     LOOP AT shares INTO DATA(share).
       DATA(problem) = ``.
-      IF share-ObjectKind <> 'STORY' AND share-ObjectKind <> 'MODEL'.
-        problem = `Only stories and models can be shared`.
+      IF share-ObjectKind <> 'STORY' AND share-ObjectKind <> 'MODEL' AND share-ObjectKind <> 'DATAACTION' AND share-ObjectKind <> 'MULTIACTION'.
+        problem = `Only stories, models, data actions and multi actions can be shared`.
       ELSEIF share-AccessLevel <> 'READ' AND share-AccessLevel <> 'WRITE'.
         problem = `The access of a share is READ or WRITE`.
       ELSEIF share-Principal IS INITIAL.

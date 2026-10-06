@@ -5,8 +5,9 @@ sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Label", "sap/m/Select", "sap/m/TextArea", "sap/m/VBox", "sap/ui/core/Item",
   "zsac/lib/planning/DataActionRun",
   "zsac/lib/planning/DataActionSchema",
-  "zsac/lib/core/StorySchema"
-], function (BaseController, JSONModel, Filter, FilterOperator, Dialog, Button, Input, Label, Select, TextArea, VBox, Item, DataActionRun, Schema, StorySchema) {
+  "zsac/lib/core/StorySchema",
+  "../model/ShareDialog"
+], function (BaseController, JSONModel, Filter, FilterOperator, Dialog, Button, Input, Label, Select, TextArea, VBox, Item, DataActionRun, Schema, StorySchema, ShareDialog) {
   "use strict";
 
   const fmtAt = (at) => (at ? new Date(at).toLocaleString() : "");
@@ -64,6 +65,14 @@ sap.ui.define([
         await this._p.saveDataAction(copy);
         this.toast("Duplicated");
         await this._load();
+      })();
+    },
+
+    onShareRow: function (e) {
+      const row = this._row(e);
+      this.guard(async () => {
+        const saved = await ShareDialog.open({ provider: this._p, kind: "DATAACTION", id: row.Id });
+        if (saved) { this.toast(saved.length ? "Sharing saved" : "Not shared with anyone"); await this._load(); }
       })();
     },
 

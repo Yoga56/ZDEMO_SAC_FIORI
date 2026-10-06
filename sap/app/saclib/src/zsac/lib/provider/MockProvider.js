@@ -24,6 +24,14 @@ sap.ui.define([
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const wait = (v) => Promise.resolve(clone(v));
 
+  /** The objects that have an owner and can be shared: where they are kept, which field is the id, what they are called in a message. */
+  const KINDS = {
+    STORY: { coll: "stories", id: "Id", noun: "story" },
+    MODEL: { coll: "models", id: "ModelId", noun: "model" },
+    DATAACTION: { coll: "dataactions", id: "Id", noun: "data action" },
+    MULTIACTION: { coll: "multiactions", id: "Id", noun: "multi action" }
+  };
+
   class MockProvider extends DataProvider {
     constructor(options) {
       super();
@@ -89,15 +97,25 @@ sap.ui.define([
       other._db = this._db;
       return other;
     }
-    _idOf(kind, o) { return kind === "STORY" ? o.Id : o.ModelId; }
+    _idOf(kind, o) { return o[KINDS[kind].id]; }
     _sharesOf(kind, id) { return this._db.shares.filter((x) => x.Kind === kind && x.ObjectId === id); }
     _level(kind, o) { return Access.level(this._user, o.Owner, this._sharesOf(kind, this._idOf(kind, o))); }
     _can(kind, o, action) { return Access.can(this._level(kind, o), action, Access.isOpen(o.Owner)); }
     _withAccess(kind, o) { return Object.assign({}, o, { Access: Access.isOpen(o.Owner) ? "WRITE" : this._level(kind, o) }); }
     _denied(kind, o, verb) {
-      const what = kind === "STORY" ? "story" : "model";
+      const what = KINDS[kind].noun;
       return new Error("You are not allowed to " + verb + " the " + what + " " + this._idOf(kind, o) + (o.Owner ? " (owner " + o.Owner + ")" : "") + ".");
     }
+    /** Saves an object that has an owner: a new one belongs to the user, an existing one needs edit access and keeps its owner. */
+    _putOwned(kind, object) {
+      const k = KINDS[kind];
+      const old = this._db[k.coll].find((x) => x[k.id] === object[k.id]);
+      if (old && !this._can(kind, old, "edit")) { return Promise.reject(this._denied(kind, old, "change")); }
+      const stored = Object.assign({}, object, { Owner: old ? old.Owner : this._user });
+      delete stored.Access;
+      return Promise.resolve(this._upsert(k.coll, stored, (x) => x[k.id])).then((x) => this._withAccess(kind, clone(x)));
+    }
+
     async _assertEditable(modelId) {
       const m = this._db.models.find((x) => x.ModelId === modelId);
       if (m && !this._can("MODEL", m, "edit")) { throw this._denied("MODEL", m, "change the data of"); }
@@ -108,7 +126,7 @@ sap.ui.define([
       const mine = this._level(kind, o) === "OWNER";
       return wait(this._sharesOf(kind, id).filter((x) => mine || x.Principal === "*" || x.Principal.toUpperCase() === this._user).map((x) => ({ Principal: x.Principal, Access: x.Access })));
     }
-    _find(kind, id) { return kind === "STORY" ? this._db.stories.find((x) => x.Id === id) : this._db.models.find((x) => x.ModelId === id); }
+    _find(kind, id) { const k = KINDS[kind]; return k ? this._db[k.coll].find((x) => x[k.id] === id) : undefined; }
     async saveShares(kind, id, shares) {
       const o = this._find(kind, id);
       if (!o) { throw new Error("Not found: " + id); }
@@ -277,13 +295,17 @@ sap.ui.define([
     }
 
     // data actions
-    listDataActions() { return wait(this._db.dataactions); }
+    listDataActions() { return wait(this._db.dataactions.filter((a) => this._can("DATAACTION", a, "read")).map((a) => this._withAccess("DATAACTION", a))); }
     getDataAction(id) {
       const a = this._db.dataactions.find((x) => x.Id === id);
-      return a ? wait(a) : Promise.reject(new Error("Data action not found: " + id));
+      if (!a) { return Promise.reject(new Error("Data action not found: " + id)); }
+      return this._can("DATAACTION", a, "read") ? wait(this._withAccess("DATAACTION", a)) : Promise.reject(this._denied("DATAACTION", a, "open"));
     }
-    _putDataAction(a) { return Promise.resolve(this._upsert("dataactions", a, (x) => x.Id)).then(clone); }
+    _putDataAction(a) { return this._putOwned("DATAACTION", a); }
     async deleteDataAction(id) {
+      const old = this._db.dataactions.find((x) => x.Id === id);
+      if (old && !this._can("DATAACTION", old, "delete")) { throw this._denied("DATAACTION", old, "delete"); }
+      this._remove("shares", (x) => x.Kind === "DATAACTION" && x.ObjectId === id);
       this._remove("dataactions", (x) => x.Id === id);
       this._remove("files", (x) => x.Type === "DATAACTION" && x.ObjectId === id);
     }
@@ -306,7 +328,8 @@ sap.ui.define([
 
     // run history of data and multi actions
     async listRuns(actionId, limit) {
-      return clone(this._db.runs.filter((r) => !actionId || r.ActionId === actionId).slice(0, limit || 100));
+      const readable = (r) => { const kind = r.Kind === "MULTI" ? "MULTIACTION" : "DATAACTION"; const o = this._find(kind, r.ActionId); return !o || this._can(kind, o, "read"); }; // the history of an action the user may not open is not shown
+      return clone(this._db.runs.filter((r) => (!actionId || r.ActionId === actionId) && readable(r)).slice(0, limit || 100));
     }
     async _putRun(entry) {
       const at = new Date().toISOString();
@@ -316,13 +339,17 @@ sap.ui.define([
     }
 
     // multi actions
-    listMultiActions() { return wait(this._db.multiactions); }
+    listMultiActions() { return wait(this._db.multiactions.filter((a) => this._can("MULTIACTION", a, "read")).map((a) => this._withAccess("MULTIACTION", a))); }
     getMultiAction(id) {
       const a = this._db.multiactions.find((x) => x.Id === id);
-      return a ? wait(a) : Promise.reject(new Error("Multi action not found: " + id));
+      if (!a) { return Promise.reject(new Error("Multi action not found: " + id)); }
+      return this._can("MULTIACTION", a, "read") ? wait(this._withAccess("MULTIACTION", a)) : Promise.reject(this._denied("MULTIACTION", a, "open"));
     }
-    _putMultiAction(a) { return Promise.resolve(this._upsert("multiactions", a, (x) => x.Id)).then(clone); }
+    _putMultiAction(a) { return this._putOwned("MULTIACTION", a); }
     async deleteMultiAction(id) {
+      const old = this._db.multiactions.find((x) => x.Id === id);
+      if (old && !this._can("MULTIACTION", old, "delete")) { throw this._denied("MULTIACTION", old, "delete"); }
+      this._remove("shares", (x) => x.Kind === "MULTIACTION" && x.ObjectId === id);
       this._remove("multiactions", (x) => x.Id === id);
       this._remove("files", (x) => x.Type === "MULTIACTION" && x.ObjectId === id);
     }
@@ -333,6 +360,8 @@ sap.ui.define([
       return wait(this._db.files.filter((f) => {
         if (f.Type === "STORY") { const o = this._db.stories.find((x) => x.Id === f.ObjectId); return !o || this._can("STORY", o, "read"); }
         if (f.Type === "MODEL") { const o = this._db.models.find((x) => x.ModelId === f.ObjectId); return !o || this._can("MODEL", o, "read"); }
+        if (f.Type === "DATAACTION") { const o = this._db.dataactions.find((x) => x.Id === f.ObjectId); return !o || this._can("DATAACTION", o, "read"); }
+        if (f.Type === "MULTIACTION") { const o = this._db.multiactions.find((x) => x.Id === f.ObjectId); return !o || this._can("MULTIACTION", o, "read"); }
         return true;
       }));
     }

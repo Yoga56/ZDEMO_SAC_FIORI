@@ -190,5 +190,53 @@
     "Favourite": false,
     "Shared": false,
     "ChangedAt": "2026-10-05T09:00:00Z"
+  },
+  {
+    "Id": "F_DATAACTION_DA_BOARD",
+    "ParentId": "",
+    "Type": "DATAACTION",
+    "ObjectId": "DA_BOARD",
+    "Name": "Board allocation",
+    "Description": "Shared with you by Alice",
+    "Owner": "ALICE",
+    "Favourite": false,
+    "Shared": true,
+    "ChangedAt": "2026-10-05T09:00:00Z"
+  },
+  {
+    "Id": "F_DATAACTION_DA_ALICE_PRIVATE",
+    "ParentId": "",
+    "Type": "DATAACTION",
+    "ObjectId": "DA_ALICE_PRIVATE",
+    "Name": "Alice what-if",
+    "Description": "Only Alice can open this",
+    "Owner": "ALICE",
+    "Favourite": false,
+    "Shared": false,
+    "ChangedAt": "2026-10-05T09:00:00Z"
+  },
+  {
+    "Id": "F_MULTIACTION_MA_BOARD",
+    "ParentId": "",
+    "Type": "MULTIACTION",
+    "ObjectId": "MA_BOARD",
+    "Name": "Board forecast cycle",
+    "Description": "Shared with you by Alice",
+    "Owner": "ALICE",
+    "Favourite": false,
+    "Shared": true,
+    "ChangedAt": "2026-10-05T09:00:00Z"
+  },
+  {
+    "Id": "F_MULTIACTION_MA_ALICE_PRIVATE",
+    "ParentId": "",
+    "Type": "MULTIACTION",
+    "ObjectId": "MA_ALICE_PRIVATE",
+    "Name": "Alice private cycle",
+    "Description": "Only Alice can open this",
+    "Owner": "ALICE",
+    "Favourite": false,
+    "Shared": false,
+    "ChangedAt": "2026-10-05T09:00:00Z"
   }
 ]

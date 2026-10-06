@@ -52,3 +52,27 @@ test("odata sharing: a user is known from CurrentUser and a share list becomes a
   assert.deepStrictEqual(list.map((s) => s.Access), ["WRITE", "NONE", "WRITE"]);
   assert.strictEqual(await p.currentUser(), "BOB");
 });
+
+test("odata save of a data action: steps are keyed by a number that is not quoted, the owner is not sent", async () => {
+  const calls = []; const p = provider(calls);
+  const row = (n) => ({ ActionId: "DA1", StepNo: n, StepType: "COPY", StepName: "s" + n, Config: "{}" });
+  p.getDataAction = async () => ({ Id: "DA1", ModelId: "M", Name: "Old", Description: "", Parameters: [], Steps: [{ StepNo: 10, StepType: "COPY", Name: "s10", Description: "", Active: true }], Owner: "ALICE", Access: "WRITE" });
+  p.getMultiAction = p.getDataAction;
+  await p._putDataAction({ Id: "DA1", ModelId: "M", Name: "New", Description: "", Parameters: [], Steps: [{ StepNo: 10, StepType: "COPY", Name: "renamed" }], Owner: "MALLORY" });
+  const text = calls.map((c) => c[0] + " " + c[1]);
+  assert.strictEqual(text[0], "PATCH /DataAction(ActionId='DA1')");
+  assert.ok(text.includes("DELETE /DataActionStep(ActionId='DA1',StepNo=10)"), text.join("\n"));
+  assert.ok(text.includes("POST /DataAction(ActionId='DA1')/_Step"));
+  assert.ok(!JSON.stringify(calls).includes("MALLORY") && !JSON.stringify(calls).includes("OwnerId"));
+  assert.ok(!text.some((t) => t === "DELETE /DataAction(ActionId='DA1')"));
+});
+
+test("odata sharing: access of data and multi actions follows the shares", async () => {
+  const p = new ODataV4Provider({ model: {} });
+  p._list = async (path) => {
+    if (path === "/Share") { return [{ ObjectKind: "MULTIACTION", ObjectId: "M1", Principal: "*", AccessLevel: "READ" }]; }
+    if (path === "/MultiAction") { return [{ ActionId: "M1", ActionName: "a", OwnerId: "ALICE", CurrentUser: "BOB", Parameters: "[]" }, { ActionId: "M2", ActionName: "b", OwnerId: "ALICE", CurrentUser: "BOB", Parameters: "[]" }]; }
+    return [];
+  };
+  assert.deepStrictEqual((await p.listMultiActions()).map((a) => a.Access), ["READ", "NONE"]);
+});

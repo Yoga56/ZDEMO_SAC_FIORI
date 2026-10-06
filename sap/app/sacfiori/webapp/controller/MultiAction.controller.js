@@ -8,9 +8,10 @@ sap.ui.define([
   "zsac/lib/planning/ImportEngine",
   "zsac/lib/planning/Forecaster",
   "zsac/fiori/model/Csv",
-  "zsac/lib/core/CsvParser"
+  "zsac/lib/core/CsvParser",
+  "../model/ShareDialog"
 ], function (BaseController, Button, MenuButton, Menu, MenuItem, ToolbarSpacer, Title, Text, Label, Input, TextArea, Select, ComboBox, MultiComboBox, CheckBox, Switch,
-  VBox, HBox, MessageStrip, Item, Icon, List, StandardListItem, Schema, Run, ImportEngine, Forecaster, Csv, CsvParser) {
+  VBox, HBox, MessageStrip, Item, Icon, List, StandardListItem, Schema, Run, ImportEngine, Forecaster, Csv, CsvParser, ShareDialog) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -28,7 +29,9 @@ sap.ui.define([
 
     async _load(id) {
       const p = (this._p = await this.provider());
-      this._a = Schema.normalizeAction(await p.getMultiAction(id));
+      const raw = await p.getMultiAction(id);
+      this._access = raw.Access; this._owner = raw.Owner; // who may do what with it
+      this._a = Schema.normalizeAction(raw);
       this._saved = JSON.stringify(this._a);
       this._hist = [this._saved];
       this._pos = 0;
@@ -92,23 +95,36 @@ sap.ui.define([
       bar.destroyContent();
       const hasStep = typeof this._sel === "number";
       const add = (c) => bar.addContent(c);
+      const readOnly = this._access === "READ"; // shared for viewing: look at it and run it, change nothing
+      const edit = (c) => { if (!readOnly) { add(c); } };
+      this.getView().toggleStyleClass("zsacReadOnly", readOnly);
       add(new Button({ icon: "sap-icon://nav-back", tooltip: "Back", type: "Transparent", press: () => this.navTo("multiactions") }));
       add(new Title({ text: this._a.Name + (this._dirty() ? " *" : ""), level: "H3" }));
+      add(new Text({ text: this._access === "READ" ? "Shared with you by " + this._owner + ": you can view and run it" : this._access === "WRITE" && this._owner && this._owner !== "*" ? "Shared with you by " + this._owner + ": you can edit it" : this._access === "OWNER" ? "You are the owner" : "" }).addStyleClass("zsacSub"));
       add(new ToolbarSpacer());
-      add(new Button({ icon: "sap-icon://undo", tooltip: "Undo", enabled: this._pos > 0, press: () => this._restore(this._pos - 1) }));
-      add(new Button({ icon: "sap-icon://redo", tooltip: "Redo", enabled: this._pos < this._hist.length - 1, press: () => this._restore(this._pos + 1) }));
+      if (this._access === "OWNER") { add(new Button({ text: "Share", icon: "sap-icon://share-2", press: () => this._share() })); }
+      edit(new Button({ icon: "sap-icon://undo", tooltip: "Undo", enabled: this._pos > 0, press: () => this._restore(this._pos - 1) }));
+      edit(new Button({ icon: "sap-icon://redo", tooltip: "Redo", enabled: this._pos < this._hist.length - 1, press: () => this._restore(this._pos + 1) }));
       add(new Button({ text: "Settings", icon: "sap-icon://action-settings", type: this._sel === "settings" ? "Emphasized" : "Transparent", press: () => this._select("settings") }));
       add(new Button({ text: "Parameters (" + this._a.Parameters.length + ")", icon: "sap-icon://syntax", type: this._sel === "params" ? "Emphasized" : "Transparent", press: () => this._select("params") }));
       const menu = new Menu({ itemSelected: (e) => this._addStep(e.getParameter("item").data("type")) });
       Object.keys(Schema.STEP_TYPES).forEach((t) => menu.addItem(new MenuItem({ text: Schema.STEP_TYPES[t].label, icon: Schema.STEP_TYPES[t].icon }).data("type", t)));
-      add(new MenuButton({ text: "Add Step", icon: "sap-icon://add", menu }));
-      add(new Button({ icon: "sap-icon://navigation-up-arrow", tooltip: "Move step up", enabled: hasStep && this._sel > 0, press: () => this._move(-1) }));
-      add(new Button({ icon: "sap-icon://navigation-down-arrow", tooltip: "Move step down", enabled: hasStep && this._sel < this._a.Steps.length - 1, press: () => this._move(1) }));
-      add(new Button({ icon: "sap-icon://duplicate", tooltip: "Duplicate step", enabled: hasStep, press: () => this._duplicateStep() }));
-      add(new Button({ icon: "sap-icon://delete", tooltip: "Delete step", enabled: hasStep, press: () => this._deleteStep() }));
+      edit(new MenuButton({ text: "Add Step", icon: "sap-icon://add", menu }));
+      edit(new Button({ icon: "sap-icon://navigation-up-arrow", tooltip: "Move step up", enabled: hasStep && this._sel > 0, press: () => this._move(-1) }));
+      edit(new Button({ icon: "sap-icon://navigation-down-arrow", tooltip: "Move step down", enabled: hasStep && this._sel < this._a.Steps.length - 1, press: () => this._move(1) }));
+      edit(new Button({ icon: "sap-icon://duplicate", tooltip: "Duplicate step", enabled: hasStep, press: () => this._duplicateStep() }));
+      edit(new Button({ icon: "sap-icon://delete", tooltip: "Delete step", enabled: hasStep, press: () => this._deleteStep() }));
       add(new Button({ text: "Validate", icon: "sap-icon://validate", tooltip: "Check the steps for errors", press: () => this._validate(true) }));
       add(new Button({ text: "Run", icon: "sap-icon://play", press: this.guard(() => this._run()) }));
-      add(new Button({ text: "Save", icon: "sap-icon://save", type: "Emphasized", enabled: this._dirty(), press: this.guard(() => this._save()) }));
+      edit(new Button({ text: "Save", icon: "sap-icon://save", type: "Emphasized", enabled: this._dirty(), press: this.guard(() => this._save()) }));
+    },
+
+    _share() {
+      this.guard(async () => {
+        if (this._dirty()) { throw new Error("Save the multi action first"); }
+        const saved = await ShareDialog.open({ provider: this._p, kind: "MULTIACTION", id: this._a.Id });
+        if (saved) { this.toast(saved.length ? "Sharing saved" : "Not shared with anyone"); }
+      })();
     },
 
     _issues() {

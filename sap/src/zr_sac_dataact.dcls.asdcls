@@ -1,0 +1,11 @@
+@EndUserText.label: 'Access control for data action'
+@MappingRole: true
+define role ZR_SAC_DATAACT
+{
+  grant select on ZR_SAC_DATAACT
+    where ( OwnerId ) = aspect user
+       or OwnerId = ''
+       or OwnerId = '*'
+       or ( _ShareMe.Principal ) = aspect user
+       or ( _ShareAll.Principal ) = '*';
+}

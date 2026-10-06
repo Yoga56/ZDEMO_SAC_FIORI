@@ -39,7 +39,7 @@
               <Text text="{path: 'view>ChangedAt', formatter: '.date'}"/>
               <HBox justifyContent="End">
                 <Button icon="{= ${view>Favourite} ? 'sap-icon://favorite' : 'sap-icon://unfavorite'}" type="Transparent" press=".onFavourite" tooltip="Favourite"/>
-                <Button icon="{= ${view>Shared} ? 'sap-icon://share-2' : 'sap-icon://share'}" type="Transparent" press=".onShare" tooltip="Share" visible="{= ${view>Type} === 'STORY' || ${view>Type} === 'MODEL'}"/>
+                <Button icon="{= ${view>Shared} ? 'sap-icon://share-2' : 'sap-icon://share'}" type="Transparent" press=".onShare" tooltip="Share" visible="{= ${view>Type} === 'STORY' || ${view>Type} === 'MODEL' || ${view>Type} === 'DATAACTION' || ${view>Type} === 'MULTIACTION'}"/>
                 <Button icon="sap-icon://move" type="Transparent" press=".onMove" tooltip="Move to folder"/>
                 <Button icon="sap-icon://delete" type="Transparent" press=".onDelete" tooltip="Delete"/>
               </HBox>

@@ -111,7 +111,8 @@ sap.ui.define([
      */
     async _updateDeep(keyPath, payload, old, children, keyFields) {
       const own = (o) => { const c = {}; Object.keys(o).forEach((k) => { if (k.charAt(0) !== "_" && keyFields.indexOf(k) < 0) { c[k] = o[k]; } }); return c; };
-      const childKey = (c, row) => c.path + "(" + c.keys.map((k) => k + "=" + quote(row[k])).join(",") + ")";
+      const literal = (v) => (typeof v === "number" ? String(v) : quote(v)); // numbers (StepNo) are not quoted in an OData key
+      const childKey = (c, row) => c.path + "(" + c.keys.map((k) => k + "=" + literal(row[k])).join(",") + ")";
       const patch = (target) => this._request("PATCH", keyPath, own(target), { "If-Match": "*" });
       const clear = async (list) => { for (const c of children) { for (const row of (list[c.prop] || [])) { await this._delete(childKey(c, row)).catch((e) => { if (!e || e.status !== 404) { throw e; } }); } } };
       const fill = async (target) => { for (const c of children) { for (const row of (target[c.prop] || [])) { await this._post(keyPath + "/" + c.prop, row); } } };
@@ -162,7 +163,7 @@ sap.ui.define([
     async _withAccess(kind, objects) {
       const user = await this.currentUser();
       const shares = objects.some((o) => !Access.isOpen(o.Owner) && String(o.Owner).toUpperCase() !== String(user).toUpperCase()) ? await this._allShares().catch(() => []) : [];
-      return objects.map((o) => Object.assign({}, o, { Access: Access.level(user, o.Owner, shares.filter((x) => x.Kind === kind && x.ObjectId === (kind === "STORY" ? o.Id : o.ModelId))) }));
+      return objects.map((o) => Object.assign({}, o, { Access: Access.level(user, o.Owner, shares.filter((x) => x.Kind === kind && x.ObjectId === DataProvider.idOf(kind, o))) }));
     }
 
     async listShares(kind, id) {
@@ -170,8 +171,8 @@ sap.ui.define([
     }
 
     async saveShares(kind, id, shares) {
-      const object = kind === "STORY" ? await this.getStory(id) : await this.getModel(id);
-      if (Access.isOpen(object.Owner)) { throw new Error("This " + kind.toLowerCase() + " has no owner, so it is open to everyone and cannot be shared."); }
+      const object = await this.getShareable(kind, id);
+      if (Access.isOpen(object.Owner)) { throw new Error("This object has no owner, so it is open to everyone and cannot be shared."); }
       const n = Access.normalize(shares, object.Owner);
       if (n.errors.length) { throw new Error(n.errors.join(" ")); }
       const old = await this.listShares(kind, id);
@@ -344,13 +345,21 @@ sap.ui.define([
     /** A step is its own columns for what every step has and CONFIG (JSON) for what depends on the step type. */
     _toDataAction(e) {
       return {
-        Id: e.ActionId, ModelId: e.ModelId, Name: e.ActionName, Description: e.Description, Parameters: json(e.Parameters, []),
+        Id: e.ActionId, ModelId: e.ModelId, Name: e.ActionName, Description: e.Description, Owner: e.OwnerId || "", Parameters: json(e.Parameters, []),
         Steps: (e._Step || []).map((s) => Object.assign(json(s.Config, {}), { StepNo: s.StepNo, StepType: s.StepType, Name: s.StepName,
           Description: s.Description, Active: s.Active !== false })).sort((a, b) => a.StepNo - b.StepNo)
       };
     }
-    async listDataActions() { return (await this._list("/DataAction", [], { $expand: "_Step" })).map((e) => this._toDataAction(e)); }
-    async getDataAction(id) { return this._toDataAction(await this._one("/DataAction", ["ActionId", id], { $expand: "_Step" })); }
+    async listDataActions() {
+      const rows = await this._list("/DataAction", [], { $expand: "_Step" });
+      this._noteUser(rows);
+      return this._withAccess("DATAACTION", rows.map((e) => this._toDataAction(e)));
+    }
+    async getDataAction(id) {
+      const row = await this._one("/DataAction", ["ActionId", id], { $expand: "_Step" });
+      this._noteUser([row]);
+      return (await this._withAccess("DATAACTION", [this._toDataAction(row)]))[0];
+    }
     _stepRows(a) {
       return (a.Steps || []).map((s) => {
         const config = Object.assign({}, s);
@@ -363,8 +372,10 @@ sap.ui.define([
     }
     async _putDataAction(a) {
       const old = await this.getDataAction(a.Id).then((x) => this._dataActionPayload(x)).catch(() => null);
-      await this._replaceDeep("/DataAction", "/DataAction(ActionId=" + quote(a.Id) + ")", this._dataActionPayload(a), old);
-      return a;
+      const keyPath = "/DataAction(ActionId=" + quote(a.Id) + ")";
+      if (old) { await this._updateDeep(keyPath, this._dataActionPayload(a), old, [{ prop: "_Step", path: "/DataActionStep", keys: ["ActionId", "StepNo"] }], ["ActionId"]); }
+      else { await this._post("/DataAction", this._dataActionPayload(a)); }
+      return this.getDataAction(a.Id).catch(() => a);
     }
     async deleteDataAction(id) { await this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); await this._dropFile("DATAACTION", id); }
     // executing (executeDataAction, previewDataAction, runMultiAction) is inherited: the steps run in the client and the difference is written as facts
@@ -391,7 +402,10 @@ sap.ui.define([
       const rows = (await this._list("/ActionRun", filters)).map((e) => ({
         Id: e.RunId, ActionId: e.ActionId, ActionName: e.ActionName, ModelId: e.ModelId, Kind: e.RunKind, Status: e.Status, Changed: e.Changed,
         DurationMs: e.DurationMs, User: e.UserName, At: e.StartedAt, ParamsText: e.ParamsText, Log: String(e.LogText || "").split("\n").filter(Boolean), Steps: json(e.StepsJson, []) }));
-      return rows.sort((a, b) => String(b.At).localeCompare(String(a.At))).slice(0, limit || 100);
+      // the history of an action the user may not open is not shown (the server does not filter runs, see docs/sharing-and-security.md)
+      const [data, multi] = await Promise.all([this.listDataActions().catch(() => []), this.listMultiActions().catch(() => [])]);
+      const known = { DATA: new Set(data.map((a) => a.Id)), MULTI: new Set(multi.map((a) => a.Id)) };
+      return rows.filter((r) => (known[r.Kind] || new Set()).has(r.ActionId)).sort((a, b) => String(b.At).localeCompare(String(a.At))).slice(0, limit || 100);
     }
     async _putRun(r) {
       const id = "RUN" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
@@ -403,20 +417,30 @@ sap.ui.define([
     // ---- multi actions ----------------------------------------------------------------------
     _toMulti(e) {
       return {
-        Id: e.ActionId, Name: e.ActionName, Description: e.Description, Parameters: json(e.Parameters, []),
+        Id: e.ActionId, Name: e.ActionName, Description: e.Description, Owner: e.OwnerId || "", Parameters: json(e.Parameters, []),
         Steps: (e._Step || []).map((s) => Object.assign(json(s.Config, {}), { StepNo: s.StepNo, StepType: s.StepType, Name: s.StepName,
           Description: s.Description, Active: s.Active !== false })).sort((a, b) => a.StepNo - b.StepNo)
       };
     }
-    async listMultiActions() { return (await this._list("/MultiAction", [], { $expand: "_Step" })).map((e) => this._toMulti(e)); }
-    async getMultiAction(id) { return this._toMulti(await this._one("/MultiAction", ["ActionId", id], { $expand: "_Step" })); }
+    async listMultiActions() {
+      const rows = await this._list("/MultiAction", [], { $expand: "_Step" });
+      this._noteUser(rows);
+      return this._withAccess("MULTIACTION", rows.map((e) => this._toMulti(e)));
+    }
+    async getMultiAction(id) {
+      const row = await this._one("/MultiAction", ["ActionId", id], { $expand: "_Step" });
+      this._noteUser([row]);
+      return (await this._withAccess("MULTIACTION", [this._toMulti(row)]))[0];
+    }
     _multiPayload(a) {
       return { ActionId: a.Id, ActionName: a.Name, Description: a.Description || "", Parameters: str(a.Parameters || []), _Step: this._stepRows(a) };
     }
     async _putMultiAction(a) {
       const old = await this.getMultiAction(a.Id).then((x) => this._multiPayload(x)).catch(() => null);
-      await this._replaceDeep("/MultiAction", "/MultiAction(ActionId=" + quote(a.Id) + ")", this._multiPayload(a), old);
-      return a;
+      const keyPath = "/MultiAction(ActionId=" + quote(a.Id) + ")";
+      if (old) { await this._updateDeep(keyPath, this._multiPayload(a), old, [{ prop: "_Step", path: "/MultiActionStep", keys: ["ActionId", "StepNo"] }], ["ActionId"]); }
+      else { await this._post("/MultiAction", this._multiPayload(a)); }
+      return this.getMultiAction(a.Id).catch(() => a);
     }
     async deleteMultiAction(id) { await this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); await this._dropFile("MULTIACTION", id); }
 

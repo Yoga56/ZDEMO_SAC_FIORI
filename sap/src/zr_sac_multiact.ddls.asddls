@@ -1,14 +1,17 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 @Metadata.allowExtensions: true
 @EndUserText.label: 'Multi Action'
 define root view entity ZR_SAC_MULTIACT
   as select from zsac_multiact
   composition [0..*] of ZR_SAC_MASTEP as _Step
+  association [0..1] to ZR_SAC_SHARE as _ShareMe  on _ShareMe.ObjectKind = 'MULTIACTION' and _ShareMe.ObjectId = $projection.ActionId and _ShareMe.Principal = $session.user
+  association [0..1] to ZR_SAC_SHARE as _ShareAll on _ShareAll.ObjectKind = 'MULTIACTION' and _ShareAll.ObjectId = $projection.ActionId and _ShareAll.Principal = '*'
 {
   key action_id as ActionId,
   action_name as ActionName,
   description as Description,
   parameters as Parameters,
+  owner_id as OwnerId,
   @Semantics.user.createdBy: true
   created_by as CreatedBy,
   @Semantics.systemDateTime.createdAt: true
@@ -19,5 +22,8 @@ define root view entity ZR_SAC_MULTIACT
   last_changed_at as LastChangedAt,
   @Semantics.systemDateTime.localInstanceLastChangedAt: true
   local_last_changed_at as LocalLastChangedAt,
-  _Step
+  $session.user as CurrentUser,
+  _Step,
+  _ShareMe,
+  _ShareAll
 }

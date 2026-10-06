@@ -4,8 +4,9 @@ sap.ui.define([
   "sap/ui/model/Filter", "sap/ui/model/FilterOperator",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Label",
   "zsac/lib/planning/DataActionRun",
-  "zsac/lib/core/StorySchema"
-], function (BaseController, JSONModel, Filter, FilterOperator, Dialog, Button, Input, Label, Run, StorySchema) {
+  "zsac/lib/core/StorySchema",
+  "../model/ShareDialog"
+], function (BaseController, JSONModel, Filter, FilterOperator, Dialog, Button, Input, Label, Run, StorySchema, ShareDialog) {
   "use strict";
 
   /** Multi Actions landing page: the list (open, run, duplicate, delete); the designer is the multiaction route. */
@@ -46,6 +47,14 @@ sap.ui.define([
         await this._p.saveMultiAction(copy);
         this.toast("Duplicated");
         await this._load();
+      })();
+    },
+
+    onShareRow: function (e) {
+      const row = this._row(e);
+      this.guard(async () => {
+        const saved = await ShareDialog.open({ provider: this._p, kind: "MULTIACTION", id: row.Id });
+        if (saved) { this.toast(saved.length ? "Sharing saved" : "Not shared with anyone"); await this._load(); }
       })();
     },
 

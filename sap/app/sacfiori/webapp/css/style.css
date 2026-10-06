@@ -32,3 +32,6 @@
 .zsacPlanCard { width: 100%; max-height: calc(100vh - 22rem); min-height: 14rem; }
 
 .zsacMono textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8125rem; }
+
+/* an action shared for viewing: the definition can be looked at and run but not edited */
+.zsacReadOnly .zsacDesignerEdit { pointer-events: none; opacity: .85; }

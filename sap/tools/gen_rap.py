@@ -168,8 +168,8 @@ def dcls(e, E):
         cond = ["( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "( _ShareMe.Principal ) = aspect user", "( _ShareAll.Principal ) = '*'"]
         body = "    where " + "\n       or ".join(cond) + ";"
     elif kind == "file":
-        # folders and actions are open; a story or model file shows to whoever may open the object. SEED and SYSTEM stand for sample content.
-        cond = ["FileKind = 'FOLDER'", "FileKind = 'DATAACTION'", "FileKind = 'MULTIACTION'", "( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "OwnerId = 'SEED'",
+        # folders are open; the file of any other object shows to whoever may open the object. SEED and SYSTEM stand for sample content.
+        cond = ["FileKind = 'FOLDER'", "( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "OwnerId = 'SEED'",
                 "OwnerId = 'SYSTEM'", "( _ShareMe.Principal ) = aspect user", "( _ShareAll.Principal ) = '*'"]
         body = "    where " + "\n       or ".join(cond) + ";"
     elif kind == "share":

@@ -4,5 +4,17 @@
     "ObjectId": "STORY_BOARD",
     "Principal": "ME",
     "Access": "READ"
+  },
+  {
+    "Kind": "DATAACTION",
+    "ObjectId": "DA_BOARD",
+    "Principal": "ME",
+    "Access": "READ"
+  },
+  {
+    "Kind": "MULTIACTION",
+    "ObjectId": "MA_BOARD",
+    "Principal": "ME",
+    "Access": "READ"
   }
 ]

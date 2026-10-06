@@ -46,7 +46,7 @@ sap.ui.define([
     },
 
     /** Content someone else owns and shared with the user: not a folder, not an owner-less sample, not their own. */
-    _sharedWithMe(f) { const o = String(f.Owner || "").toUpperCase(); return /^(STORY|MODEL)$/.test(f.Type) && o && ["*", "SEED", "SYSTEM"].indexOf(o) < 0 && o !== this._me; },
+    _sharedWithMe(f) { const o = String(f.Owner || "").toUpperCase(); return /^(STORY|MODEL|DATAACTION|MULTIACTION)$/.test(f.Type) && o && ["*", "SEED", "SYSTEM"].indexOf(o) < 0 && o !== this._me; },
     _match(f) { return this._type === "ACTION" ? /ACTION$/.test(f.Type) : this._type === "SHARED" ? this._sharedWithMe(f) : f.Type === this._type; },
     _file(e) { return e.getSource().getBindingContext("view").getObject(); },
 

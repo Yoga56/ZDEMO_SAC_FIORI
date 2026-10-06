@@ -11,10 +11,12 @@ define root view entity ZC_SAC_DATAACT
   ActionName,
   Description,
   Parameters,
+  OwnerId,
   CreatedBy,
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
   LocalLastChangedAt,
+  CurrentUser,
   _Step : redirected to composition child ZC_SAC_DASTEP
 }

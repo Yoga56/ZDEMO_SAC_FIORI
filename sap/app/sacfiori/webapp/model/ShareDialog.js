@@ -8,14 +8,14 @@ sap.ui.define([
   /**
    * Who may open and who may edit a story or a model: the owner shares it with everyone or with named users.
    *
-   * open({ provider, kind: "STORY" | "MODEL", id }) -> Promise<undefined | shares[]>   undefined: closed without saving
+   * open({ provider, kind: "STORY" | "MODEL" | "DATAACTION" | "MULTIACTION", id }) -> Promise<undefined | shares[]>   undefined: closed without saving
    *
    * Only the owner can change the list. Anyone else sees what applies to them; content without an owner is open to everyone and cannot be shared.
    */
   function open(opts) {
     return new Promise((resolve) => {
       const { provider, kind, id } = opts;
-      const noun = kind === "STORY" ? "story" : "model";
+      const noun = { STORY: "story", MODEL: "model", DATAACTION: "data action", MULTIACTION: "multi action" }[kind] || "object";
       const body = new VBox({ width: "30rem" }).addStyleClass("sapUiSmallMargin");
       const status = new VBox();
       const note = (text, type) => { status.destroyItems(); if (text) { status.addItem(new MessageStrip({ text, type: type || "Error", showIcon: true }).addStyleClass("sapUiTinyMarginTop")); } };
@@ -72,7 +72,7 @@ sap.ui.define([
       (async () => {
         try {
           me = await provider.currentUser();
-          object = kind === "STORY" ? await provider.getStory(id) : await provider.getModel(id);
+          object = await provider.getShareable(kind, id);
           canEdit = !Access.isOpen(object.Owner) && object.Access === "OWNER";
           const shares = await provider.listShares(kind, id);
           everyone = (shares.find((s) => s.Principal === Access.EVERYONE) || {}).Access || "";
