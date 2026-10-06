@@ -35,3 +35,10 @@
 
 /* an action shared for viewing: the definition can be looked at and run but not edited */
 .zsacReadOnly .zsacDesignerEdit { pointer-events: none; opacity: .85; }
+
+/* Data Analyser on a phone: the builder above the result, each at the full width, the whole page scrolls */
+@media (max-width: 700px) {
+  .zsacDesigner:has(> .zsacPalette[id*=---analyser--]) { flex-direction: column; overflow-y: auto; }
+  .zsacDesigner:has(> .zsacPalette[id*=---analyser--]) > .zsacPalette { width: 100% !important; min-width: 0 !important; max-width: none !important; flex: none !important; max-height: 20rem; border-right: 0; border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5); }
+  .zsacDesigner:has(> .zsacPalette[id*=---analyser--]) > .zsacStage { min-height: 22rem; flex: none; }
+}
