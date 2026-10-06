@@ -17,5 +17,7 @@ define root view entity ZC_SAC_MULTIACT
   LastChangedAt,
   LocalLastChangedAt,
   CurrentUser,
-  _Step : redirected to composition child ZC_SAC_MASTEP
+  _Step : redirected to composition child ZC_SAC_MASTEP,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
 }

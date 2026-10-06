@@ -29,5 +29,7 @@ define root view entity ZC_SAC_MODEL
   LocalLastChangedAt,
   CurrentUser,
   _Dimension : redirected to composition child ZC_SAC_DIM,
-  _Measure : redirected to composition child ZC_SAC_MEASURE
+  _Measure : redirected to composition child ZC_SAC_MEASURE,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
 }

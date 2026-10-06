@@ -20,5 +20,7 @@ define root view entity ZC_SAC_STORY
   LastChangedAt,
   LocalLastChangedAt,
   CurrentUser,
-  _Widget : redirected to composition child ZC_SAC_WIDGET
+  _Widget : redirected to composition child ZC_SAC_WIDGET,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
 }

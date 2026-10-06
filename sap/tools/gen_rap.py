@@ -90,6 +90,11 @@ def c_ddls(e, E):
     if not root:
         pid, assoc = e["parent"]
         body.append(f"  {assoc} : redirected to parent {S.c_view(E[pid])}")
+    # the access control of the projection takes the conditions of the view it projects on, which read these associations: they must be elements here too
+    if e.get("dcl") in ("owner", "file"):
+        body += ["  _ShareMe : redirected to ZC_SAC_SHARE", "  _ShareAll : redirected to ZC_SAC_SHARE"]
+    elif e.get("dcl") == "model":
+        body.append("  _Model : redirected to ZC_SAC_MODEL")
     return "\n".join(lines) + "\n" + head + "\n{\n" + ",\n".join(body) + "\n}\n"
 
 

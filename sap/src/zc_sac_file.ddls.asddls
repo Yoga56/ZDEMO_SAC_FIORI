@@ -19,5 +19,7 @@ define root view entity ZC_SAC_FILE
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
-  LocalLastChangedAt
+  LocalLastChangedAt,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
 }

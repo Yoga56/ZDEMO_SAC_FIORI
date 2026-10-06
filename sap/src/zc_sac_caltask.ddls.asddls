@@ -29,5 +29,7 @@ define root view entity ZC_SAC_CALTASK
   LastChangedBy,
   LastChangedAt,
   LocalLastChangedAt,
-  CurrentUser
+  CurrentUser,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
 }

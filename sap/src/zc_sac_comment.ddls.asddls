@@ -17,5 +17,6 @@ define root view entity ZC_SAC_COMMENT
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
-  LocalLastChangedAt
+  LocalLastChangedAt,
+  _Model : redirected to ZC_SAC_MODEL
 }

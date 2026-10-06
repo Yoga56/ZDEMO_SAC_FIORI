@@ -16,5 +16,6 @@ define root view entity ZC_SAC_FACT
   key Dim4,
   key Dim5,
   Value,
-  LocalLastChangedAt
+  LocalLastChangedAt,
+  _Model : redirected to ZC_SAC_MODEL
 }

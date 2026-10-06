@@ -3,42 +3,294 @@ MANUAL ROUTE: access control of the projection views (ADT, no abapGit)
 
 Why: the OData service reads the ZC_SAC_* projection views. They were marked #NOT_REQUIRED, so they returned every owner's rows.
 Each projection must be #CHECK and have an access control role that takes the conditions of the ZR_SAC_* view it projects on.
+Those conditions read the associations _ShareMe, _ShareAll (stories, models, files, actions, events) and _Model (versions, facts, comments),
+so the projections of those objects must also list these associations (that is what the error "Element _SHAREME does not exist in entity" says).
 
-Do it in this order, and activate ONCE at the end, all together:
+Do it in this order and activate ONCE at the end, all together (Window > Show View > Inactive Objects > select all > Activate):
 
-STEP 1  Edit the 15 projection views (data definitions). In each, change the line
-            @AccessControl.authorizationCheck: #NOT_REQUIRED
-        to
-            @AccessControl.authorizationCheck: #CHECK
-        Save (Ctrl+S) but do not activate yet. The 15 views:
+STEP 1A  Six projection views only need one line changed. In each, change
+             @AccessControl.authorizationCheck: #NOT_REQUIRED     to     #CHECK
+         ZC_SAC_DASTEP, ZC_SAC_DIM, ZC_SAC_MASTEP, ZC_SAC_MEASURE, ZC_SAC_SHARE, ZC_SAC_WIDGET
+         (ZC_SAC_RUN is not touched.)
 
-          - zc_sac_caltask
-          - zc_sac_comment
-          - zc_sac_dastep
-          - zc_sac_dataact
-          - zc_sac_dim
-          - zc_sac_fact
-          - zc_sac_file
-          - zc_sac_mastep
-          - zc_sac_measure
-          - zc_sac_model
-          - zc_sac_multiact
-          - zc_sac_share
-          - zc_sac_story
-          - zc_sac_version
-          - zc_sac_widget
+STEP 1B  Nine projection views get new full source: open the view, select all (Cmd+A), paste the block below, save (Cmd+S).
+         ZC_SAC_CALTASK, ZC_SAC_COMMENT, ZC_SAC_DATAACT, ZC_SAC_FACT, ZC_SAC_FILE, ZC_SAC_MODEL, ZC_SAC_MULTIACT, ZC_SAC_STORY, ZC_SAC_VERSION
 
-STEP 2  Create the 15 access controls. In Project Explorer: right-click the package ZDEMO_SAC_FIORI > New > Other ABAP Repository Object >
-        Core Data Services > Access Control. Name = the name below, description = anything, template = Define Role (or empty),
-        then replace the whole content of the editor with the block below. Save, do not activate yet.
+STEP 2   Create the 15 access controls (blocks at the end): right-click the package ZDEMO_SAC_FIORI > New > Other ABAP Repository Object >
+         Core Data Services > Access Control. Name = ZC_SAC_MODEL and so on, paste the block, save. ZC_SAC_CALTASK exists already: replace its content.
 
-STEP 3  Activate everything at once: Window > Show View > Inactive Objects, select all the ZC_SAC_* entries, Activate (Ctrl+F3).
+STEP 3   Activate everything at once (all ZC_SAC_* views and access controls), then F8 on ZC_SAC_MODEL: only SALES_PLAN and OPEX_PLAN.
 
-STEP 4  Check: F8 on ZC_SAC_MODEL must show only SALES_PLAN and OPEX_PLAN for you (and your own models if you create any).
+======================================================================
+PART B: SOURCE OF THE 9 VIEWS (STEP 1B)
+======================================================================
 
-----------------------------------------------------------------------
+### ZC_SAC_CALTASK
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Calendar Event'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_CALTASK
+  provider contract transactional_query
+  as projection on ZR_SAC_CALTASK
+{
+  key TaskId,
+  Title,
+  ModelId,
+  VersionId,
+  Assignee,
+  DueDate,
+  Status,
+  Approver,
+  Notes,
+  EventType,
+  ParentId,
+  StartDate,
+  EndDate,
+  Progress,
+  PeopleJson,
+  FilesJson,
+  ConfigJson,
+  OwnerId,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  CurrentUser,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
+}
 
-### zc_sac_caltask
+
+### ZC_SAC_COMMENT
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Cell Comment'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_COMMENT
+  provider contract transactional_query
+  as projection on ZR_SAC_COMMENT
+{
+  key CommentId,
+  ModelId,
+  VersionId,
+  Period,
+  Measure,
+  DimsJson,
+  CommentText,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  _Model : redirected to ZC_SAC_MODEL
+}
+
+
+### ZC_SAC_DATAACT
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Data Action'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_DATAACT
+  provider contract transactional_query
+  as projection on ZR_SAC_DATAACT
+{
+  key ActionId,
+  ModelId,
+  ActionName,
+  Description,
+  Parameters,
+  OwnerId,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  CurrentUser,
+  _Step : redirected to composition child ZC_SAC_DASTEP,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
+}
+
+
+### ZC_SAC_FACT
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Plan Fact'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_FACT
+  provider contract transactional_query
+  as projection on ZR_SAC_FACT
+{
+  key ModelId,
+  key VersionId,
+  key Period,
+  key Measure,
+  key Dim1,
+  key Dim2,
+  key Dim3,
+  key Dim4,
+  key Dim5,
+  Value,
+  LocalLastChangedAt,
+  _Model : redirected to ZC_SAC_MODEL
+}
+
+
+### ZC_SAC_FILE
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'File'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_FILE
+  provider contract transactional_query
+  as projection on ZR_SAC_FILE
+{
+  key FileId,
+  ParentId,
+  FileKind,
+  ObjectId,
+  FileName,
+  Description,
+  OwnerId,
+  Favourite,
+  Shared,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
+}
+
+
+### ZC_SAC_MODEL
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Planning Model'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_MODEL
+  provider contract transactional_query
+  as projection on ZR_SAC_MODEL
+{
+  key ModelId,
+  ModelName,
+  Description,
+  Currency,
+  PeriodFrom,
+  PeriodTo,
+  PlanningEnabled,
+  DataLocking,
+  DataAudit,
+  DataSource,
+  SourceJson,
+  OwnerId,
+  LockDefault,
+  LockJson,
+  ValidJson,
+  CalcJson,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  CurrentUser,
+  _Dimension : redirected to composition child ZC_SAC_DIM,
+  _Measure : redirected to composition child ZC_SAC_MEASURE,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
+}
+
+
+### ZC_SAC_MULTIACT
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Multi Action'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_MULTIACT
+  provider contract transactional_query
+  as projection on ZR_SAC_MULTIACT
+{
+  key ActionId,
+  ActionName,
+  Description,
+  Parameters,
+  OwnerId,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  CurrentUser,
+  _Step : redirected to composition child ZC_SAC_MASTEP,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
+}
+
+
+### ZC_SAC_STORY
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Story'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_STORY
+  provider contract transactional_query
+  as projection on ZR_SAC_STORY
+{
+  key StoryId,
+  StoryName,
+  Description,
+  ModelId,
+  Status,
+  PagesJson,
+  Filters,
+  OwnerId,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  CurrentUser,
+  _Widget : redirected to composition child ZC_SAC_WIDGET,
+  _ShareMe : redirected to ZC_SAC_SHARE,
+  _ShareAll : redirected to ZC_SAC_SHARE
+}
+
+
+### ZC_SAC_VERSION
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText.label: 'Planning Version'
+@AccessControl.authorizationCheck: #CHECK
+define root view entity ZC_SAC_VERSION
+  provider contract transactional_query
+  as projection on ZR_SAC_VERSION
+{
+  key ModelId,
+  key VersionId,
+  VersionName,
+  Category,
+  Locked,
+  OwnerId,
+  SourceVersion,
+  Status,
+  CreatedBy,
+  CreatedAt,
+  LastChangedBy,
+  LastChangedAt,
+  LocalLastChangedAt,
+  _Model : redirected to ZC_SAC_MODEL
+}
+
+
+======================================================================
+PART C: THE 15 ACCESS CONTROLS (STEP 2)
+======================================================================
+
+### ZC_SAC_CALTASK
 @EndUserText.label: 'Access control for calendar event (projection)'
 @MappingRole: true
 define role ZC_SAC_CALTASK
@@ -48,7 +300,7 @@ define role ZC_SAC_CALTASK
 }
 
 
-### zc_sac_comment
+### ZC_SAC_COMMENT
 @EndUserText.label: 'Access control for cell comment (projection)'
 @MappingRole: true
 define role ZC_SAC_COMMENT
@@ -58,7 +310,7 @@ define role ZC_SAC_COMMENT
 }
 
 
-### zc_sac_dastep
+### ZC_SAC_DASTEP
 @EndUserText.label: 'Access control for data action step (projection)'
 @MappingRole: true
 define role ZC_SAC_DASTEP
@@ -68,7 +320,7 @@ define role ZC_SAC_DASTEP
 }
 
 
-### zc_sac_dataact
+### ZC_SAC_DATAACT
 @EndUserText.label: 'Access control for data action (projection)'
 @MappingRole: true
 define role ZC_SAC_DATAACT
@@ -78,7 +330,7 @@ define role ZC_SAC_DATAACT
 }
 
 
-### zc_sac_dim
+### ZC_SAC_DIM
 @EndUserText.label: 'Access control for model dimension (projection)'
 @MappingRole: true
 define role ZC_SAC_DIM
@@ -88,7 +340,7 @@ define role ZC_SAC_DIM
 }
 
 
-### zc_sac_fact
+### ZC_SAC_FACT
 @EndUserText.label: 'Access control for plan fact (projection)'
 @MappingRole: true
 define role ZC_SAC_FACT
@@ -98,7 +350,7 @@ define role ZC_SAC_FACT
 }
 
 
-### zc_sac_file
+### ZC_SAC_FILE
 @EndUserText.label: 'Access control for file (projection)'
 @MappingRole: true
 define role ZC_SAC_FILE
@@ -108,7 +360,7 @@ define role ZC_SAC_FILE
 }
 
 
-### zc_sac_mastep
+### ZC_SAC_MASTEP
 @EndUserText.label: 'Access control for multi action step (projection)'
 @MappingRole: true
 define role ZC_SAC_MASTEP
@@ -118,7 +370,7 @@ define role ZC_SAC_MASTEP
 }
 
 
-### zc_sac_measure
+### ZC_SAC_MEASURE
 @EndUserText.label: 'Access control for model measure (projection)'
 @MappingRole: true
 define role ZC_SAC_MEASURE
@@ -128,7 +380,7 @@ define role ZC_SAC_MEASURE
 }
 
 
-### zc_sac_model
+### ZC_SAC_MODEL
 @EndUserText.label: 'Access control for planning model (projection)'
 @MappingRole: true
 define role ZC_SAC_MODEL
@@ -138,7 +390,7 @@ define role ZC_SAC_MODEL
 }
 
 
-### zc_sac_multiact
+### ZC_SAC_MULTIACT
 @EndUserText.label: 'Access control for multi action (projection)'
 @MappingRole: true
 define role ZC_SAC_MULTIACT
@@ -148,7 +400,7 @@ define role ZC_SAC_MULTIACT
 }
 
 
-### zc_sac_share
+### ZC_SAC_SHARE
 @EndUserText.label: 'Access control for share (projection)'
 @MappingRole: true
 define role ZC_SAC_SHARE
@@ -158,7 +410,7 @@ define role ZC_SAC_SHARE
 }
 
 
-### zc_sac_story
+### ZC_SAC_STORY
 @EndUserText.label: 'Access control for story (projection)'
 @MappingRole: true
 define role ZC_SAC_STORY
@@ -168,7 +420,7 @@ define role ZC_SAC_STORY
 }
 
 
-### zc_sac_version
+### ZC_SAC_VERSION
 @EndUserText.label: 'Access control for planning version (projection)'
 @MappingRole: true
 define role ZC_SAC_VERSION
@@ -178,7 +430,7 @@ define role ZC_SAC_VERSION
 }
 
 
-### zc_sac_widget
+### ZC_SAC_WIDGET
 @EndUserText.label: 'Access control for story widget (projection)'
 @MappingRole: true
 define role ZC_SAC_WIDGET

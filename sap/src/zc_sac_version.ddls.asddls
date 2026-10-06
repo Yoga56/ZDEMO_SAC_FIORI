@@ -18,5 +18,6 @@ define root view entity ZC_SAC_VERSION
   CreatedAt,
   LastChangedBy,
   LastChangedAt,
-  LocalLastChangedAt
+  LocalLastChangedAt,
+  _Model : redirected to ZC_SAC_MODEL
 }
