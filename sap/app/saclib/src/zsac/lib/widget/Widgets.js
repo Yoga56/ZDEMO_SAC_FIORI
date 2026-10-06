@@ -112,14 +112,19 @@ sap.ui.define([
   function chart(type, name, icon, size, rowsLabel, colsLabel, maxRows) {
     WidgetRegistry.register(type, {
       name, icon, group: "Charts", size,
-      defaults: chartDefaults(["$FIRST_DIM"], type === "chart.sankey" ? ["$SECOND_DIM"] : []),
+      defaults: chartDefaults(type === "chart.sankey" ? ["$FIRST_DIM", "$SECOND_DIM"] : ["$FIRST_DIM"], []),
       builder: queryBuilder(rowsLabel, colsLabel, maxRows).concat([{ key: "Props.Level", label: "Hierarchy level shown (1 = top)", kind: "number", min: 1 }])
-        .concat(type === "chart.bar" ? [{ key: "Props.Stacked", label: "Stack the series", kind: "bool" }] : [])
+        .concat(type === "chart.bar" || type === "chart.area" ? [{ key: "Props.Stacked", label: "Stack the series", kind: "bool" }] : [])
         .concat(type === "chart.geomap" ? [{ key: "Props.Locations", label: "Own places, one per line: Name = latitude, longitude", kind: "textarea" }] : [])
         .concat(type === "chart.waterfall" ? [{ key: "Props.ShowTotal", label: "Show the total as the last bar", kind: "bool", default: true }] : []),
       create(widget, ctx) {
         const content = new SvgChart({ type });
         const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content });
+        // a Sankey made with a From and a To (the older form) becomes a list of stages: first the rows, then the column
+        if (type === "chart.sankey" && (widget.Binding.Columns || []).length) {
+          widget.Binding.Rows = (widget.Binding.Rows || []).concat(widget.Binding.Columns).filter((d, i, all) => all.indexOf(d) === i);
+          widget.Binding.Columns = [];
+        }
         return wire(card, widget, async () => {
           const result = await runQuery(widget, ctx);
           const measure = (result.model.Measures || []).find((m) => m.MeasureId === widget.Binding.Measure);
@@ -131,13 +136,14 @@ sap.ui.define([
 
   chart("chart.bar", "Bar chart", "sap-icon://vertical-bar-chart", { w: 6, h: 4 }, "Categories", "Series", 1);
   chart("chart.line", "Line chart", "sap-icon://line-chart", { w: 6, h: 4 }, "X axis", "Series", 1);
+  chart("chart.area", "Area chart", "sap-icon://area-chart", { w: 6, h: 4 }, "X axis", "Series", 1);
   chart("chart.donut", "Donut chart", "sap-icon://donut-chart", { w: 4, h: 4 }, "Slices", null, 1);
   chart("chart.funnel", "Funnel chart", "sap-icon://upstacked-chart", { w: 4, h: 4 }, "Stages", null, 1);
   chart("chart.waterfall", "Waterfall chart", "sap-icon://vertical-waterfall-chart", { w: 6, h: 4 }, "Steps", null, 1);
   chart("chart.heatmap", "Heatmap", "sap-icon://heatmap-chart", { w: 6, h: 4 }, "Rows", "Columns", 1);
   chart("chart.treemap", "Treemap", "sap-icon://grid", { w: 6, h: 4 }, "Groups (or the tiles)", "Tiles inside a group", 1);
   chart("chart.geomap", "Geo map", "sap-icon://map-2", { w: 6, h: 4 }, "Places", null, 1);
-  chart("chart.sankey", "Sankey chart", "sap-icon://sankey-diagram", { w: 6, h: 4 }, "From", "To", 1);
+  chart("chart.sankey", "Sankey chart", "sap-icon://sankey-diagram", { w: 6, h: 4 }, "Stages of the flow, in order (2 to 4)", null, 4);
 
   WidgetRegistry.register("chart.gauge", {
     name: "Gauge", icon: "sap-icon://measure", group: "Charts", size: { w: 3, h: 3 },
@@ -950,7 +956,7 @@ sap.ui.define([
     const b = widget.Binding;
     const dims = (model && model.Dimensions) || [];
     const pick = (id) => (id === "$FIRST_DIM" ? (dims[0] && dims[0].DimId) : id === "$SECOND_DIM" ? ((dims[1] || dims[0]) && (dims[1] || dims[0]).DimId) : id);
-    b.Rows = (b.Rows || []).map(pick).filter(Boolean);
+    b.Rows = (b.Rows || []).map(pick).filter(Boolean).filter((d, i, all) => all.indexOf(d) === i);
     b.Columns = (b.Columns || []).map(pick).filter(Boolean);
     if (model) {
       b.ModelId = model.ModelId;

@@ -414,3 +414,31 @@ path.zsacCp { fill-opacity: .3; }
 .sapMITBFilterIcon.sapUiIcon { width: 1.875rem; height: 1.875rem; line-height: 1.875rem; font-size: .95rem; }
 .sapMITBVertical.sapMITBFilter { padding-top: .35rem; }
 .sapMITBVertical .sapMITBText { margin-top: .15rem; font-size: .8125rem; }
+
+/* ---- modern charts: soft gridlines, rounded shapes, fades under lines, hover and a short entrance ---- */
+.zsac-stop-0 { stop-color: var(--sapChart_OrderedColor_1, #0070f2); } .zsac-stop-1 { stop-color: var(--sapChart_OrderedColor_2, #e9730c); }
+.zsac-stop-2 { stop-color: var(--sapChart_OrderedColor_3, #c35500); } .zsac-stop-3 { stop-color: var(--sapChart_OrderedColor_4, #58b8e8); }
+.zsac-stop-4 { stop-color: var(--sapChart_OrderedColor_5, #07838f); } .zsac-stop-5 { stop-color: var(--sapChart_OrderedColor_6, #a9705f); }
+.zsac-stop-6 { stop-color: var(--sapChart_OrderedColor_7, #5d36ff); } .zsac-stop-7 { stop-color: var(--sapChart_OrderedColor_8, #bf399e); }
+.zsac-stop-8 { stop-color: var(--sapChart_OrderedColor_9, #1b7e4c); } .zsac-stop-9 { stop-color: var(--sapChart_OrderedColor_10, #7858ff); }
+.zsacGrid { stroke: var(--sapList_BorderColor, #e5e5e5); stroke-width: 1; stroke-dasharray: 2 5; opacity: .9; }
+.zsacSvgMuted, .zsacSvgText { font-size: 10.5px; }
+.zsacLine { stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.zsacDot { fill: var(--sapTile_Background, #fff); stroke-width: 2; opacity: 0; transition: opacity .15s; }
+.zsacChart:hover .zsacDot { opacity: 1; }
+.zsacDot:hover { stroke-width: 3.5; }
+.zsacSvg rect[class^="zsac-fill"], .zsacSvg path[class^="zsac-fill"], .zsacSvg .zsacTile, .zsacSvg [class^="zsacWf-"] { transition: filter .15s, opacity .15s; }
+.zsacSvg rect[class^="zsac-fill"]:hover, .zsacSvg path[class^="zsac-fill"]:hover, .zsacSvg .zsacTile:hover, .zsacSvg [class^="zsacWf-"]:hover { filter: brightness(1.12) saturate(1.1); }
+.zsacSvg path[class^="zsac-fill"] { stroke: var(--sapTile_Background, #fff); stroke-width: 2; stroke-linejoin: round; }
+.zsacSankeyLbl { paint-order: stroke; stroke: var(--sapTile_Background, #fff); stroke-width: 3px; stroke-linejoin: round; }
+.zsacArea { transition: opacity .2s; }
+.zsacChart:hover .zsacArea { opacity: .9; }
+@keyframes zsacRise { from { transform: scaleY(0); opacity: .4; } to { transform: scaleY(1); opacity: 1; } }
+@keyframes zsacFade { from { opacity: 0; } to { opacity: 1; } }
+.zsacSvg rect[class^="zsac-fill"], .zsacSvg [class^="zsacWf-"] { transform-box: fill-box; transform-origin: 50% 100%; animation: zsacRise .5s cubic-bezier(.2, .8, .2, 1) both; }
+.zsacSvg .zsacArea, .zsacSvg .zsacLine, .zsacSvg path[class^="zsac-fill"], .zsacSvg .zsacLink { animation: zsacFade .6s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .zsacSvg * { animation: none !important; transition: none !important; } }
+
+/* cards: softer edges and shadow, a lift when the pointer is over them */
+.zsacCard { border-radius: 1rem; border-color: var(--sapTile_BorderColor, #e8ebee); box-shadow: 0 1px 2px rgba(16, 38, 64, .06), 0 6px 18px rgba(16, 38, 64, .05); transition: box-shadow .2s; }
+.zsacCanvas:not(.zsacEditable) .zsacCard:hover { box-shadow: 0 2px 4px rgba(16, 38, 64, .08), 0 10px 26px rgba(16, 38, 64, .09); }

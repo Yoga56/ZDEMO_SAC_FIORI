@@ -80,7 +80,7 @@ test("chart builders return svg for every type and a placeholder for no data", (
   const r = QueryEngine.aggregate(model, facts, { rows: ["REGION"], columns: ["PRODUCT"], filters: { VERSION: ["ACT"] } });
   assert.ok(B.bar(D.fromResult("chart.bar", r), 400, 240).includes("<rect"));
   const t = QueryEngine.aggregate(model, facts, { rows: ["PERIOD"], columns: ["REGION"], filters: { VERSION: ["ACT"] } });
-  assert.ok(B.line(D.fromResult("chart.line", t), 400, 240).includes("polyline"));
+  assert.ok(B.line(D.fromResult("chart.line", t), 400, 240).includes("zsacLine"));
   assert.strictEqual(D.fromResult("chart.line", t).series.find((x) => x.name === "B").values[1], null);   // gap, not zero
   assert.ok(B.donut(D.fromResult("chart.donut", r), 400, 240).includes("<path"));
   assert.ok(B.funnel(D.fromResult("chart.funnel", r), 300, 240).includes("<path"));

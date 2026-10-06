@@ -98,6 +98,9 @@ sap.ui.define([
       this.byId("space").setSelectedKey(this._space);
       this.byId("zoom").setSelectedKey(zoom);
       this.byId("yearItem").setVisible(this._space === "list");
+      const back = this.byId("back");
+      back.setVisible(this._space === "calendar" && zoom !== "month");
+      back.setText(this._backTo && this._backTo !== zoom ? { week: "Week", month: "Month" }[this._backTo] || "Month" : "Month");
       this.byId("period").setText(new Date(Engine.toDay(this._cursor) * 86400000).toLocaleDateString("en", zoom === "day" ? { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" } : { month: "long", year: "numeric", timeZone: "UTC" }));
       const due = Engine.reminders(this._events, this._me, t).length;
       this.byId("reminders").setText(String(due)); this.byId("reminders").setType(due ? "Emphasized" : "Default");
@@ -139,7 +142,7 @@ sap.ui.define([
         const tog = e.target.closest("[data-tog]");
         if (tog) { const id = tog.getAttribute("data-tog"); if (this._collapsed.has(id)) { this._collapsed.delete(id); } else { this._collapsed.add(id); } this._render(); return; }
         const more = e.target.closest(".zsacCalMore");
-        if (more) { this._cursor = more.getAttribute("data-date"); this._zoom.calendar = "day"; this._render(); return; }
+        if (more) { this._cursor = more.getAttribute("data-date"); this._backTo = this._zoom.calendar; this._zoom.calendar = "day"; this._render(); return; }
         const hit = e.target.closest("[data-id]");
         if (hit) { this._select(hit.getAttribute("data-id")); }
       });
@@ -212,7 +215,13 @@ sap.ui.define([
 
     // ---- toolbar ---------------------------------------------------------------------------------------------------------------------
     onSpace(e) { this._space = e.getParameter("item").getKey(); this._render(); this._scrollToCursor(); },
-    onZoom(e) { this._zoom[this._space] = e.getParameter("item").getKey(); this._render(); this._scrollToCursor(); },
+    onZoom(e) { this._zoom[this._space] = e.getParameter("item").getKey(); this._backTo = ""; this._render(); this._scrollToCursor(); },
+    /** Back from a day (or a week) to where the calendar came from; to the month when it was opened that way. */
+    onBack() {
+      this._zoom.calendar = this._backTo && this._backTo !== this._zoom.calendar ? this._backTo : "month";
+      this._backTo = "";
+      this._render();
+    },
     onSearch(e) { this._q = e.getParameter("newValue") || ""; this._render(); },
 
     onFilters() {

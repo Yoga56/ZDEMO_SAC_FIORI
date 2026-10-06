@@ -180,12 +180,26 @@ sap.ui.define([
           return sel;
         }
         case "dimensions": {
+          const all = dims.concat(BUILTIN);
+          if (f.max === 1) {
+            // one dimension: a list with one choice, not a multiple choice that keeps only the last pick
+            const one = new Select({ width: "100%", selectedKey: (val || [])[0] || "", forceSelection: false });
+            one.addItem(new Item({ key: "", text: "None" }));
+            all.forEach((d) => one.addItem(new Item({ key: d.DimId, text: d.Label })));
+            one.attachChange((e) => { const k = e.getParameter("selectedItem").getKey(); this._set(f.key, k ? [k] : []); });
+            return one;
+          }
+          // several, in the order they are picked; at the limit the others are switched off instead of dropping a pick
           const box = new MultiComboBox({ width: "100%", selectedKeys: val || [], placeholder: "None" });
-          dims.concat(BUILTIN).forEach((d) => box.addItem(new Item({ key: d.DimId, text: d.Label })));
+          all.forEach((d) => box.addItem(new Item({ key: d.DimId, text: d.Label })));
+          const limit = () => { const full = f.max && box.getSelectedKeys().length >= f.max; box.getItems().forEach((i) => i.setEnabled(!full || box.getSelectedKeys().indexOf(i.getKey()) >= 0)); };
+          limit();
+          box.attachSelectionChange(limit);
           box.attachSelectionFinish((e) => {
-            let keys = e.getParameter("selectedItems").map((i) => i.getKey());
-            if (f.max && keys.length > f.max) { keys = keys.slice(-f.max); box.setSelectedKeys(keys); }
-            this._set(f.key, keys);
+            const picked = e.getParameter("selectedItems").map((i) => i.getKey());
+            const before = getPath(widget, f.key) || [];
+            // keep the order of picking: what was there stays first, new picks follow
+            this._set(f.key, before.filter((k) => picked.indexOf(k) >= 0).concat(picked.filter((k) => before.indexOf(k) < 0)));
           });
           return box;
         }

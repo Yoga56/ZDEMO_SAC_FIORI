@@ -18,7 +18,28 @@ sap.ui.define(["../core/QueryEngine", "../core/GeoLocations"], function (QueryEn
     return { categories: result.rowKeys.map(label), values: result.rowKeys.map((r) => result.rowTotal(r)) };
   }
 
+  /**
+   * A flow over several stages: the dimensions on the rows are the stages in order (Region, Product, Channel), and every row is a path
+   * through them. The link between two neighbouring stages adds up the paths that use it. With columns (the older two-column form) the
+   * rows are the left side and the columns the right side.
+   */
   function sankey(result) {
+    if (!(result.colDims && result.colDims.length) && result.rowKeys.length && result.rowKeys[0].length >= 2) {
+      const nodes = new Map(); const links = new Map();
+      const node = (level, member) => { const id = "s" + level + ":" + member; if (!nodes.has(id)) { nodes.set(id, { id, label: member, side: level }); } return id; };
+      result.rowKeys.forEach((path) => {
+        const v = result.rowTotal(path);
+        if (!v || v < 0) { return; }
+        for (let i = 0; i < path.length - 1; i++) {
+          const a = node(i, path[i]); const b = node(i + 1, path[i + 1]);
+          const k = a + "\u0001" + b;
+          const cur = links.get(k) || { source: a, target: b, value: 0, sourceLabel: path[i], targetLabel: path[i + 1] };
+          cur.value += v;
+          links.set(k, cur);
+        }
+      });
+      return { nodes: Array.from(nodes.values()), links: Array.from(links.values()) };
+    }
     const rowLabel = (r) => "r:" + label(r);
     const colLabel = (c) => "c:" + label(c);
     const nodes = result.rowKeys.map((r) => ({ id: rowLabel(r), label: label(r), side: 0 }))
@@ -96,6 +117,7 @@ sap.ui.define(["../core/QueryEngine", "../core/GeoLocations"], function (QueryEn
     switch (type) {
       case "chart.bar": { const d = categoriesAndSeries(result, measureLabel); d.stacked = !!(options && options.stacked); return d; }
       case "chart.line": return categoriesAndSeries(result, measureLabel);
+      case "chart.area": { const d = categoriesAndSeries(result, measureLabel); d.stacked = !!(options && options.stacked); return d; }
       case "chart.waterfall": return waterfall(categoriesAndTotals(result), !options || options.total !== false);
       case "chart.donut": case "chart.funnel": return categoriesAndTotals(result);
       case "chart.sankey": return sankey(result);

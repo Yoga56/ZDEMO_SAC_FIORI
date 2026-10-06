@@ -10,6 +10,25 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
   const { esc, compact, truncate, niceScale } = Format;
   const COLORS = 10;
   const fill = (i) => "zsac-fill-" + (i % COLORS);
+  let gradientSeq = 0;
+  const uid = () => "zg" + (++gradientSeq);
+
+  /** A smooth curve through the points (monotone in x, so it never overshoots the data): the "d" of a path. */
+  function smooth(pts) {
+    const n = pts.length;
+    if (n < 2) { return pts.length ? "M" + pts[0][0].toFixed(1) + "," + pts[0][1].toFixed(1) : ""; }
+    const dx = []; const m = []; const t = [];
+    for (let i = 0; i < n - 1; i++) { dx[i] = pts[i + 1][0] - pts[i][0] || 1e-6; m[i] = (pts[i + 1][1] - pts[i][1]) / dx[i]; }
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i++) { t[i] = m[i - 1] * m[i] <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]); }
+    let d = "M" + pts[0][0].toFixed(1) + "," + pts[0][1].toFixed(1);
+    for (let i = 0; i < n - 1; i++) {
+      d += " C" + (pts[i][0] + dx[i] / 3).toFixed(1) + "," + (pts[i][1] + (t[i] * dx[i]) / 3).toFixed(1) + " " + (pts[i + 1][0] - dx[i] / 3).toFixed(1) + "," + (pts[i + 1][1] - (t[i + 1] * dx[i]) / 3).toFixed(1) + " " + pts[i + 1][0].toFixed(1) + "," + pts[i + 1][1].toFixed(1);
+    }
+    return d;
+  }
+  /** A vertical fade of the colour of series i, for the area under a line. */
+  const gradient = (id, i, top) => '<linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="zsac-stop-' + (i % COLORS) + '" stop-opacity="' + (top || 0.38) + '"/><stop offset="1" class="zsac-stop-' + (i % COLORS) + '" stop-opacity="0.02"/></linearGradient>';
   const stroke = (i) => "zsac-stroke-" + (i % COLORS);
   const svg = (w, h, inner) => '<svg xmlns="http://www.w3.org/2000/svg" class="zsacSvg" width="' + w + '" height="' + h +
     '" viewBox="0 0 ' + w + " " + h + '" role="img">' + inner + "</svg>";
@@ -78,7 +97,7 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
         const x = f.m.l + band * i + (band - bw * n) / 2 + bw * si;
         const y = Math.min(f.y(v), zero);
         bars += '<rect class="' + fill(si) + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (bw - 1).toFixed(1) + '" height="' +
-          Math.max(0, Math.abs(zero - f.y(v))).toFixed(1) + '" rx="2"><title>' + esc(c + (n > 1 ? " / " + s.name : "") + ": " + Format.full(v)) + "</title></rect>";
+          Math.max(0, Math.abs(zero - f.y(v))).toFixed(1) + '" rx="4"><title>' + esc(c + (n > 1 ? " / " + s.name : "") + ": " + Format.full(v)) + "</title></rect>";
       });
     });
     return svg(w, h, f.out + bars + categoryLabels(data.categories, f, w, h, band) +
@@ -98,7 +117,7 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
         const hh = f.y(0) - f.y(v);
         top -= hh;
         bars += '<rect class="' + fill(si) + '" x="' + (f.m.l + band * i + (band - bw) / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0, hh).toFixed(1) +
-          '"><title>' + esc(c + " / " + s.name + ": " + Format.full(v)) + "</title></rect>";
+          '" rx="3"><title>' + esc(c + " / " + s.name + ": " + Format.full(v)) + "</title></rect>";
       });
     });
     return svg(w, h, f.out + bars + categoryLabels(data.categories, f, w, h, band) + legend(data.series.map((s) => s.name), w, 6));
@@ -117,7 +136,7 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
       const x = f.m.l + band * i + (band - bw) / 2;
       const y0 = f.y(Math.max(s.start, s.end));
       const hh = Math.max(1, Math.abs(f.y(s.start) - f.y(s.end)));
-      out += '<rect class="zsacWf-' + s.kind + '" x="' + x.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" rx="2"><title>' +
+      out += '<rect class="zsacWf-' + s.kind + '" x="' + x.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" rx="3"><title>' +
         esc(s.label + ": " + (s.kind === "total" ? "" : s.delta >= 0 ? "+" : "-") + Format.full(Math.abs(s.delta))) + "</title></rect>";
       out += '<text class="zsacSvgText" x="' + (x + bw / 2).toFixed(1) + '" y="' + (y0 - 4).toFixed(1) + '" text-anchor="middle">' + (s.kind === "total" ? "" : s.delta >= 0 ? "+" : "-") + compact(Math.abs(s.delta)) + "</text>";
       if (i < steps.length - 1) {
@@ -128,25 +147,61 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
     return svg(w, h, out + categoryLabels(steps.map((s) => s.label), f, w, h, band));
   }
 
+  /** The runs of a series that have a value (a gap in the data breaks the line). */
+  function runsOf(values, x, y) {
+    const runs = []; let run = [];
+    values.forEach((v, i) => { if (v === null || v === undefined) { if (run.length) { runs.push(run); run = []; } } else { run.push([x(i), y(v), i]); } });
+    if (run.length) { runs.push(run); }
+    return runs;
+  }
+
   function line(data, w, h) {
     if (!data.categories.length) { return empty(w, h); }
     const f = frame(data, w, h);
     const band = f.iw / data.categories.length;
-    let paths = "";
+    const base = f.y(Math.max(0, f.lo));
+    const defs = []; let paths = ""; let dots = "";
     data.series.forEach((s, si) => {
-      const pts = s.values.map((v, i) => (v === null || v === undefined ? null : [f.m.l + band * i + band / 2, f.y(v), i]));
-      let run = [];
-      const flush = () => {
-        if (run.length > 1) { paths += '<polyline class="zsacLine ' + stroke(si) + '" fill="none" points="' + run.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ") + '"/>'; }
-        run = [];
-      };
-      pts.forEach((p) => { if (p) { run.push(p); } else { flush(); } });
-      flush();
-      paths += pts.filter(Boolean).map((p) => '<circle class="' + fill(si) + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3"><title>' +
-        esc(data.categories[p[2]] + (data.series.length > 1 ? " / " + s.name : "") + ": " + Format.full(s.values[p[2]])) + "</title></circle>").join("");
+      runsOf(s.values, (i) => f.m.l + band * i + band / 2, f.y).forEach((run) => {
+        if (run.length > 1) {
+          if (data.series.length === 1 || data.series.length === 2) {
+            const id = uid(); defs.push(gradient(id, si, data.series.length === 1 ? 0.32 : 0.16));
+            paths += '<path class="zsacArea" fill="url(#' + id + ')" d="' + smooth(run) + " L" + run[run.length - 1][0].toFixed(1) + "," + base.toFixed(1) + " L" + run[0][0].toFixed(1) + "," + base.toFixed(1) + ' Z"/>';
+          }
+          paths += '<path class="zsacLine ' + stroke(si) + '" fill="none" d="' + smooth(run) + '"/>';
+        }
+        dots += run.map((p) => '<circle class="zsacDot ' + stroke(si) + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5"><title>' +
+          esc(data.categories[p[2]] + (data.series.length > 1 ? " / " + s.name : "") + ": " + Format.full(s.values[p[2]])) + "</title></circle>").join("");
+      });
     });
-    return svg(w, h, f.out + paths + categoryLabels(data.categories, f, w, h, band) +
+    return svg(w, h, "<defs>" + defs.join("") + "</defs>" + f.out + paths + dots + categoryLabels(data.categories, f, w, h, band) +
       (f.multi ? legend(data.series.map((s) => s.name), w, 6) : ""));
+  }
+
+  /** Filled areas under smooth lines; stacked, the series add up and the axis reaches the sum. */
+  function area(data, w, h) {
+    if (!data.categories.length) { return empty(w, h); }
+    const stacked = data.stacked && data.series.length > 1;
+    const f = stacked ? stackedFrame(data, w, h) : frame(data, w, h);
+    const band = f.iw / data.categories.length;
+    const x = (i) => f.m.l + band * i + band / 2;
+    const defs = []; let out = "";
+    const lower = data.categories.map(() => 0);
+    const order = data.series.map((s, i) => i);
+    (stacked ? order : order.slice().reverse()).forEach((si) => {
+      const s = data.series[si];
+      const vals = s.values.map((v, i) => (v === null || v === undefined ? null : (stacked ? Math.max(0, v) + lower[i] : v)));
+      const id = uid(); defs.push(gradient(id, si, stacked ? 0.55 : 0.4));
+      runsOf(vals, x, f.y).forEach((run) => {
+        const under = stacked ? run.map((p) => [p[0], f.y(lower[p[2]])]).reverse() : [[run[run.length - 1][0], f.y(0)], [run[0][0], f.y(0)]];
+        out += '<path class="zsacArea" fill="url(#' + id + ')" d="' + smooth(run) + " L" + under.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L") + ' Z"/>';
+        out += '<path class="zsacLine ' + stroke(si) + '" fill="none" d="' + smooth(run) + '"/>';
+        out += run.map((p) => '<circle class="zsacDot ' + stroke(si) + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5"><title>' +
+          esc(data.categories[p[2]] + " / " + s.name + ": " + Format.full(s.values[p[2]])) + "</title></circle>").join("");
+      });
+      if (stacked) { vals.forEach((v, i) => { if (v !== null) { lower[i] = v; } }); }
+    });
+    return svg(w, h, "<defs>" + defs.join("") + "</defs>" + f.out + out + categoryLabels(data.categories, f, w, h, band) + (data.series.length > 1 ? legend(data.series.map((s) => s.name), w, 6) : ""));
   }
 
   function arc(cx, cy, r0, r1, a0, a1) {
@@ -163,7 +218,7 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
     const side = w > 320;
     const size = side ? Math.min(h - 16, w * 0.5) : Math.min(w - 16, h - 70);
     const r1 = size / 2;
-    const r0 = r1 * 0.62;
+    const r0 = r1 * 0.66;
     const cx = side ? 8 + r1 : w / 2;
     const cy = side ? h / 2 : 8 + r1;
     let a = -Math.PI / 2;
@@ -175,7 +230,8 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
       out += '<path class="' + fill(i) + '" d="' + arc(cx, cy, r0, r1, a, end) + '"><title>' + esc(data.categories[i] + ": " + Format.full(v) + " (" + (v / total * 100).toFixed(1) + "%)") + "</title></path>";
       a += sweep;
     });
-    out += '<text class="zsacSvgBig" x="' + cx + '" y="' + (cy + 6) + '" text-anchor="middle">' + compact(total) + "</text>";
+    out += '<text class="zsacSvgBig" x="' + cx + '" y="' + (cy + 4) + '" text-anchor="middle">' + compact(total) + "</text>"
+      + '<text class="zsacSvgMuted" x="' + cx + '" y="' + (cy + 20) + '" text-anchor="middle">Total</text>';
     const rows = data.categories.slice(0, 8).map((c, i) => {
       const lx = side ? cx + r1 + 24 : 12 + (i % 2) * (w / 2);
       const ly = side ? Math.max(12, cy - Math.min(data.categories.length, 8) * 9) + i * 18 : cy + r1 + 22 + Math.floor(i / 2) * 16;
@@ -296,47 +352,58 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
     return svg(w, h, out);
   }
 
+  /** Nodes in columns, one per stage (side = the stage, 0 first); links join neighbouring stages. Two stages is the classic form. */
   function sankey(data, w, h) {
     const nodes = data.nodes;
     const links = data.links.filter((l) => l.value > 0);
     if (!nodes.length || !links.length) { return empty(w, h); }
-    const padX = 90; const nodeW = 12; const gap = 8; const top = 8;
-    const sides = [0, 1].map((s) => nodes.filter((n) => n.side === s));
+    const levels = Math.max.apply(null, nodes.map((n) => n.side)) + 1;
+    const padX = levels > 2 ? 70 : 90; const nodeW = 12; const gap = 8; const top = 8;
+    const sides = []; for (let i = 0; i < levels; i++) { sides.push(nodes.filter((n) => n.side === i)); }
     const totals = new Map(nodes.map((n) => [n.id, 0]));
-    links.forEach((l) => { totals.set(l.source, totals.get(l.source) + l.value); totals.set(l.target, totals.get(l.target) + l.value); });
+    // what flows through a node: the larger of what comes in and what goes out
+    const inflow = new Map(); const outflow = new Map();
+    links.forEach((l) => { outflow.set(l.source, (outflow.get(l.source) || 0) + l.value); inflow.set(l.target, (inflow.get(l.target) || 0) + l.value); });
+    nodes.forEach((n) => totals.set(n.id, Math.max(inflow.get(n.id) || 0, outflow.get(n.id) || 0)));
     const avail = h - top * 2;
-    const scale = Math.min.apply(null, sides.map((col) => {
+    const scale = Math.min.apply(null, sides.filter((col) => col.length).map((col) => {
       const sum = col.reduce((a, n) => a + totals.get(n.id), 0);
       return sum > 0 ? (avail - gap * (col.length - 1)) / sum : Infinity;
     }));
+    const step = levels > 1 ? (w - padX * 2 - nodeW) / (levels - 1) : 0;
     const pos = new Map();
     sides.forEach((col, s) => {
       let y = top;
+      const used = col.reduce((a, n) => a + Math.max(2, totals.get(n.id) * scale), 0) + gap * Math.max(0, col.length - 1);
+      y += Math.max(0, (avail - used) / 2);     // each stage is centred, so the flow bends gently
       col.forEach((n) => {
         const hh = Math.max(2, totals.get(n.id) * scale);
-        pos.set(n.id, { x: s === 0 ? padX : w - padX - nodeW, y, h: hh, used: 0, side: s });
+        pos.set(n.id, { x: padX + step * s, y, h: hh, usedOut: 0, usedIn: 0, side: s });
         y += hh + gap;
       });
     });
+    const index = new Map(); sides.forEach((col) => col.forEach((n, i) => index.set(n.id, i)));
     let out = "";
-    const colorOf = new Map(sides[0].map((n, i) => [n.id, i]));
     links.slice().sort((a, b) => b.value - a.value).forEach((l) => {
       const s = pos.get(l.source); const t = pos.get(l.target);
       const lh = Math.max(1, l.value * scale);
-      const sy = s.y + s.used + lh / 2; const ty = t.y + t.used + lh / 2;
-      s.used += lh; t.used += lh;
+      const sy = s.y + s.usedOut + lh / 2; const ty = t.y + t.usedIn + lh / 2;
+      s.usedOut += lh; t.usedIn += lh;
       const x0 = s.x + nodeW; const x1 = t.x; const mx = (x0 + x1) / 2;
-      out += '<path class="zsacLink ' + stroke(colorOf.get(l.source) || 0) + '" fill="none" stroke-width="' + lh.toFixed(1) + '" d="M' + x0 + "," + sy + " C" + mx + "," + sy + " " + mx + "," + ty + " " + x1 + "," + ty + '"><title>' +
+      out += '<path class="zsacLink ' + stroke(index.get(l.source) || 0) + '" fill="none" stroke-width="' + lh.toFixed(1) + '" d="M' + x0 + "," + sy + " C" + mx + "," + sy + " " + mx + "," + ty + " " + x1 + "," + ty + '"><title>' +
         esc(l.sourceLabel + " to " + l.targetLabel + ": " + Format.full(l.value)) + "</title></path>";
     });
-    nodes.forEach((n, i) => {
+    nodes.forEach((n) => {
       const p = pos.get(n.id);
       const left = p.side === 0;
-      out += '<rect class="' + (left ? fill(colorOf.get(n.id) || 0) : "zsacNode") + '" x="' + p.x + '" y="' + p.y + '" width="' + nodeW + '" height="' + p.h + '" rx="2"/>' +
-        '<text class="zsacSvgText" x="' + (left ? p.x - 6 : p.x + nodeW + 6) + '" y="' + (p.y + p.h / 2 + 4) + '" text-anchor="' + (left ? "end" : "start") + '">' + esc(truncate(n.label, 14)) + "</text>";
+      const last = p.side === levels - 1;
+      const room = left ? padX - 12 : last ? padX - 12 : step - nodeW - 10;
+      const chars = Math.max(4, Math.floor(room / 6.2));
+      out += '<rect class="' + (left ? fill(index.get(n.id) || 0) : "zsacNode") + '" x="' + p.x + '" y="' + p.y + '" width="' + nodeW + '" height="' + p.h + '" rx="3"/>' +
+        '<text class="zsacSvgText zsacSankeyLbl" x="' + (left ? p.x - 6 : p.x + nodeW + 6) + '" y="' + (p.y + p.h / 2 + 4) + '" text-anchor="' + (left ? "end" : "start") + '">' + esc(truncate(n.label, chars)) + "</text>";
     });
     return svg(w, h, out);
   }
 
-  return { bar, line, donut, funnel, gauge, sankey, waterfall, heatmap, treemap, geomap, heatColor, empty };
+  return { bar, line, area, smooth, donut, funnel, gauge, sankey, waterfall, heatmap, treemap, geomap, heatColor, empty };
 });
