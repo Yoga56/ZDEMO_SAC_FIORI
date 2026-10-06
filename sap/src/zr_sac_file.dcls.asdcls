@@ -4,11 +4,11 @@ define role ZR_SAC_FILE
 {
   grant select on ZR_SAC_FILE
     where FileKind = 'FOLDER'
-       or ( OwnerId ) = aspect user
+       or OwnerId = aspect user
        or OwnerId = ''
        or OwnerId = '*'
        or OwnerId = 'SEED'
        or OwnerId = 'SYSTEM'
-       or ( _ShareMe.Principal ) = aspect user
-       or ( _ShareAll.Principal ) = '*';
+       or _ShareMe.Principal = aspect user
+       or _ShareAll.Principal = '*';
 }

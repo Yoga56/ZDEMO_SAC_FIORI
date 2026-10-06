@@ -82,7 +82,7 @@ CLASS zcl_sac_version_engine IMPLEMENTATION.
         APPEND old_fact TO removed.
       ENDIF.
     ENDLOOP.
-    DATA(refused) = zcl_sac_data_rules=>check( facts = changed deletes = removed ).
+    DATA(refused) = zcl_sac_data_rules=>violation( facts = changed deletes = removed ).
     IF refused IS NOT INITIAL.
       result-message = refused.
       RETURN.

@@ -165,15 +165,15 @@ def dcls(e, E):
     view); a dependent node and plan data take the conditions of the object they belong to; a share is for the owner and for who it names."""
     name, kind = S.r_view(e), e["dcl"]
     if kind == "owner":
-        cond = ["( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "( _ShareMe.Principal ) = aspect user", "( _ShareAll.Principal ) = '*'"]
+        cond = ["OwnerId = aspect user", "OwnerId = ''", "OwnerId = '*'", "_ShareMe.Principal = aspect user", "_ShareAll.Principal = '*'"]
         body = "    where " + "\n       or ".join(cond) + ";"
     elif kind == "file":
         # folders are open; the file of any other object shows to whoever may open the object. SEED and SYSTEM stand for sample content.
-        cond = ["FileKind = 'FOLDER'", "( OwnerId ) = aspect user", "OwnerId = ''", "OwnerId = '*'", "OwnerId = 'SEED'",
-                "OwnerId = 'SYSTEM'", "( _ShareMe.Principal ) = aspect user", "( _ShareAll.Principal ) = '*'"]
+        cond = ["FileKind = 'FOLDER'", "OwnerId = aspect user", "OwnerId = ''", "OwnerId = '*'", "OwnerId = 'SEED'",
+                "OwnerId = 'SYSTEM'", "_ShareMe.Principal = aspect user", "_ShareAll.Principal = '*'"]
         body = "    where " + "\n       or ".join(cond) + ";"
     elif kind == "share":
-        body = "    where ( OwnerId ) = aspect user\n       or ( Principal ) = aspect user\n       or Principal = '*';"
+        body = "    where OwnerId = aspect user\n       or Principal = aspect user\n       or Principal = '*';"
     else:
         parent = S.r_view(E[e["parent"][0]]) if kind == "parent" else "ZR_SAC_MODEL"
         body = f"    where inheriting conditions from entity {parent};"

@@ -3,9 +3,9 @@
 define role ZR_SAC_DATAACT
 {
   grant select on ZR_SAC_DATAACT
-    where ( OwnerId ) = aspect user
+    where OwnerId = aspect user
        or OwnerId = ''
        or OwnerId = '*'
-       or ( _ShareMe.Principal ) = aspect user
-       or ( _ShareAll.Principal ) = '*';
+       or _ShareMe.Principal = aspect user
+       or _ShareAll.Principal = '*';
 }

@@ -87,14 +87,14 @@ CLASS zcl_sac_access IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(me) = user( ).
-    IF to_upper( owner ) = me.
+    DATA(current_user) = user( ).
+    IF to_upper( owner ) = current_user.
       result = level-owner.
       RETURN.
     ENDIF.
 
     SELECT access_level FROM zsac_share
-      WHERE object_kind = @kind AND object_id = @id AND ( principal = @me OR principal = '*' )
+      WHERE object_kind = @kind AND object_id = @id AND ( principal = @current_user OR principal = '*' )
       INTO TABLE @DATA(grants).
 
     result = level-none.

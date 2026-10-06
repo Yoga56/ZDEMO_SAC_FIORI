@@ -11,14 +11,12 @@ CLASS lhc_calendartask IMPLEMENTATION.
 
   " the owner changes and deletes an event; owners and assignees named on it (shared for editing) change it; viewers only look at it
   METHOD get_instance_authorizations.
-    DATA may_edit   TYPE if_abap_behv=>t_authorization.
-    DATA may_delete TYPE if_abap_behv=>t_authorization.
+    DATA may_edit TYPE abap_boolean.
+    DATA may_delete TYPE abap_boolean.
     LOOP AT keys INTO DATA(key).
-      may_edit   = COND #( WHEN zcl_sac_access=>can_edit( kind = 'CALEVENT' id = key-TaskId ) = abap_true
-                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
-      may_delete = COND #( WHEN zcl_sac_access=>can_delete( kind = 'CALEVENT' id = key-TaskId ) = abap_true
-                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
-      APPEND VALUE #( %tky = key-%tky %update = may_edit %delete = may_delete ) TO result.
+      may_edit = zcl_sac_access=>can_edit( kind = 'CALEVENT' id = key-TaskId ).
+      may_delete = zcl_sac_access=>can_delete( kind = 'CALEVENT' id = key-TaskId ).
+      APPEND VALUE #( %tky = key-%tky %update = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) %delete = COND #( WHEN may_delete = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) ) TO result.
     ENDLOOP.
   ENDMETHOD.
 

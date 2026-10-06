@@ -11,17 +11,15 @@ CLASS lhc_multiaction IMPLEMENTATION.
 
   " the owner changes and deletes; whoever the action was shared with for editing changes it; the others can only open and run it
   METHOD get_instance_authorizations.
-    DATA may_edit   TYPE if_abap_behv=>t_authorization.
-    DATA may_delete TYPE if_abap_behv=>t_authorization.
+    DATA may_edit TYPE abap_boolean.
+    DATA may_delete TYPE abap_boolean.
     LOOP AT keys INTO DATA(key).
-      may_edit   = COND #( WHEN zcl_sac_access=>can_edit( kind = 'MULTIACTION' id = key-ActionId ) = abap_true
-                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
-      may_delete = COND #( WHEN zcl_sac_access=>can_delete( kind = 'MULTIACTION' id = key-ActionId ) = abap_true
-                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
+      may_edit = zcl_sac_access=>can_edit( kind = 'MULTIACTION' id = key-ActionId ).
+      may_delete = zcl_sac_access=>can_delete( kind = 'MULTIACTION' id = key-ActionId ).
       APPEND VALUE #( %tky         = key-%tky
-                      %update      = may_edit
-                      %delete      = may_delete
-                      %assoc-_Step = may_edit ) TO result.
+                      %update      = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
+                      %delete      = COND #( WHEN may_delete = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
+                      %assoc-_Step = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) ) TO result.
     ENDLOOP.
   ENDMETHOD.
 

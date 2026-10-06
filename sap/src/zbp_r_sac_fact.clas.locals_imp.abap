@@ -67,7 +67,7 @@ CLASS lhc_fact IMPLEMENTATION.
                                                       text     = |Version { locked } is locked| ) ) TO reported-fact.
         CONTINUE.
       ENDIF.
-      DATA(refused) = zcl_sac_data_rules=>check( facts = facts ).
+      DATA(refused) = zcl_sac_data_rules=>violation( facts = facts ).
       IF refused IS NOT INITIAL.
         APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
         APPEND VALUE #( %cid = key-%cid
@@ -98,7 +98,7 @@ CLASS lhc_fact IMPLEMENTATION.
                                                       text     = |Version { locked } is locked| ) ) TO reported-fact.
         CONTINUE.
       ENDIF.
-      DATA(refused) = zcl_sac_data_rules=>check( facts = VALUE #( ) deletes = facts ).
+      DATA(refused) = zcl_sac_data_rules=>violation( facts = VALUE #( ) deletes = facts ).
       IF refused IS NOT INITIAL.
         APPEND VALUE #( %cid = key-%cid ) TO failed-fact.
         APPEND VALUE #( %cid = key-%cid

@@ -19,11 +19,10 @@ CLASS lhc_share IMPLEMENTATION.
         FIELDS ( OwnerId ) WITH CORRESPONDING #( keys )
       RESULT DATA(shares).
 
-    DATA may TYPE if_abap_behv=>t_authorization.
+    DATA may TYPE abap_boolean.
     LOOP AT shares INTO DATA(share).
-      may = COND #( WHEN share-OwnerId = zcl_sac_access=>user( )
-                    THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
-      APPEND VALUE #( %tky = share-%tky %update = may %delete = may ) TO result.
+      may = xsdbool( share-OwnerId = zcl_sac_access=>user( ) ).
+      APPEND VALUE #( %tky = share-%tky %update = COND #( WHEN may = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) %delete = COND #( WHEN may = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) ) TO result.
     ENDLOOP.
   ENDMETHOD.
 

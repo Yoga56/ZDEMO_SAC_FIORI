@@ -10,7 +10,7 @@ CLASS zcl_sac_data_rules DEFINITION PUBLIC FINAL CREATE PRIVATE.
   PUBLIC SECTION.
     "! The first reason the user may not write `facts` and delete `deletes`, or empty when it is fine.
     "! Private versions, and values that do not change what is stored, are not checked.
-    CLASS-METHODS check
+    CLASS-METHODS violation
       IMPORTING facts          TYPE zcl_sac_fact_writer=>ty_facts
                 deletes        TYPE zcl_sac_fact_writer=>ty_facts OPTIONAL
       RETURNING VALUE(result) TYPE string.
@@ -120,7 +120,7 @@ CLASS zcl_sac_data_rules IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD check.
+  METHOD violation.
     DATA models TYPE SORTED TABLE OF zsac_fact-model_id WITH UNIQUE KEY table_line.
     LOOP AT facts INTO DATA(f).
       INSERT f-model_id INTO TABLE models.
@@ -131,9 +131,9 @@ CLASS zcl_sac_data_rules IMPLEMENTATION.
 
     DATA(uname) = CONV string( zcl_sac_access=>user( ) ).
 
-    LOOP AT models INTO DATA(model_id).
+    LOOP AT models INTO DATA(current_model).
       SELECT SINGLE data_locking, lock_default, lock_json, valid_json FROM zsac_model
-        WHERE model_id = @model_id INTO @DATA(model).
+        WHERE model_id = @current_model INTO @DATA(model).
       IF sy-subrc <> 0.
         CONTINUE.
       ENDIF.
@@ -161,13 +161,13 @@ CLASS zcl_sac_data_rules IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      SELECT version_id FROM zsac_version WHERE model_id = @model_id AND category = 'PRIVATE' INTO TABLE @DATA(private_versions).
-      DATA(stored) = zcl_sac_fact_writer=>read_model( model_id ).
+      SELECT version_id FROM zsac_version WHERE model_id = @current_model AND category = 'PRIVATE' INTO TABLE @DATA(private_versions).
+      DATA(stored) = zcl_sac_fact_writer=>read_model( current_model ).
       DATA stored_by_key TYPE zcl_sac_fact_writer=>ty_work.
       CLEAR stored_by_key.
       stored_by_key = CORRESPONDING #( stored ).
 
-      LOOP AT facts INTO f WHERE model_id = model_id.
+      LOOP AT facts INTO f WHERE model_id = current_model.
         IF line_exists( private_versions[ version_id = f-version_id ] ).
           CONTINUE.
         ENDIF.
@@ -206,7 +206,7 @@ CLASS zcl_sac_data_rules IMPLEMENTATION.
       ENDLOOP.
 
       IF model-data_locking = abap_true.
-        LOOP AT deletes INTO f WHERE model_id = model_id.
+        LOOP AT deletes INTO f WHERE model_id = current_model.
           IF line_exists( private_versions[ version_id = f-version_id ] ).
             CONTINUE.
           ENDIF.

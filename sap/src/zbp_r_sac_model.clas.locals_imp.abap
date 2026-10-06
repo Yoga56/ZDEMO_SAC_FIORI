@@ -14,18 +14,16 @@ CLASS lhc_model IMPLEMENTATION.
 
   " the owner changes and deletes; whoever the model was shared with for editing changes it; the others can only read it
   METHOD get_instance_authorizations.
-    DATA may_edit   TYPE if_abap_behv=>t_authorization.
-    DATA may_delete TYPE if_abap_behv=>t_authorization.
+    DATA may_edit TYPE abap_boolean.
+    DATA may_delete TYPE abap_boolean.
     LOOP AT keys INTO DATA(key).
-      may_edit   = COND #( WHEN zcl_sac_access=>can_edit( kind = 'MODEL' id = CONV #( key-ModelId ) ) = abap_true
-                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
-      may_delete = COND #( WHEN zcl_sac_access=>can_delete( kind = 'MODEL' id = CONV #( key-ModelId ) ) = abap_true
-                           THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ).
+      may_edit = zcl_sac_access=>can_edit( kind = 'MODEL' id = CONV #( key-ModelId ) ).
+      may_delete = zcl_sac_access=>can_delete( kind = 'MODEL' id = CONV #( key-ModelId ) ).
       APPEND VALUE #( %tky              = key-%tky
-                      %update           = may_edit
-                      %delete           = may_delete
-                      %assoc-_Dimension = may_edit
-                      %assoc-_Measure   = may_edit ) TO result.
+                      %update           = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
+                      %delete           = COND #( WHEN may_delete = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
+                      %assoc-_Dimension = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
+                      %assoc-_Measure   = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) ) TO result.
     ENDLOOP.
   ENDMETHOD.
 
