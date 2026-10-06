@@ -111,7 +111,7 @@ sap.ui.define([
       if (!table) { return []; }
       return Array.from(table.rows).map((tr) => Array.from(tr.cells).map((td) => {
         const input = td.querySelector("input");
-        return { text: (input ? input.value : td.textContent).trim(), span: td.colSpan };
+        return { text: (input ? input.value : td.textContent).replace(/^\s*[\u25BE\u25B8]\s*/, "").trim(), span: td.colSpan };   // the expand and collapse triangles of the headers are not data
       }));
     },
 
