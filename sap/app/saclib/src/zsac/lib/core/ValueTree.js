@@ -12,7 +12,7 @@
  *
  * line = label [| operator [| spec]]
  *   operator  sum (default for a parent), diff (first child minus the others), product, ratio (first divided by second), leaf (default without children)
- *   spec      for a leaf: entries separated by ";", each DIMENSION=member1,member2 (a filter), measure=ID (the measure, default the widget's), scale=1000, good=down (a fall is favorable: costs)
+ *   spec      for a leaf: entries separated by ";", each DIMENSION=member1,member2 (a filter), measure=ID (the measure, default the widget's), scale=1000, good=down (a fall is favorable: costs), range=MIN..MAX or pct=N and dist=normal|uniform (the uncertainty of the driver, used by Compass)
  *
  *   ValueTree.parse(text) -> { tree, errors }
  *   ValueTree.leaves(tree) -> leaf nodes
@@ -33,7 +33,7 @@ sap.ui.define([], function () {
   const SYMBOL = { sum: "+", diff: "−", product: "×", ratio: "÷" };
 
   function parseSpec(spec, lineNo, errors) {
-    const out = { filters: {}, measure: "", scale: 1, lower: null };
+    const out = { filters: {}, measure: "", scale: 1, lower: null, range: null, pct: null, dist: "" };
     String(spec || "").split(";").map((s) => s.trim()).filter(Boolean).forEach((entry) => {
       const i = entry.indexOf("=");
       if (i < 1) { errors.push("Line " + lineNo + ": '" + entry + "' is not NAME=value"); return; }
@@ -43,6 +43,20 @@ sap.ui.define([], function () {
       if (key.toLowerCase() === "scale") {
         const n = Number(val);
         if (!isFinite(n) || n === 0) { errors.push("Line " + lineNo + ": scale must be a number other than 0"); } else { out.scale = n; }
+        return;
+      }
+      if (key.toLowerCase() === "range") { // the uncertainty of a driver for Compass: range=100..200 (in the units shown)
+        const m = /^(-?\d+(?:\.\d+)?)\s*\.\.\s*(-?\d+(?:\.\d+)?)$/.exec(val);
+        if (!m || Number(m[1]) > Number(m[2])) { errors.push("Line " + lineNo + ": range is MIN..MAX with MIN not above MAX"); } else { out.range = { min: Number(m[1]), max: Number(m[2]) }; }
+        return;
+      }
+      if (key.toLowerCase() === "pct") { // or a share of the baseline: pct=10 means 10% below to 10% above
+        const n = Number(val);
+        if (!isFinite(n) || n < 0) { errors.push("Line " + lineNo + ": pct is a number of 0 or more"); } else { out.pct = n; }
+        return;
+      }
+      if (key.toLowerCase() === "dist") {
+        if (val !== "normal" && val !== "uniform") { errors.push("Line " + lineNo + ": dist must be normal or uniform"); } else { out.dist = val; }
         return;
       }
       if (key.toLowerCase() === "good") {
@@ -70,7 +84,7 @@ sap.ui.define([], function () {
       let op = (parts[1] || "").toLowerCase();
       if (op && OPS.indexOf(op) < 0) { errors.push("Line " + l.no + ": unknown operator '" + parts[1] + "' (use " + OPS.join(", ") + ")"); op = ""; }
       const spec = parseSpec(parts.slice(2).join("|"), l.no, errors);
-      const node = { label, op, filters: spec.filters, measure: spec.measure, scale: spec.scale, lower: spec.lower, children: [] };
+      const node = { label, op, filters: spec.filters, measure: spec.measure, scale: spec.scale, lower: spec.lower, range: spec.range, pct: spec.pct, dist: spec.dist, children: [] };
       if (depth === 0) {
         if (root) { errors.push("Line " + l.no + ": there can be only one top node"); return; }
         root = node; stack.length = 0; stack.push(node); node.id = "0"; return;

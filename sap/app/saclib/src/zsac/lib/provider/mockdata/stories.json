@@ -592,6 +592,35 @@
           "Hierarchies": {}
         },
         "Props": {}
+      },
+      {
+        "Id": "W_COMPASS",
+        "Page": 1,
+        "Type": "compass",
+        "Title": "Compass: how safe is the profit?",
+        "X": 0,
+        "Y": 16,
+        "W": 12,
+        "H": 10,
+        "Binding": {
+          "ModelId": "SALES_PLAN",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "REVENUE",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {}
+        },
+        "Props": {
+          "Tree": "Profit | diff\n  Revenue | sum\n    Cloud ERP | leaf | PRODUCT=Cloud ERP; measure=REVENUE; pct=15\n    Analytics | leaf | PRODUCT=Analytics; measure=REVENUE; pct=10; dist=uniform\n    Planning | leaf | PRODUCT=Planning; measure=REVENUE\n    Services and licences | leaf | PRODUCT=Services,Licences; measure=REVENUE; pct=5\n  Cost | leaf | measure=COST; good=down; pct=8",
+          "Mode": "medium",
+          "Pessimistic": 5,
+          "Optimistic": 5,
+          "LowerIsBetter": false
+        }
       }
     ]
   },

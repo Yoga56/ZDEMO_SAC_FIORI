@@ -207,3 +207,16 @@ input.zsacFx:focus { outline: 2px solid var(--sapContent_FocusColor, #0070f2); }
 .zsacTileText { font-size: 11px; fill: var(--sapTextColor, #1d2d3e); font-weight: 600; pointer-events: none; } .zsacTileValue { font-weight: 400; }
 .zsacGeoSea { fill: var(--sapShell_Background, #eaf3fc); } .zsacGeoLand { fill: var(--sapList_BorderColor, #d9dde2); stroke: var(--sapBackgroundColor, #fff); stroke-width: 1; }
 .zsacGeoBubble { fill: var(--sapAccentColor6, #0a6ed1); fill-opacity: .55; stroke: var(--sapAccentColor6, #0a6ed1); } .zsacGeoNeg { fill: var(--sapNegativeColor, #b00); stroke: var(--sapNegativeColor, #b00); }
+
+/* compass */
+.zsacCpBar { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: .25rem 0 .5rem; font-size: .85rem; }
+.zsacCpBar select, .zsacCpBar button, .zsacCpDrivers input, .zsacCpDrivers select, .zsacCpThr input { font: inherit; padding: 2px 6px; border: 1px solid var(--sapField_BorderColor, #89919a); border-radius: .25rem; background: var(--sapField_Background, #fff); color: inherit; }
+.zsacCpBar button { cursor: pointer; } .zsacCpRun { background: var(--sapButton_Emphasized_Background, #0a6ed1) !important; color: #fff !important; border-color: transparent !important; }
+.zsacCpDrivers, .zsacCpTable { border-collapse: collapse; margin: .25rem 0 .75rem; font-size: .85rem; } .zsacCpDrivers th, .zsacCpTable th { text-align: left; font-weight: 600; color: var(--sapContent_LabelColor, #6a6d70); padding: 2px 10px 2px 0; }
+.zsacCpDrivers td, .zsacCpTable td { padding: 2px 10px 2px 0; } .zsacCpDrivers input[type=number] { width: 6rem; } .zsacCpBad input { border-color: var(--sapNegativeColor, #b00); }
+.zsacCpThr { margin: .25rem 0; font-size: .85rem; } .zsacCpThr input { width: 7rem; }
+.zsacCp-pessimistic { fill: #bb0000; background: #bb0000; } .zsacCp-realistic { fill: #0a6ed1; background: #0a6ed1; } .zsacCp-optimistic { fill: #107e3e; background: #107e3e; }
+path.zsacCp { fill-opacity: .35; } .zsacCpDot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }
+.zsacCpCurve { stroke: var(--sapTextColor, #1d2d3e); stroke-width: 1.8; fill: none; } .zsacCpOther { stroke-dasharray: 5 3; } .zsacCpOther0 { stroke: #e9730c; } .zsacCpOther1 { stroke: #7b3fa0; } .zsacCpOther2 { stroke: #0b7285; }
+.zsacCpBound { stroke: var(--sapContent_LabelColor, #6a6d70); stroke-width: 1; } .zsacCpBase { stroke: var(--sapAccentColor6, #0a6ed1); stroke-width: 1.5; stroke-dasharray: 4 3; } .zsacAxis { stroke: var(--sapList_BorderColor, #c9d3de); }
+.zsacCpInfl { margin-top: .5rem; max-width: 34rem; }

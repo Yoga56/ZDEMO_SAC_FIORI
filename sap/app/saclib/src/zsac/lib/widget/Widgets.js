@@ -29,11 +29,13 @@ sap.ui.define([
   "../core/ValueTree",
   "../core/WebContent",
   "./ValueTreeView",
+  "../core/Compass",
+  "./CompassView",
   "sap/ui/core/HTML",
   "sap/m/Link",
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
-  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ValueTreeView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
+  PlanGrid, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -241,6 +243,43 @@ sap.ui.define([
     }
   });
 
+  /**
+   * The tree of a value tree or Compass widget with the data of its leaves: one aggregate per leaf, with the leaf's own filters and
+   * measure on top of the story and widget filters. compare = the same leaves read for the compare version (value tree only).
+   */
+  async function loadTree(widget, ctx) {
+    const b = widget.Binding;
+    const parsed = ValueTree.parse(widget.Props.Tree);
+    if (!parsed.tree) { return { tree: null, errors: parsed.errors }; }
+    const model = await ctx.provider.getModel(b.ModelId);
+    const versions = widget.Props.CompareVersion ? await ctx.provider.listVersions(b.ModelId) : [];
+    const leaves = ValueTree.leaves(parsed.tree);
+    const problems = parsed.errors.slice();
+    leaves.forEach((l) => {
+      if (!(l.measure || b.Measure)) { problems.push("'" + l.label + "' needs a measure (measure=ID) or a measure in the builder panel"); }
+      Object.keys(l.filters).forEach((d) => { if (d !== "PERIOD" && d !== "VERSION" && !(model.Dimensions || []).some((x) => x.DimId === d)) { problems.push("'" + l.label + "': " + d + " is not a dimension of the model"); } });
+    });
+    const read = async (version) => {
+      const out = {};
+      await Promise.all(leaves.map(async (l) => {
+        if (!(l.measure || b.Measure)) { return; }
+        const r = await runQuery(widget, ctx, (f) => {
+          Object.keys(l.filters).forEach((d) => { f[d] = l.filters[d]; });
+          f.MEASURE = [l.measure || b.Measure];
+          if (version) { f.VERSION = [version]; }
+        });
+        out[l.id] = r.grand;
+      }));
+      return out;
+    };
+    const values = await read(null);
+    const compare = widget.Props.CompareVersion ? await read(widget.Props.CompareVersion) : null;
+    const ver = versions.find((v) => v.VersionId === widget.Props.CompareVersion);
+    const m = (model.Measures || []).find((x) => x.MeasureId === b.Measure);
+    return { tree: parsed.tree, values, compare, errors: problems, compareLabel: ver ? ver.Name || ver.VersionId : widget.Props.CompareVersion,
+      unit: m && m.UnitType !== "None" && leaves.every((l) => !l.measure) ? m.Unit : "", model };
+  }
+
   WidgetRegistry.register("valuetree", {
     name: "Value driver tree", icon: "sap-icon://tree", group: "Indicators", size: { w: 12, h: 8 },
     defaults: { Binding: emptyBinding(), Props: { Tree: "", CompareVersion: "", LowerIsBetter: false, Simulate: true } },
@@ -279,36 +318,96 @@ sap.ui.define([
       holder.addEventDelegate({ onAfterRendering: bind });
       const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: holder });
       return wire(card, widget, async () => {
-        const b = widget.Binding;
-        const parsed = ValueTree.parse(widget.Props.Tree);
-        if (!parsed.tree) { holder.setContent('<div class="zsacVMsg">' + Format.esc(parsed.errors[0] || "Write the tree in the builder panel.") + "</div>"); state = null; return; }
-        const model = await ctx.provider.getModel(b.ModelId);
-        const versions = widget.Props.CompareVersion ? await ctx.provider.listVersions(b.ModelId) : [];
-        const leaves = ValueTree.leaves(parsed.tree);
-        const problems = parsed.errors.slice();
-        leaves.forEach((l) => {
-          if (!(l.measure || b.Measure)) { problems.push("'" + l.label + "' needs a measure (measure=ID) or a measure in the builder panel"); }
-          Object.keys(l.filters).forEach((d) => { if (d !== "PERIOD" && d !== "VERSION" && !(model.Dimensions || []).some((x) => x.DimId === d)) { problems.push("'" + l.label + "': " + d + " is not a dimension of the model"); } });
+        const loaded = await loadTree(widget, ctx);
+        if (!loaded.tree) { holder.setContent('<div class="zsacVMsg">' + Format.esc(loaded.errors[0] || "Write the tree in the builder panel.") + "</div>"); state = null; return; }
+        state = { tree: loaded.tree, values: loaded.values, compare: loaded.compare, errors: loaded.errors, labels: { compare: loaded.compareLabel }, unit: loaded.unit };
+        draw();
+      });
+    }
+  });
+
+  WidgetRegistry.register("compass", {
+    name: "Compass simulation", icon: "sap-icon://simulate", group: "Indicators", size: { w: 12, h: 9 },
+    defaults: { Binding: emptyBinding(), Props: { Tree: "", Mode: "medium", Pessimistic: 5, Optimistic: 5, LowerIsBetter: false } },
+    builder: baseBuilder.concat([
+      { key: "Binding.Measure", label: "Measure (for nodes that name none)", kind: "measure" },
+      { key: "Binding.Filters", label: "Filters (the baseline is read for these, choose one version)", kind: "filters" },
+      { key: "Props.Tree", label: "Target and drivers: the target on top, its drivers indented. Give a driver's uncertainty as range=MIN..MAX or pct=10, dist=uniform", kind: "textarea" },
+      { key: "Props.Mode", label: "Precision", kind: "select", options: [["preview", "Preview (1,000 calculations)"], ["medium", "Medium (10,000)"], ["high", "High (100,000)"]] },
+      { key: "Props.Pessimistic", label: "Pessimistic case: share of the results (%)", kind: "number", min: 0, default: 5 },
+      { key: "Props.Optimistic", label: "Optimistic case: share of the results (%)", kind: "number", min: 0, default: 5 },
+      { key: "Props.LowerIsBetter", label: "Lower is better (the pessimistic case is then the high end)", kind: "bool" }
+    ]),
+    create(widget, ctx) {
+      const holder = new HTML({ content: "<div></div>" });
+      let loaded = null;
+      let scenarios = [{ name: "Scenario 1", settings: {}, result: null }];
+      let current = 0; let compareWith = -1; let mode = widget.Props.Mode || "medium"; let threshold = ""; let busy = false;
+      const cur = () => scenarios[current];
+      const unit = () => (loaded && loaded.unit) || "";
+      const draw = () => {
+        if (!loaded) { return; }
+        const sc = cur();
+        const results = [{ name: sc.name, result: sc.result }].concat(compareWith >= 0 && compareWith !== current && scenarios[compareWith] && scenarios[compareWith].result ? [{ name: scenarios[compareWith].name, result: scenarios[compareWith].result }] : []);
+        const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? " selected" : "") + ">" + Format.esc(t) + "</option>";
+        const others = scenarios.map((s, i) => ({ s, i })).filter((x) => x.i !== current && x.s.result);
+        let h = "<div>" + (loaded.errors.length ? '<div class="zsacVMsg">' + loaded.errors.map((e) => Format.esc(e)).join("<br>") + "</div>" : "")
+          + '<div class="zsacCpBar"><label>Scenario <select data-a="scenario">' + scenarios.map((s, i) => opt(i, s.name, i === current)).join("") + "</select></label>"
+          + '<button type="button" data-a="new" title="A new scenario starts from the settings of this one">New</button>'
+          + (scenarios.length > 1 ? '<button type="button" data-a="delete">Delete</button>' : "")
+          + '<label>Precision <select data-a="mode">' + [["preview", "Preview (1,000)"], ["medium", "Medium (10,000)"], ["high", "High (100,000)"]].map((m) => opt(m[0], m[1], m[0] === mode)).join("") + "</select></label>"
+          + '<button type="button" class="zsacCpRun" data-a="run"' + (busy ? " disabled" : "") + ">" + (busy ? "Running..." : "Run simulation") + "</button>"
+          + (others.length ? '<label>Compare with <select data-a="compare">' + opt(-1, "(none)", compareWith < 0) + others.map((x) => opt(x.i, x.s.name, x.i === compareWith)).join("") + "</select></label>" : "") + "</div>"
+          + CompassView.driversHtml(Compass.drivers(loaded.tree, loaded.values, sc.settings), sc.settings, unit());
+        if (sc.result) {
+          h += '<div class="zsacCpResult">' + CompassView.statsHtml(sc.result, unit(), threshold)
+            + '<div class="zsacCpThr"><label>Chance of reaching <input type="number" step="any" data-a="threshold" value="' + Format.esc(threshold) + '"> or more</label></div>'
+            + CompassView.chartSvg(results, { w: 640, h: 250 }) + CompassView.casesHtml(sc.result, unit()) + CompassView.influenceHtml(sc.result)
+            + '<div class="zsacVCap">' + sc.result.n.toLocaleString("en") + " calculations, seed " + sc.result.seed + ". Drivers without a range stay at their booked value.</div></div>";
+        } else { h += '<div class="zsacVMsg">Enter a minimum and a maximum for the drivers you are unsure about, then run the simulation.</div>'; }
+        holder.setContent(h + "</div>");
+        bind();
+      };
+      const bind = () => {
+        const el = holder.getDomRef();
+        if (!el) { return; }
+        const sc = cur();
+        el.querySelectorAll("[data-d]").forEach((inp) => inp.addEventListener("change", () => {
+          const id = inp.getAttribute("data-d"); const f = inp.getAttribute("data-f");
+          const s = sc.settings[id] = sc.settings[id] || {};
+          const d = Compass.drivers(loaded.tree, loaded.values, {}).find((x) => x.id === id);
+          if (f === "active") { s.active = inp.checked; } else if (f === "dist") { s.dist = inp.value; }
+          else if (f === "pct") {
+            if (inp.value !== "" && d && d.baseline !== null) { const delta = Math.abs(d.baseline) * Number(inp.value) / 100; s.min = d.baseline - delta; s.max = d.baseline + delta; draw(); }
+          } else { s[f] = inp.value === "" ? "" : Number(inp.value); }
+          sc.result = null;
+          if (f === "min" || f === "max") { const row = inp.closest("tr"); const lo = row.querySelector('[data-f="min"]').value; const hi = row.querySelector('[data-f="max"]').value; row.classList.toggle("zsacCpBad", lo !== "" && hi !== "" && Number(lo) > Number(hi)); }
+        }));
+        const act = (a) => el.querySelector('[data-a="' + a + '"]');
+        const on = (a, ev, fn) => { const n = act(a); if (n) { n.addEventListener(ev, fn); } };
+        on("scenario", "change", (e) => { current = Number(e.target.value); compareWith = -1; draw(); });
+        on("new", "click", () => { scenarios.push({ name: "Scenario " + (scenarios.length + 1), settings: JSON.parse(JSON.stringify(sc.settings)), result: null }); current = scenarios.length - 1; draw(); });
+        on("delete", "click", () => { scenarios.splice(current, 1); current = Math.max(0, current - 1); compareWith = -1; draw(); });
+        on("mode", "change", (e) => { mode = e.target.value; });
+        on("compare", "change", (e) => { compareWith = Number(e.target.value); draw(); });
+        on("threshold", "change", (e) => { threshold = e.target.value; draw(); });
+        on("run", "click", () => {
+          busy = true; draw();
+          setTimeout(() => { // let the button show "Running" before the loop blocks the page
+            try {
+              sc.result = Compass.run(loaded.tree, loaded.values, { drivers: sc.settings, mode, seed: Number(widget.Props.Seed) || undefined, pessimistic: widget.Props.Pessimistic === undefined ? 5 : Number(widget.Props.Pessimistic), optimistic: widget.Props.Optimistic === undefined ? 5 : Number(widget.Props.Optimistic), lowerIsBetter: !!widget.Props.LowerIsBetter });
+            } catch (err) { MessageToast.show(err.message || String(err)); }
+            busy = false; draw();
+          }, 20);
         });
-        const read = async (version) => {
-          const out = {};
-          await Promise.all(leaves.map(async (l) => {
-            if (!(l.measure || b.Measure)) { return; }
-            const r = await runQuery(widget, ctx, (f) => {
-              Object.keys(l.filters).forEach((d) => { f[d] = l.filters[d]; });
-              f.MEASURE = [l.measure || b.Measure];
-              if (version) { f.VERSION = [version]; }
-            });
-            out[l.id] = r.grand;
-          }));
-          return out;
-        };
-        const values = await read(null);
-        const compare = widget.Props.CompareVersion ? await read(widget.Props.CompareVersion) : null;
-        const ver = versions.find((v) => v.VersionId === widget.Props.CompareVersion);
-        const m = (model.Measures || []).find((x) => x.MeasureId === b.Measure);
-        state = { tree: parsed.tree, values, compare, errors: problems, labels: { compare: ver ? ver.Name || ver.VersionId : widget.Props.CompareVersion },
-          unit: m && m.UnitType !== "None" && leaves.every((l) => !l.measure) ? m.Unit : "" };
+      };
+      holder.addEventDelegate({ onAfterRendering: bind });
+      const card = new WidgetCard({ title: widget.Title, widgetId: widget.Id, content: holder });
+      return wire(card, widget, async () => {
+        const l = await loadTree(widget, ctx);
+        if (!l.tree) { holder.setContent('<div class="zsacVMsg">' + Format.esc(l.errors[0] || "Write the target and its drivers in the builder panel.") + "</div>"); loaded = null; return; }
+        loaded = l;
+        scenarios.forEach((s) => { s.result = null; }); // the baseline may have changed
         draw();
       });
     }
