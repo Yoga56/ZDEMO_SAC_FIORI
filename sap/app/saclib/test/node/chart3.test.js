@@ -48,3 +48,12 @@ test("sankey over several stages: a link between every pair of neighbouring stag
   const old = ChartData.sankey(QueryEngine.aggregate(model, facts, { rows: ["REGION"], columns: ["PRODUCT"], filters: {} }));
   assert.deepStrictEqual(Array.from(new Set(old.nodes.map((n) => n.side))).sort(), [0, 1]);
 });
+
+test("gauge: with a target it shows the percentage, without one it shows the value and says there is no target", () => {
+  const withTarget = ChartBuilders.gauge({ value: 50, max: 200 }, 240, 160);
+  assert.match(withTarget, />25%</);
+  const noTarget = ChartBuilders.gauge({ value: 4100, max: 0 }, 240, 160);
+  assert.doesNotMatch(noTarget, /0%</);
+  assert.match(noTarget, /No target set/);
+  assert.match(noTarget, />4\.1K</);
+});

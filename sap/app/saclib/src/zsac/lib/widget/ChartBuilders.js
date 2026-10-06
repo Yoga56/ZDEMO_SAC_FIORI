@@ -273,8 +273,9 @@ sap.ui.define(["../core/Format", "../core/Treemap", "../core/GeoLocations"], fun
     return svg(w, h,
       '<path class="zsacGaugeBg" d="' + arc(cx, cy, r0, r1, Math.PI, Math.PI * 2 - 0.0001) + '"/>' +
       (pct > 0 ? '<path class="' + cls + '" d="' + arc(cx, cy, r0, r1, Math.PI, Math.max(a1, Math.PI + 0.001)) + '"><title>' + esc(Format.full(data.value) + " of " + Format.full(max)) + "</title></path>" : "") +
-      '<text class="zsacSvgBig" x="' + cx + '" y="' + (cy - 6) + '" text-anchor="middle">' + (pct * 100).toFixed(0) + "%</text>" +
-      '<text class="zsacSvgMuted" x="' + cx + '" y="' + (cy + 12) + '" text-anchor="middle">' + esc(data.label || (compact(data.value) + " of " + compact(max))) + "</text>");
+      // no target: a percentage of nothing says nothing, show the value and what to set
+      '<text class="zsacSvgBig" x="' + cx + '" y="' + (cy - 6) + '" text-anchor="middle">' + (max > 0 ? (pct * 100).toFixed(0) + "%" : esc(compact(data.value))) + "</text>" +
+      '<text class="zsacSvgMuted" x="' + cx + '" y="' + (cy + 12) + '" text-anchor="middle">' + (max > 0 ? esc(data.label || (compact(data.value) + " of " + compact(max))) : "No target set") + "</text>");
   }
 
   const hex = (n) => ("0" + Math.round(n).toString(16)).slice(-2);
