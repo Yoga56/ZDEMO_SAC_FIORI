@@ -18,6 +18,7 @@ sap.ui.define([
         follow();
         if (dark.addEventListener) { dark.addEventListener("change", follow); }
       }
+      this._bindFab();
       this.router().attachRouteMatched((e) => {
         const key = ROUTE_TO_KEY[e.getParameter("name")];
         if (key) { this._markNav(key); }
@@ -43,8 +44,49 @@ sap.ui.define([
 
     onBell() { this.navTo("calendar", { query: { reminders: "1" } }); },
 
+    /**
+     * The floating button can be dragged out of the way; where it was left is remembered (a drag is not a press).
+     * It stays inside the window, also after the window gets smaller.
+     */
+    _bindFab() {
+      const fab = this.byId("fab");
+      const KEY = "zsac.fab";
+      const place = (el, x, y) => {
+        const w = el.offsetWidth, h = el.offsetHeight;
+        el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x)) + "px";
+        el.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, y)) + "px";
+        el.style.bottom = "auto";
+      };
+      fab.addEventDelegate({ onAfterRendering: () => {
+        const el = fab.getDomRef();
+        if (!el || el._zsacDrag) { return; }
+        el._zsacDrag = true;
+        try { const p = JSON.parse(window.localStorage.getItem(KEY) || "null"); if (p) { place(el, p.x, p.y); } } catch (e) { /* no storage: it stays bottom left */ }
+        window.addEventListener("resize", () => { if (el.style.top) { place(el, el.offsetLeft, el.offsetTop); } });
+        el.addEventListener("pointerdown", (e) => {
+          const r = el.getBoundingClientRect();
+          const d = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, moved: false };
+          const move = (ev) => {
+            if (!d.moved && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 6) { return; }
+            d.moved = true; el.classList.add("zsacFabDragging");
+            place(el, d.l + ev.clientX - d.x, d.t + ev.clientY - d.y);
+          };
+          const up = () => {
+            window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+            el.classList.remove("zsacFabDragging");
+            if (d.moved) {
+              this._fabDragged = true; setTimeout(() => { this._fabDragged = false; }, 300);
+              try { window.localStorage.setItem(KEY, JSON.stringify({ x: el.offsetLeft, y: el.offsetTop })); } catch (err) { /* not remembered */ }
+            }
+          };
+          window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+        });
+      } });
+    },
+
     /** The floating button opens (or closes) the navigation menu above it. */
     onToggleSide(e) {
+      if (this._fabDragged) { return; }
       const menu = this.byId("navMenu");
       if (menu.isOpen()) { menu.close(); } else { menu.openBy(e.getSource()); }
     },

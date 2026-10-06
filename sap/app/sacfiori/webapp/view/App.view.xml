@@ -31,10 +31,6 @@
       <StandardListItem title="Multi Actions" icon="sap-icon://process" type="Active" custom:key="multiactions"/>
       <StandardListItem title="Calendar" icon="sap-icon://calendar" type="Active" custom:key="calendar"/>
     </List>
-    <List class="zsacNavMenuSoon">
-      <StandardListItem title="Predictive Scenarios" icon="sap-icon://lightbulb" type="Inactive" enabled="false"/>
-      <StandardListItem title="Compass" icon="sap-icon://explorer" type="Inactive" enabled="false"/>
-    </List>
   </Popover>
   </dependents>
   </Button>
