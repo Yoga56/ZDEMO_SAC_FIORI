@@ -32,6 +32,8 @@ for _e in S.ENTITIES:
     DDLS[S.c_view(_e)] = _e["label"]
 for _n, (_label, _el) in S.ABSTRACT.items():
     DDLS[_n] = _label
+for _n, _v in S.EXTRA_DDLS.items():
+    DDLS[_n] = _v[0]
 
 DDLX: list = []
 DCLS = [S.r_view(_e) for _e in S.ENTITIES if _e.get("dcl")]

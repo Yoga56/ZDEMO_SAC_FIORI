@@ -27,7 +27,8 @@ sap.ui.define([
       this._files = await p.listFiles();
       this._tasks = await p.listTasks();
       const now = new Date();
-      this.byId("hello").setText("Hello, WCS ARNESA");
+      const who = await this.userName();
+      this.byId("hello").setText("Hello" + (who ? ", " + who : ""));
       this.byId("date").setText(now.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }));
       this._tab(this.byId("tabs").getSelectedKey());
       this._metrics(p);

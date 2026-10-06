@@ -147,6 +147,25 @@ CLASSES = {
 }
 
 
+# CDS views that are not tables of the model: written as given. ZI_SAC_USER is the business user the request runs for (read only), so the
+# app can greet them by name; it needs the released view I_BusinessUserBasic (S/4HANA Cloud), which is the first thing to check at activation.
+EXTRA_DDLS = {
+    "ZI_SAC_USER": ("Current business user", "CurrentUserInfo", """@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Current business user'
+define view entity ZI_SAC_USER
+  as select from I_BusinessUserBasic
+{
+  key BusinessPartner,
+      UserID,
+      PersonFullName,
+      FirstName,
+      LastName
+}
+where UserID = $session.user
+"""),
+}
+
+
 # column name -> CDS element name where the plain camel case would be a poor API name (VALUE is an ABAP keyword)
 ALIASES = {"FACT_VALUE": "Value"}
 

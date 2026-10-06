@@ -15,6 +15,16 @@ sap.ui.define([
     /** Resolves to the data provider chosen by the Component (mock or OData). */
     provider() { return this.getOwnerComponent().getProvider(); },
 
+    /** The name of the person using the app: from the Fiori launchpad when the app runs in one, else from the data source (the business user's full name). */
+    async userName() {
+      try {
+        const u = window.sap && sap.ushell && sap.ushell.Container && sap.ushell.Container.getService("UserInfo").getUser();
+        if (u && u.getFullName && u.getFullName()) { return u.getFullName(); }
+      } catch (e) { /* not in a launchpad */ }
+      const p = await this.provider();
+      return p.currentUserName();
+    },
+
     router() { return this.getOwnerComponent().getRouter(); },
 
     /** Calls fn each time the route is matched (after the provider is ready, because the router waits for it). */

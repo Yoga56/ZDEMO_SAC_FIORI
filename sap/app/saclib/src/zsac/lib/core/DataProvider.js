@@ -20,6 +20,8 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
     // --- ownership and sharing of stories and models (see core/Access) -----------------------------
     /** The user the data source works for ("" when it cannot tell). */
     currentUser() { return Promise.resolve(""); }
+    /** The name to greet the user with: the full name of the business user where the data source knows it, else the user id. */
+    async currentUserName() { return this.currentUser(); }
     /**
      * Who an object is shared with: [{ Principal: "BOB" | "*", Access: "READ" | "WRITE" }]. kind is "STORY" or "MODEL". The owner sees every row,
      * anyone else only the rows that are about them or about everyone.

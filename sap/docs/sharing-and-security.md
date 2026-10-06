@@ -57,6 +57,8 @@ If the system reports a problem in an access control, the app keeps working with
 3. The read-only elements `CurrentUser` (`$session.user as CurrentUser`) in `ZR_SAC_STORY` and `ZR_SAC_MODEL`: the client takes the user name from them.
 4. `authorization master ( instance )` with the `%assoc-_Widget` / `%assoc-_Dimension` / `%assoc-_Measure` entries in `get_instance_authorizations`.
 
+5. The greeting on the home page (`Hello, <name>`) reads the full name of the business user from `ZI_SAC_USER` (entity `CurrentUserInfo` of the service), a view entity over the released `I_BusinessUserBasic` that selects the row of `$session.user`. If the system reports a field of that view, adjust `ZI_SAC_USER` (the fields are `PersonFullName`, `FirstName`, `LastName`); until it works the app shows the user id. In a Fiori launchpad the name comes from the launchpad user, and in the mock data the user is "Planner" (`?user=ALICE` plays Alice).
+
 After activation check, with two users A and B: A creates a story; B does not see it (Files, Stories, `GET /Story`); A shares it with B for viewing; B sees it and gets `403` on `PATCH`; A changes the share to editing; B can save; B cannot delete it or share it.
 
 ## Calendar events

@@ -187,6 +187,7 @@ def abstract(name, label, elements):
 
 def service(E):
     exposes = "\n".join(f"  expose {S.c_view(e):<18} as {e['set']};" for e in S.ENTITIES)
+    exposes += "".join(f"\n  expose {n:<18} as {v[1]};" for n, v in S.EXTRA_DDLS.items())
     return ("@EndUserText: {\n  label: 'SAC analytics and planning service'\n}\n@ObjectModel: {\n  leadingEntity: {\n    name: 'ZC_SAC_STORY'\n  }\n}\n"
             "define service ZUI_SAC_O4\n  provider contracts odata_v4_ui {\n" + exposes + "\n}\n")
 
@@ -209,6 +210,8 @@ def main():
         write(f"{S.pool(e).lower()}.clas.abap", pool_class(e))
     for name, (label, elements) in S.ABSTRACT.items():
         write(f"{name.lower()}.ddls.asddls", abstract(name, label, elements))
+    for name, v in S.EXTRA_DDLS.items():
+        write(f"{name.lower()}.ddls.asddls", v[2])
     for e in S.ENTITIES:
         if e.get("dcl"):
             write(f"{S.r_view(e).lower()}.dcls.asdcls", dcls(e, E))

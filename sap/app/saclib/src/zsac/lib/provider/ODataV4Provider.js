@@ -179,6 +179,17 @@ sap.ui.define([
       return "";
     }
 
+    /** The full name of the business user (service entity CurrentUserInfo); the user id when the service does not give it. */
+    async currentUserName() {
+      if (this._userName) { return this._userName; }
+      try {
+        const rows = await this._list("/CurrentUserInfo", [], { $top: 1 });
+        const r = rows[0];
+        if (r) { this._userName = String(r.PersonFullName || [r.FirstName, r.LastName].filter(Boolean).join(" ") || ""); }
+      } catch (e) { /* the entity is not in this service version: fall back to the id */ }
+      return this._userName || this.currentUser();
+    }
+
     async _allShares() { return (await this._list("/Share")).map((e) => ({ Kind: e.ObjectKind, ObjectId: e.ObjectId, Principal: e.Principal, Access: e.AccessLevel })); }
 
     async _withAccess(kind, objects) {

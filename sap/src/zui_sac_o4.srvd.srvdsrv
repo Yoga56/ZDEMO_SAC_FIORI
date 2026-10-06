@@ -24,4 +24,5 @@ define service ZUI_SAC_O4
   expose ZC_SAC_RUN         as ActionRun;
   expose ZC_SAC_COMMENT     as CellComment;
   expose ZC_SAC_CALTASK     as CalendarTask;
+  expose ZI_SAC_USER        as CurrentUserInfo;
 }
