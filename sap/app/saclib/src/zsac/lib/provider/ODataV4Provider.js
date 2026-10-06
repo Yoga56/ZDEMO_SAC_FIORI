@@ -172,7 +172,7 @@ sap.ui.define([
     async currentUser() {
       if (this._user) { return this._user; }
       for (const set of ["/Story", "/Model", "/DataAction", "/CalendarTask"]) {
-        const rows = await this._list(set, [], { $select: "CurrentUser", $top: 1 }).catch(() => []);
+        const rows = await this._list(set, [], { $select: "CurrentUser" }).catch(() => []);
         this._noteUser(rows);
         if (this._user) { return this._user; }
       }
@@ -185,7 +185,7 @@ sap.ui.define([
     async currentUserName() {
       if (this._userName) { return this._userName; }
       try {
-        const rows = await this._list("/CurrentUserInfo", [], { $top: 1 });
+        const rows = await this._list("/CurrentUserInfo");
         const r = rows[0];
         if (r) { this._userName = String(r.PersonFullName || [r.FirstName, r.LastName].filter(Boolean).join(" ") || ""); }
       } catch (e) { /* the entity is not in this service version: fall back to the id */ }
