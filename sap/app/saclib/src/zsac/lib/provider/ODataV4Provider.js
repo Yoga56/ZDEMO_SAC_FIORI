@@ -271,7 +271,18 @@ sap.ui.define([
       const rows = await this._list("/File", [new Filter("ObjectId", FilterOperator.EQ, id)]);
       for (const f of rows.filter((x) => x.FileKind === type)) { await this._delete("/File(FileId=" + quote(f.FileId) + ")").catch(() => {}); }
     }
-    async deleteModel(id) { await this._invokeDelete("/Model(ModelId=" + quote(id) + ")"); await this._dropFile("MODEL", id); }
+    /** The versions and facts of a model are roots of their own on the server: they go with the model (a live model has none), as in the mock. */
+    async deleteModel(id) {
+      const model = await this.getModel(id).catch(() => null);
+      if (model && !LiveSource.isLive(model)) {
+        const facts = await this._list("/Fact", [new Filter("ModelId", FilterOperator.EQ, id)], { $select: "ModelId,VersionId,Period,Measure,Dim1,Dim2,Dim3,Dim4,Dim5,Value" });
+        for (let i = 0; i < facts.length; i += 400) { await this._action("/Fact/" + NS + "DeleteFacts(...)", { Payload: this._payload(facts.slice(i, i + 400)) }); }
+        const versions = await this.listVersions(id);
+        for (const v of versions) { await this._invokeDelete("/Version(ModelId=" + quote(id) + ",VersionId=" + quote(v.VersionId) + ")"); }
+      }
+      await this._invokeDelete("/Model(ModelId=" + quote(id) + ")");
+      await this._dropFile("MODEL", id);
+    }
 
     // ---- facts ------------------------------------------------------------------------------
     async readFacts(modelId, filters) {
