@@ -21,6 +21,7 @@ sap.ui.define([
   "../core/Format",
   "../planning/PlanGrid",
   "../planning/LockEngine",
+  "../planning/GridView",
   "../planning/PlanPublisher",
   "../planning/DataActionRun",
   "../core/VarianceEngine",
@@ -40,7 +41,7 @@ sap.ui.define([
   "sap/m/VBox", "sap/m/Button", "sap/m/MessageBox", "sap/m/MessageToast",
   "sap/ui/core/Icon"
 ], function (MultiComboBox, Text, Item, WidgetRegistry, FilterEngine, QueryEngine, SvgChart, WidgetCard, KpiTile, PivotTable, ChartData, ModelSchema, HierarchyEngine, Format,
-  PlanGrid, LockEngine, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ButtonAction, Feed, CommentThread, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast, Icon) {
+  PlanGrid, LockEngine, GridView, PlanPublisher, DataActionRun, VarianceEngine, VarianceView, VarianceDialog, GeoLocations, ValueTree, WebContent, ButtonAction, Feed, CommentThread, ValueTreeView, Compass, CompassView, HTML, Link, VBox, Button, MessageBox, MessageToast, Icon) {
   "use strict";
 
   const emptyBinding = () => ({ ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {}, Hierarchies: {} });
@@ -448,7 +449,13 @@ sap.ui.define([
       { key: "Props.Editable", label: "Editable", kind: "bool", default: true },
       { key: "Props.ExpandCols", label: "Column levels open at first", kind: "number", min: 1, default: 2 },
       { key: "Props.ExpandRows", label: "Row levels open at first", kind: "number", min: 1, default: 3 },
-      { key: "Props.ShowTotals", label: "Show totals (flat tables)", kind: "bool", default: true }
+      { key: "Props.ShowTotals", label: "Show totals (flat tables)", kind: "bool", default: true },
+      { key: "Props.SuppressZero", label: "Hide rows with only zeros", kind: "bool", default: false },
+      { key: "Props.Swap", label: "Swap rows and columns", kind: "bool", default: false },
+      { key: "Props.Scale", label: "Scale (1, 1000, 1000000)", kind: "number", default: 1 },
+      { key: "Props.Decimals", label: "Decimals (empty: from the measure)", kind: "number" },
+      { key: "Props.VarianceVs", label: "Variance to version (id, empty: none)", kind: "text" },
+      { key: "Props.Thresholds", label: "Thresholds, for example < 0 : bad; >= 100 : good", kind: "text" }
     ]),
     create(widget, ctx) {
       const grid = new PlanGrid();
@@ -462,7 +469,10 @@ sap.ui.define([
         const facts = await ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, filters));
         const comments = ctx.provider.capabilities.comments ? await ctx.provider.listComments(b.ModelId) : [];
         const lock = { compiled: LockEngine.compile(model), user: await ctx.provider.currentUser() };
-        grid.setContext({ model, facts, versions, plan: ctx.plan, comments, lock,
+        const p = widget.Props;
+        const view = Object.assign({ suppressZero: !!p.SuppressZero, swap: !!p.Swap, scale: Number(p.Scale) || 1, decimals: p.Decimals === undefined || p.Decimals === "" ? -1 : p.Decimals,
+          variance: p.VarianceVs ? { vs: p.VarianceVs, mode: "ABS" } : null, thresholds: GridView.parseThresholds(p.Thresholds) }, p.View);
+        grid.setContext({ model, facts, versions, plan: ctx.plan, comments, lock, view,
           readReference: (versionId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }))),
           spec: { rows: b.Rows || [], columns: b.Columns || [], filters, hierarchies: activeHierarchies(b) },
           options: { editable: widget.Props.Editable !== false, expandRows: Math.max(1, Number(widget.Props.ExpandRows) || 3), expandCols: Math.max(1, Number(widget.Props.ExpandCols) || 2),

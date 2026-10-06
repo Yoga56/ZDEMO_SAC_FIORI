@@ -307,3 +307,13 @@ body.zsacResizing { user-select: none; cursor: col-resize; } body.zsacResizing i
 .zsacLockChipLOCKED { background: var(--sapNeutralBackground, #eaecee); }
 .zsacLockChipRESTRICTED { background: var(--sapWarningBackground, #fef7e1); }
 .zsacLockChipOPEN { background: var(--sapSuccessBackground, #f1fdf6); }
+
+/* table functions: thresholds, variance columns, the note over the table */
+.zsacPlanGrid td.zsacThGOOD, .zsacPlanGrid td.zsacThGOOD input { color: var(--sapPositiveTextColor, #256f3a); background: var(--sapSuccessBackground, #f1fdf6); }
+.zsacPlanGrid td.zsacThCRITICAL, .zsacPlanGrid td.zsacThCRITICAL input { color: var(--sapCriticalTextColor, #926200); background: var(--sapWarningBackground, #fef7e1); }
+.zsacPlanGrid td.zsacThBAD, .zsacPlanGrid td.zsacThBAD input { color: var(--sapNegativeTextColor, #aa0808); background: var(--sapErrorBackground, #ffeaf4); }
+.zsacPlanGrid th.zsacCalcHdr { color: var(--sapContent_LabelColor, #556b82); font-style: italic; border-left: 1px solid var(--sapList_BorderColor, #d9d9d9); }
+.zsacPlanGrid td.zsacCalc { font-style: italic; border-left: 1px solid var(--sapList_BorderColor, #d9d9d9); }
+.zsacPlanGrid td.zsacVarPos { color: var(--sapPositiveTextColor, #256f3a); }
+.zsacPlanGrid td.zsacVarNeg { color: var(--sapNegativeTextColor, #aa0808); }
+.zsacViewNote { font-size: .75rem; color: var(--sapContent_LabelColor, #556b82); padding: .15rem .5rem; }

@@ -16,8 +16,9 @@ sap.ui.define([
   "./PlanEditor",
   "./GridText",
   "./FormulaEngine",
-  "./CommentKey"
-], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText, FormulaEngine, CommentKey) {
+  "./CommentKey",
+  "./GridView"
+], function (Control, MessageToast, Format, QueryEngine, PlanEditor, GridText, FormulaEngine, CommentKey, GridView) {
   "use strict";
 
   const SEP = "\u0001";
@@ -46,12 +47,53 @@ sap.ui.define([
       }
     },
 
+    /** The table function settings (see GridView): the widget's own (ctx.view) and what the planner changed since (setView). */
+    getView() { return GridView.normalize(Object.assign({}, this._ctx && this._ctx.view, this._viewOver)); },
+
+    setView(view) {
+      const swapped = this.getView().swap;
+      this._viewOver = Object.assign({}, view);
+      if (this.getView().swap !== swapped) { this._rowOpen.clear(); this._colOpen.clear(); }
+      this._sel = null;
+      this._loadRef();
+      this.invalidate();
+      if (this._ctx && this._ctx.plan) { this._ctx.plan.notifySelection(this); }
+    },
+
+    /** The rows and columns as shown: swapped when the view says so. Everything that reads a cell's members goes through this. */
+    _spec() {
+      const s = this._ctx.spec;
+      return this.getView().swap ? Object.assign({}, s, { rows: s.columns, columns: s.rows }) : s;
+    },
+
+    /** The leaf columns on screen, to pick the column to sort by. */
+    getColumnChoices() {
+      return (this._cols || []).map((k) => ({ key: k, label: k.map((m, i) => (this._spec().columns[i] === "PERIOD" ? Format.period(m) : m)).join(" / ") }));
+    },
+
+    /** Reads the reference version of the variance columns. */
+    _loadRef() {
+      const c = this._ctx;
+      const v = this.getView();
+      const token = (this._refToken = (this._refToken || 0) + 1);
+      this._ref = null;
+      const own = c && c.spec.filters && (c.spec.filters.VERSION || []).length === 1 ? c.spec.filters.VERSION[0] : "";
+      if (!v.variance || !c.readReference || !own) { return Promise.resolve(); }
+      return c.readReference(v.variance.vs).then((facts) => {
+        if (token !== this._refToken) { return; }
+        const spec = this._spec();
+        this._ref = { vs: v.variance.vs, result: QueryEngine.aggregate(c.model, facts.map((f) => Object.assign({}, f, { VersionId: own })), { rows: spec.rows, columns: spec.columns, filters: spec.filters, hierarchies: spec.hierarchies }) };
+        this.invalidate();
+      }).catch(() => {});
+    },
+
     setContext(ctx) {
       if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); if (this._onSel) { this._ctx.plan.detachSelection(this._onSel); } }
       this._ctx = ctx;
       this._sel = null;
       this._commentIndex = CommentKey.index(ctx.model, ctx.comments);
       this._base = new Map(ctx.facts.map((f) => [[f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|"), f.Value]));
+      this._loadRef();
       if (ctx.plan) { ctx.plan.attachChange(this._onPlan); this._onSel = this._onSel || (() => this._syncBar()); ctx.plan.attachSelection(this._onSel); }
       this.invalidate();
       return this;
@@ -68,7 +110,7 @@ sap.ui.define([
     /** The coordinates a comment on this cell would get, or null when the cell does not fix a single version and measure. */
     cellCoords(rk, ck) {
       const c = this._ctx;
-      const ctx = { spec: c.spec };
+      const ctx = { spec: this._spec() };
       const v = (d) => PlanEditor.valueFor(ctx, this._result, rk, ck, d);
       if (!v("VERSION") || !v("MEASURE")) { return null; }
       const dims = {};
@@ -90,7 +132,8 @@ sap.ui.define([
       const c = this._ctx;
       if (!c) { return '<div class="zsacCardMsg">No data</div>'; }
       const o = Object.assign({ editable: true, expandRows: 3, expandCols: 2, attributes: [], decimals: -1, showTotals: true }, c.options);
-      const spec = c.spec;
+      const view = (this._vw = this.getView());
+      const spec = this._spec();
       const r = (this._result = QueryEngine.aggregate(c.model, this.getFacts(), { rows: spec.rows, columns: spec.columns, filters: spec.filters, hierarchies: spec.hierarchies }));
       this._o = o;
       if (!r.rowKeys.length || !r.colKeys.length) { return '<div class="zsacCardMsg">No data for this selection. ' + (o.editable ? "Use Add row to start planning." : "") + "</div>"; }
@@ -106,13 +149,35 @@ sap.ui.define([
         }
         return true;
       }) : keys);
-      const rows = (this._rows = visible(r.rowKeys, r.rowInfo, this._rowOpen, o.expandRows));
+      // table functions: sort by a column, hide rows without a number
+      let allRows = r.rowKeys;
+      if (view.sort) {
+        const sc = r.colKeys.find((k) => keyStr(k) === keyStr(view.sort.col));
+        if (sc) { allRows = GridView.sortRows(allRows, r.rowInfo, (rk) => r.cell(rk, sc), view.sort.dir); }
+      }
+      if (view.suppressZero) { allRows = GridView.suppress(allRows, (rk) => r.colKeys.map((ck) => r.cell(rk, ck))); }
+      this._allRows = allRows;
+      if (!allRows.length) { return '<div class="zsacCardMsg">All rows are zero and hidden. Show them again in Table functions.</div>'; }
+      const rows = (this._rows = visible(allRows, r.rowInfo, this._rowOpen, o.expandRows));
       const cols = (this._cols = visible(r.colKeys, r.colInfo, this._colOpen, o.expandCols));
-      this._rowIndex = new Map(r.rowKeys.map((k, i) => [keyStr(k), i]));
+      this._rowIndex = new Map(allRows.map((k, i) => [keyStr(k), i]));
       this._colIndex = new Map(r.colKeys.map((k, i) => [keyStr(k), i]));
       const isOpen = (map, info, k, level) => (map.has(keyStr(k)) ? map.get(keyStr(k)) : info(k).depth < level);
 
-      const dec = (this._dec = o.decimals >= 0 ? o.decimals : ((r.measure || (c.model.Measures || [])[0] || {}).Decimals || 0));
+      const baseDec = view.decimals >= 0 ? view.decimals : o.decimals >= 0 ? o.decimals : ((r.measure || (c.model.Measures || [])[0] || {}).Decimals || 0);
+      const dec = (this._dec = view.scale !== 1 && view.decimals < 0 && o.decimals < 0 ? Math.max(baseDec, 1) : baseDec);
+      const shown = (v) => (v === undefined || v === null ? v : GridView.scaled(v, view.scale));
+      const ref = view.variance && this._ref && this._ref.vs === view.variance.vs ? this._ref.result : null;
+      const modes = ref ? (view.variance.mode === "BOTH" ? ["ABS", "PCT"] : [view.variance.mode]) : [];
+      const calcCount = ref ? cols.length * modes.length : 0;
+      const sign = (n, d) => (n > 0 ? "+" : "") + Format.full(n, d);
+      const varCell = (cur, rv, mode, cls) => {
+        const x = GridView.variance(cur, rv);
+        const val = mode === "ABS" ? (x.abs === null ? null : shown(x.abs)) : x.pct;
+        if (val === null || val === undefined) { return '<td class="num zsacCalc ' + cls + '"></td>'; }
+        const tone = val > 0 ? " zsacVarPos" : val < 0 ? " zsacVarNeg" : "";
+        return '<td class="num zsacCalc' + tone + " " + cls + '">' + (mode === "ABS" ? sign(val, dec) : sign(Math.round(val * 10) / 10, 1) + "%") + "</td>";
+      };
       const dimLabel = (id) => QueryEngine.labelOf(c.model, id);
       const member = (id, v) => (id === "PERIOD" ? Format.period(v) : v);
       const attrs = (o.attributes || []).map((id) => {
@@ -124,6 +189,8 @@ sap.ui.define([
 
       let h = '<div class="zsacFxBar"><span class="zsacFxName">No cell selected</span><span class="zsacFxSym">fx</span>'
         + '<input class="zsacFx" placeholder="Value or formula, for example 1200, *1.1, +500, -10%, =ACT*1.05" spellcheck="false"></div>';
+      const note = GridView.describe(view);
+      if (note) { h += '<div class="zsacViewNote">Table functions: ' + esc(note) + "</div>"; }
       h += '<table class="zsacGrid2 zsacPlanGrid"><thead>';
       const kc = spec.columns.length;
       spec.columns.forEach((cd, i) => {
@@ -150,6 +217,14 @@ sap.ui.define([
           }
           h += '<th class="' + cls + '" colspan="' + span + '" data-hc="' + n + "-" + (n + span - 1) + '">' + cell + "</th>";
           n += span;
+        }
+        if (ref) {
+          if (i < kc - 1) { h += '<th class="num zsacCalcHdr" colspan="' + calcCount + '">' + (i === 0 ? esc("Variance to " + view.variance.vs) : "") + "</th>"; } else {
+            cols.forEach((ck) => modes.forEach((m) => {
+              const label = ck.map((x, j) => member(spec.columns[j], x)).slice(kc > 1 ? kc - 1 : 0).join(" ");
+              h += '<th class="num zsacCalcHdr">' + (kc > 1 ? "" : "\u0394 ") + esc(label) + (modes.length > 1 ? (m === "ABS" ? " abs" : " %") : m === "PCT" ? " %" : "") + "</th>";
+            }));
+          }
         }
         if (totals && i === 0) { h += '<th class="num total" rowspan="' + kc + '">Total</th>'; }
         h += "</tr>";
@@ -178,9 +253,10 @@ sap.ui.define([
           const state = o.editable ? PlanEditor.cellState({ model: c.model, spec, versions: c.versions, editable: true, lock: c.lock }, r, rk, ck) : { editable: false };
           const aggregated = (info && info.hasChildren) || (r.colInfo && r.colInfo(ck).hasChildren);
           const dirty = r.cellFacts(rk, ck).some((f) => c.plan && c.plan.has(f));
-          const text = v === undefined ? "" : Format.full(v, dec);
+          const text = v === undefined ? "" : Format.full(shown(v), dec);
+          const th = GridView.level(view.thresholds, shown(v));
           const notes = this.commentsAt(rk, ck);
-          const noted = (notes.length ? " zsacHasComment" : "") + (state.lock && state.lock !== "OPEN" ? " zsacLock" + state.lock : "");
+          const noted = (th ? " zsacTh" + th : "") + (notes.length ? " zsacHasComment" : "") + (state.lock && state.lock !== "OPEN" ? " zsacLock" + state.lock : "");
           const noteTip = notes.length ? ' title="' + esc(notes.map((n) => (n.Author ? n.Author + ": " : "") + n.Text).join("\n")) + '"' : "";
           if (state.editable) {
             h += '<td class="num' + noted + '"' + noteTip + ' data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
@@ -189,13 +265,15 @@ sap.ui.define([
               + (notes.length ? noteTip : (o.editable && state.reason ? ' title="' + esc(state.reason) + '"' : "")) + ">" + text + "</td>";
           }
         });
-        if (totals) { h += '<td class="num total">' + Format.full(r.rowTotal(rk), dec) + "</td>"; }
+        if (ref) { cols.forEach((ck) => modes.forEach((m) => { h += varCell(r.cell(rk, ck), ref.cell(rk, ck), m, ""); })); }
+        if (totals) { h += '<td class="num total">' + Format.full(shown(r.rowTotal(rk)), dec) + "</td>"; }
         h += "</tr>";
       });
       if (totals && rows.length > 1) {
         h += '<tr class="grand"><td colspan="' + lead + '">Total</td>';
-        cols.forEach((ck) => { h += '<td class="num">' + Format.full(r.colTotal(ck), dec) + "</td>"; });
-        h += '<td class="num total">' + Format.full(r.grand, dec) + "</td></tr>";
+        cols.forEach((ck) => { h += '<td class="num">' + Format.full(shown(r.colTotal(ck)), dec) + "</td>"; });
+        if (ref) { cols.forEach((ck) => modes.forEach((m) => { h += varCell(r.colTotal(ck), ref.colTotal(ck), m, ""); })); }
+        h += '<td class="num total">' + Format.full(shown(r.grand), dec) + "</td></tr>";
       }
       return h + "</tbody></table>";
     },
@@ -225,8 +303,9 @@ sap.ui.define([
         if (!t) { return; }
         const r = this._result;
         if (t.hasAttribute("data-r")) {
-          const k = r.rowKeys[Number(t.getAttribute("data-r"))].join(SEP);
-          this._rowOpen.set(k, !(this._rowOpen.has(k) ? this._rowOpen.get(k) : r.rowInfo(r.rowKeys[Number(t.getAttribute("data-r"))]).depth < this._o.expandRows));
+          const rowKey = this._allRows[Number(t.getAttribute("data-r"))];
+          const k = rowKey.join(SEP);
+          this._rowOpen.set(k, !(this._rowOpen.has(k) ? this._rowOpen.get(k) : r.rowInfo(rowKey).depth < this._o.expandRows));
         } else {
           const ck = r.colKeys[Number(t.getAttribute("data-c"))];
           const k = ck.join(SEP);
@@ -380,7 +459,7 @@ sap.ui.define([
 
     _stateOf(rk, ck) {
       const c = this._ctx;
-      return PlanEditor.cellState({ model: c.model, spec: c.spec, versions: c.versions, editable: !!(this._o && this._o.editable), lock: c.lock }, this._result, rk, ck);
+      return PlanEditor.cellState({ model: c.model, spec: this._spec(), versions: c.versions, editable: !!(this._o && this._o.editable), lock: c.lock }, this._result, rk, ck);
     },
 
     /** @returns {{ri, ci, rk, ck, value, state}[]} the selected cells in reading order */
@@ -413,7 +492,7 @@ sap.ui.define([
     getModelId() { return this._ctx ? this._ctx.model.ModelId : ""; },
 
     _cellLabel(rk, ck) {
-      const spec = this._ctx.spec;
+      const spec = this._spec();
       const part = (dims, key) => key.map((m, i) => (dims[i] === "PERIOD" ? Format.period(m) : m)).join(" / ");
       return [part(spec.rows, rk), part(spec.columns, ck)].filter(Boolean).join(" \u00B7 ");
     },
@@ -422,17 +501,17 @@ sap.ui.define([
     getReferenceVersions() {
       const c = this._ctx;
       if (!c.readReference || !this._rows || !this._rows.length) { return []; }
-      const own = PlanEditor.valueFor({ spec: c.spec }, this._result, this._rows[0], this._cols[0], "VERSION");
-      if (!own || (c.spec.rows || []).concat(c.spec.columns || []).indexOf("VERSION") >= 0) { return []; }
+      const own = PlanEditor.valueFor({ spec: this._spec() }, this._result, this._rows[0], this._cols[0], "VERSION");
+      if (!own || (this._spec().rows || []).concat(this._spec().columns || []).indexOf("VERSION") >= 0) { return []; }
       return (c.versions || []).filter((v) => v.VersionId !== own);
     },
 
     /** Values of the selected cells in another version, aligned with `cells` (undefined where the reference has no value). */
     async getReferenceValues(versionId, cells) {
       const c = this._ctx;
-      const own = PlanEditor.valueFor({ spec: c.spec }, this._result, this._rows[0], this._cols[0], "VERSION");
+      const own = PlanEditor.valueFor({ spec: this._spec() }, this._result, this._rows[0], this._cols[0], "VERSION");
       const facts = (await c.readReference(versionId)).map((f) => Object.assign({}, f, { VersionId: own }));
-      const r = QueryEngine.aggregate(c.model, facts, { rows: c.spec.rows, columns: c.spec.columns, filters: c.spec.filters, hierarchies: c.spec.hierarchies });
+      const r = QueryEngine.aggregate(c.model, facts, { rows: this._spec().rows, columns: this._spec().columns, filters: this._spec().filters, hierarchies: this._spec().hierarchies });
       return cells.map((x) => r.cell(x.rk, x.ck));
     },
 
@@ -492,7 +571,7 @@ sap.ui.define([
      */
     applyCellValues(items, label) {
       const c = this._ctx;
-      const ctx = { model: c.model, spec: c.spec, versions: c.versions, editable: true, lock: c.lock };
+      const ctx = { model: c.model, spec: this._spec(), versions: c.versions, editable: true, lock: c.lock };
       const changes = new Map();
       let cells = 0; let skipped = 0; let reason = "";
       items.forEach((it) => {
@@ -521,8 +600,8 @@ sap.ui.define([
         this._formulaFor([{ ri: Number(input.dataset.ri), ci: Number(input.dataset.ci), rk, ck, value: this._result.cell(rk, ck), state: this._stateOf(rk, ck) }], input.value);
         return;
       }
-      const value = num(input.value);
-      const out = PlanEditor.edit({ model: c.model, spec: c.spec, versions: c.versions, editable: true, lock: c.lock }, this._result, rk, ck, value);
+      const value = num(input.value) * (this._vw ? this._vw.scale : 1);
+      const out = PlanEditor.edit({ model: c.model, spec: this._spec(), versions: c.versions, editable: true, lock: c.lock }, this._result, rk, ck, value);
       if (out.error) {
         MessageToast.show(out.error);
         this.fireRejected({ reason: out.error });

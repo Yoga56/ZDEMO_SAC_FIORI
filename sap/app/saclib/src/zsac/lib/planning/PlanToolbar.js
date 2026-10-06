@@ -14,8 +14,9 @@ sap.ui.define([
   "./VersionManager",
   "./VersionHistory",
   "./LockDialog",
+  "./TableFunctionsDialog",
   "./CommentDialog"
-], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, LockDialog, CommentDialog) {
+], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, LockDialog, TableFunctionsDialog, CommentDialog) {
   "use strict";
 
   return Control.extend("zsac.lib.planning.PlanToolbar", {
@@ -45,9 +46,12 @@ sap.ui.define([
       this._comment = new Button({ icon: "sap-icon://comment", tooltip: "Comments on the selected cell", type: "Transparent", enabled: false, press: () => this._doComment() });
       this._versions = new Button({ text: "Versions", icon: "sap-icon://documents", tooltip: "Version Management", type: "Transparent", press: () => this._openVersions() });
       this._locks = new Button({ icon: "sap-icon://locked", tooltip: "Data Locking: who can change which data", type: "Transparent", press: () => LockDialog.open({ provider: this._provider, modelId: this._modelId(), onChange: () => this._onChange() }) });
+      this._table = new Button({ icon: "sap-icon://table-view", tooltip: "Table Functions: sort, hide zero rows, scale, variance, thresholds, swap", type: "Transparent", enabled: false,
+        press: () => { if (this._grid()) { TableFunctionsDialog.open(this._grid(), { onApply: (v) => { if (this._opts.onView) { this._opts.onView(v); } } }); } } });
+      this._refresh = new Button({ icon: "sap-icon://refresh", tooltip: "Refresh the data", type: "Transparent", press: () => this._onChange() });
       this._historyBtn = new Button({ icon: "sap-icon://history", tooltip: "Version History", type: "Transparent", press: () => this._openHistory() });
-      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx, this._comment,
-        this._versions, this._locks, this._historyBtn, new ToolbarSpacer(), this._status] }));
+      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx, this._table, this._comment,
+        this._versions, this._locks, this._historyBtn, this._refresh, new ToolbarSpacer(), this._status] }));
       this._guard = (e) => { if (this._plan && this._plan.dirty) { e.preventDefault(); e.returnValue = ""; } };
       window.addEventListener("beforeunload", this._guard);
     },
@@ -133,6 +137,7 @@ sap.ui.define([
       const g = this._grid();
       const sel = g ? g.selectionInfo() : { count: 0, editable: 0 };
       this._distribute.setEnabled(sel.editable > 0);
+      this._table.setEnabled(!!g);
       this._copy.setEnabled(sel.count > 0);
       this._paste.setEnabled(sel.count > 0);
       this._comment.setEnabled(!!this._commentCell());

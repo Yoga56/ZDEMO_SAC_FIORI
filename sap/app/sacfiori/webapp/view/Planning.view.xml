@@ -10,6 +10,7 @@
         <Select id="hier" change=".onHierarchy" width="13rem" tooltip="Group rows by a hierarchy" visible="false"/>
         <ToolbarSeparator/>
         <ToolbarSpacer/>
+        <MenuButton id="bookmarks" text="Bookmarks" icon="sap-icon://bookmark" tooltip="Saved views: model, version, measure, hierarchy and table functions"/>
         <Button id="addRow" text="Add row" icon="sap-icon://add" press=".onAddRow"/>
         <MenuButton id="actions" text="Run data action" icon="sap-icon://workflow-tasks" type="Emphasized"/>
       </OverflowToolbar>

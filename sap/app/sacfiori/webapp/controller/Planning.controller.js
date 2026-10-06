@@ -2,18 +2,19 @@ sap.ui.define([
   "./BaseController",
   "sap/ui/core/Item",
   "sap/m/Menu", "sap/m/MenuItem",
-  "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/VBox", "sap/m/Text", "sap/m/TextArea",
+  "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/VBox", "sap/m/HBox", "sap/m/Text", "sap/m/TextArea",
   "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem", "sap/m/ScrollContainer",
   "zsac/lib/designer/FilterEditor",
   "zsac/lib/core/WidgetRegistry",
   "zsac/lib/core/EventBus",
   "zsac/lib/core/HierarchyEngine",
+  "zsac/lib/core/Bookmarks",
   "zsac/lib/planning/PlanBuffer",
   "zsac/lib/planning/PlanEditor",
   "zsac/lib/planning/PlanPublisher",
   "zsac/lib/widget/Widgets"
-], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor,
-  WidgetRegistry, EventBus, HierarchyEngine, PlanBuffer, PlanEditor, PlanPublisher) {
+], function (BaseController, Item, Menu, MenuItem, Dialog, Button, Input, Select, Label, VBox, HBox, Text, TextArea, Table, Column, ColumnListItem, ScrollContainer, FilterEditor,
+  WidgetRegistry, EventBus, HierarchyEngine, Bookmarks, PlanBuffer, PlanEditor, PlanPublisher) {
   "use strict";
 
   const CATEGORY = { ACTUAL: "Actual", BUDGET: "Budget", FORECAST: "Forecast", PRIVATE: "Private" };
@@ -36,7 +37,9 @@ sap.ui.define([
     async _open(query) {
       const p = (this._p = await this.provider());
       this.byId("planBar").attach({ plan: this._plan, provider: p, onChange: () => this._reload(), modelId: () => (this._model ? this._model.ModelId : ""),
-        onVersions: () => this._versions(), onSelect: (id) => { this.byId("version").setSelectedKey(id); this._reload(); } });
+        onVersions: () => this._versions(), onSelect: (id) => { this.byId("version").setSelectedKey(id); this._reload(); }, onView: (v) => { this._view = v; } });
+      const storage = { getItem: (k) => window.localStorage.getItem(k), setItem: (k, v) => window.localStorage.setItem(k, v) };
+      this._bm = Bookmarks.open(storage, "zsac.bookmarks.planning", await p.currentUser());
       this._models = await p.listModels();
       const sel = this.byId("model");
       sel.destroyItems();
@@ -45,9 +48,67 @@ sap.ui.define([
       const id = this._models.some((m) => m.ModelId === query.model) ? query.model : (this._model ? this._model.ModelId : this._models[0].ModelId);
       sel.setSelectedKey(id);
       await this._setModel(id, query.version);
+      this._bookmarkMenu();
+      // the planner's default bookmark opens with the page, once, unless the link names a model or a version
+      const first = this._bm.defaultOne();
+      if (first && !this._defaultDone && !query.model && !query.version) { this._defaultDone = true; await this._applyBookmark(first); }
+      this._defaultDone = true;
+    },
+
+    // ---- bookmarks -----------------------------------------------------------------------
+    _bookmarkState() {
+      return { model: this._model.ModelId, version: this.byId("version").getSelectedKey(), measure: this.byId("measure").getSelectedKey(),
+        hier: this.byId("hier").getSelectedKey(), compare: this.byId("compare").getSelectedKey(), view: this._view || {} };
+    },
+
+    async _applyBookmark(b) {
+      const s = b.State;
+      if (!this._models.some((m) => m.ModelId === s.model)) { throw new Error("The model of this bookmark does not exist any more"); }
+      this.byId("model").setSelectedKey(s.model);
+      await this._setModel(s.model, s.version);
+      const pick = (id, key) => { const sel = this.byId(id); if (sel.getItems().some((i) => i.getKey() === key)) { sel.setSelectedKey(key); } };
+      pick("measure", s.measure); pick("hier", s.hier); pick("compare", s.compare);
+      this._view = s.view || {};
+      await this._reload();
+    },
+
+    _bookmarkMenu() {
+      const btn = this.byId("bookmarks");
+      if (btn.getMenu()) { btn.getMenu().destroy(); }
+      const menu = new Menu();
+      menu.addItem(new MenuItem({ text: "Save current view...", icon: "sap-icon://save", press: () => this._saveBookmark() }));
+      const list = this._bm.list();
+      menu.addItem(new MenuItem({ text: "Manage bookmarks...", icon: "sap-icon://action-settings", enabled: list.length > 0, press: () => this._manageBookmarks() }));
+      list.forEach((b, i) => menu.addItem(new MenuItem({ text: b.Name + (b.Default ? " (default)" : ""), beginsSection: i === 0, press: () => this._applyBookmark(b).catch((x) => this.fail(x)) })));
+      btn.setMenu(menu);
+    },
+
+    _saveBookmark() {
+      const name = new Input({ width: "100%", placeholder: "For example Budget in thousands" });
+      this._dialog("Save current view", [new Label({ text: "Name", required: true }), name, new Text({ text: "Keeps the model, version, measure, hierarchy, comparison and table functions. The same name replaces a bookmark." }).addStyleClass("zsacSmall")],
+        "Save", async () => { this._bm.save(name.getValue(), this._bookmarkState()); this._bookmarkMenu(); sap.ui.require(["sap/m/MessageToast"], (T) => T.show("Bookmark saved")); });
+    },
+
+    _manageBookmarks() {
+      const box = new VBox({ width: "100%" });
+      const render = () => {
+        box.destroyItems();
+        const list = this._bm.list();
+        list.forEach((b) => {
+          const name = new Input({ value: b.Name, width: "12rem", change: () => { try { this._bm.rename(b.Id, name.getValue()); this._bookmarkMenu(); } catch (e) { name.setValue(b.Name); this.fail(e); } } });
+          box.addItem(new HBox({ alignItems: "Center", class: "sapUiTinyMarginBottom", items: [name,
+            new Button({ text: b.Default ? "Default" : "Make default", type: b.Default ? "Emphasized" : "Default", press: () => { this._bm.setDefault(b.Default ? "" : b.Id); this._bookmarkMenu(); render(); } }).addStyleClass("sapUiTinyMarginBegin"),
+            new Button({ icon: "sap-icon://delete", type: "Transparent", press: () => { this._bm.remove(b.Id); this._bookmarkMenu(); render(); } })] }));
+        });
+        if (!list.length) { box.addItem(new Text({ text: "No bookmarks" })); }
+      };
+      render();
+      const dlg = new Dialog({ title: "Bookmarks", content: [this._margin({ width: "24rem", items: [box] })], endButton: new Button({ text: "Close", press: () => dlg.close() }), afterClose: () => dlg.destroy() });
+      dlg.open();
     },
 
     async _setModel(id, versionId) {
+      if (!this._model || this._model.ModelId !== id) { this._view = {}; }       // table functions belong to a model
       this._model = this._models.find((m) => m.ModelId === id);
       const m = this._model;
       const measure = this.byId("measure");
@@ -102,7 +163,7 @@ sap.ui.define([
       const widget = { Id: "PLAN_PAGE", Type: "planning.table", Title: "", Page: 1, X: 0, Y: 0, W: 12, H: 8,
         Binding: { ModelId: m.ModelId, Rows: rows, Columns: ["PERIOD"], Measure: measure, Filters: { VERSION: [v.VersionId], MEASURE: [measure] },
           Hierarchies: Object.assign({ PERIOD: "TIME" }, hdim ? { [dimId]: hierId } : {}) },
-        Props: { Editable: !v.Locked && !off, ExpandRows: 3, ExpandCols: 2, ShowTotals: true } };
+        Props: { Editable: !v.Locked && !off, ExpandRows: 3, ExpandCols: 2, ShowTotals: true, View: this._view || {} } };
       this._widget = widget;
       const host = this.byId("gridHost");
       host.destroyItems();
