@@ -176,7 +176,9 @@ def dcls(e, E):
         body = "    where OwnerId = aspect user\n       or Principal = aspect user\n       or Principal = '*';"
     else:
         parent = S.r_view(E[e["parent"][0]]) if kind == "parent" else "ZR_SAC_MODEL"
-        body = f"    where inheriting conditions from entity {parent};"
+        assoc = e["parent"][1] if kind == "parent" else "_Model"
+        # the conditions of the parent are about the parent's own fields (OwnerId, _ShareMe ...): they are read through the association to it
+        body = f"    where inheriting conditions from entity {parent}\n      replacing {{ root with {assoc} }};"
     return (f"@EndUserText.label: 'Access control for {e['label'].lower()}'\n@MappingRole: true\ndefine role {name}\n{{\n  grant select on {name}\n{body}\n}}\n")
 
 

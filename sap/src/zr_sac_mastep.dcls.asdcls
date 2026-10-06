@@ -3,5 +3,6 @@
 define role ZR_SAC_MASTEP
 {
   grant select on ZR_SAC_MASTEP
-    where inheriting conditions from entity ZR_SAC_MULTIACT;
+    where inheriting conditions from entity ZR_SAC_MULTIACT
+      replacing { root with _MultiAction };
 }

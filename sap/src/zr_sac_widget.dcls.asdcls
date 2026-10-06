@@ -3,5 +3,6 @@
 define role ZR_SAC_WIDGET
 {
   grant select on ZR_SAC_WIDGET
-    where inheriting conditions from entity ZR_SAC_STORY;
+    where inheriting conditions from entity ZR_SAC_STORY
+      replacing { root with _Story };
 }

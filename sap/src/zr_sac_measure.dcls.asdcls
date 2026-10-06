@@ -3,5 +3,6 @@
 define role ZR_SAC_MEASURE
 {
   grant select on ZR_SAC_MEASURE
-    where inheriting conditions from entity ZR_SAC_MODEL;
+    where inheriting conditions from entity ZR_SAC_MODEL
+      replacing { root with _Model };
 }

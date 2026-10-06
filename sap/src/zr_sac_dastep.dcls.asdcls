@@ -3,5 +3,6 @@
 define role ZR_SAC_DASTEP
 {
   grant select on ZR_SAC_DASTEP
-    where inheriting conditions from entity ZR_SAC_DATAACT;
+    where inheriting conditions from entity ZR_SAC_DATAACT
+      replacing { root with _DataAction };
 }
