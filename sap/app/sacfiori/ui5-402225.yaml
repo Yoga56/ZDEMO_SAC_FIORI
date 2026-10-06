@@ -19,7 +19,7 @@ server:
             - /resources
             - /test-resources
           url: https://ui5.sap.com
-          version: 1.136.0
+          version: 1.136.12
         backend:
           - path: /sap
             destination: S4_402225_DEV
