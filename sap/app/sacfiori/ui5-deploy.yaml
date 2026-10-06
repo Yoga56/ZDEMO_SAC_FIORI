@@ -12,5 +12,6 @@ builder:
         app:
           name: ZSAC_FIORI
           description: Analytics and Planning (SAC style)
-          package: ZSAC_FIORI
+          # the package the ABAP sources were pulled into (the repository is shared by clients 80 and 100; deploy from client 80 only)
+          package: ZDEMO_SAC_FIORI
           # add "transport: <request>" when the system asks for one

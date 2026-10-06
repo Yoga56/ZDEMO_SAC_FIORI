@@ -75,7 +75,7 @@ Same flow as Estate Command.
    abapGit on purpose.
 4. Run `ZCL_SAC_SEED` with F9 for the sample models, plan data, story and actions. If content was saved before
    sharing existed, run `ZCL_SAC_CLAIM_OWNERS` once (gives it to the user who created it).
-5. UI: `cd sap/app/sacfiori && npm run deploy` (builds with the library included in the app, then `fiori deploy`; target
+5. UI: deploy from **client 80** only (destination `my402244`; clients 80 and 100 share the repository, so the app is in client 100 as well). The package in `ui5-deploy.yaml` must be the one the ABAP sources were pulled into (`ZDEMO_SAC_FIORI` on the development system; change it if yours is called differently). Client 100 refuses the upload ("not permitted services for ABAP for Key Users") unless the service is released for key users, which is why the deploy goes through client 80. `cd sap/app/sacfiori && npm run deploy` (builds with the library included in the app, then `fiori deploy`; target
    destination and package are in `ui5-deploy.yaml`). Set `"provider": "odata"` in `manifest.json` (`sap.ui5/config`) or open with `?provider=odata`.
    In BAS use `npm start`; from a laptop `npm run start-local`.
 6. `sap/src/zsac_fiori_ui5r.uiad.json` is the Launchpad app descriptor. abapGit ignores it (the UI5 app `zsac.fiori` must exist on the system first, otherwise the pull reports "UI5 Component 'zsac.fiori' does not exist"): deploy the app from BAS (`npm run deploy`), then create the app descriptor item in ADT from this file.
