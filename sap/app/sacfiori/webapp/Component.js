@@ -21,7 +21,7 @@ sap.ui.define([
   ];
 
   /**
-   * Chooses the data provider: ?provider=odata in the URL, else sap.ui5/config/provider of the manifest (mock).
+   * Chooses the data provider: ?provider=mock or ?provider=odata in the URL; else odata when the app runs from the ABAP system or a launchpad; else sap.ui5/config/provider of the manifest (mock).
    * `component.providerReady` resolves to the provider; the router starts when it is ready.
    */
   return UIComponent.extend("zsac.fiori.Component", {
@@ -36,7 +36,9 @@ sap.ui.define([
 
     async _createProvider() {
       const fromUrl = new URLSearchParams(window.location.search).get("provider");
-      const name = fromUrl || this.getManifestEntry("/sap.ui5/config/provider") || "mock";
+      // the app deployed to the ABAP system (or opened from a launchpad) works on the backend; the mock data is for development
+      const deployed = /\/sap\/bc\/ui5_ui5\//.test(window.location.pathname) || !!(window.sap && sap.ushell && sap.ushell.Container);
+      const name = fromUrl || (deployed ? "odata" : this.getManifestEntry("/sap.ui5/config/provider")) || "mock";
       // ?user=ALICE plays another user of the sample data: sharing and ownership can be tried without a backend
       if (name !== "odata") { return ProviderRegistry.get({ name, user: new URLSearchParams(window.location.search).get("user") || undefined }); }
       const ODataModel = await new Promise((resolve) => sap.ui.require(["sap/ui/model/odata/v4/ODataModel"], resolve));
