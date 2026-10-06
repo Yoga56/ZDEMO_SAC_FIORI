@@ -52,6 +52,8 @@ sap.ui.define([
 
     // ---- lookups -------------------------------------------------------------------------------------------------------------------
     _model(id) { return this._models.find((m) => m.ModelId === id); },
+    /** The models a step can write to: a live model is read from its source and cannot be written. */
+    _planModels() { return this._models.filter((m) => !(m.Source && m.Source.Mode === "LIVE")); },
     _dimsOf(modelId) {
       const m = this._model(modelId);
       return (m ? m.Dimensions.map((d) => ({ id: d.DimId, label: d.Label || d.DimId })) : []).concat([{ id: "VERSION", label: "Version" }, { id: "PERIOD", label: "Date" }]);
@@ -275,7 +277,7 @@ sap.ui.define([
         this._field(card, "Type", new Select({ selectedKey: p.Type, width: "100%", items: [new Item({ key: "MEMBER", text: "Member" }), new Item({ key: "NUMBER", text: "Number" })],
           change: (e) => { p.Type = e.getParameter("selectedItem").getKey(); p.Default = p.Type === "NUMBER" ? 0 : []; this._changed(true); } }));
         if (p.Type === "MEMBER") {
-          this._field(card, "Model", new Select({ selectedKey: p.ModelId, width: "100%", forceSelection: false, items: this._models.map((m) => new Item({ key: m.ModelId, text: m.Name })),
+          this._field(card, "Model", new Select({ selectedKey: p.ModelId, width: "100%", forceSelection: false, items: this._planModels().map((m) => new Item({ key: m.ModelId, text: m.Name })),
             change: (e) => { p.ModelId = e.getParameter("selectedItem").getKey(); p.DimId = ""; p.Default = []; this._changed(true); } }));
           if (p.ModelId) {
             this._field(card, "Dimension", new Select({ selectedKey: p.DimId, width: "100%", forceSelection: false, items: this._dimsOf(p.ModelId).map((d) => new Item({ key: d.id, text: d.label })),
@@ -369,7 +371,7 @@ sap.ui.define([
 
     _publishEditor(edit, s) {
       this._field(edit, "Model", new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,
-        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._planModels().map((m) => new Item({ key: m.ModelId, text: m.Name }))),
         change: (e) => { s.ModelId = e.getParameter("selectedItem").getKey(); s.SourceVersion = ""; s.TargetVersion = ""; this._changed(true); } }));
       if (!s.ModelId) { return; }
       const versionParams = this._a.Parameters.filter((p) => p.Type === "MEMBER" && p.DimId === "VERSION");
@@ -381,7 +383,7 @@ sap.ui.define([
     /** Version Management and Data Locking: model, operation and the version it works on (a version id or a version parameter). */
     _versionStepEditor(edit, s) {
       this._field(edit, "Model", new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,
-        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._planModels().map((m) => new Item({ key: m.ModelId, text: m.Name }))),
         change: (e) => { s.ModelId = e.getParameter("selectedItem").getKey(); s.SourceVersion = ""; s.Version = ""; this._changed(true); } }));
       const ops = Schema.OPERATIONS[s.StepType];
       this._field(edit, "Operation", new Select({ width: "100%", selectedKey: s.Operation, items: Object.keys(ops).map((k) => new Item({ key: k, text: ops[k] })),
@@ -409,7 +411,7 @@ sap.ui.define([
 
     _modelSelect(s, onChange) {
       return new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,
-        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._planModels().map((m) => new Item({ key: m.ModelId, text: m.Name }))),
         change: (e) => { s.ModelId = e.getParameter("selectedItem").getKey(); onChange(); this._changed(true); } });
     },
 
@@ -485,7 +487,7 @@ sap.ui.define([
     // Import from Source -------------------------------------------------------------------------------------------------------
     _copyModelEditor(edit, s) {
       const pick = (key, onPicked) => new Select({ width: "100%", forceSelection: false, selectedKey: s[key],
-        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._planModels().map((m) => new Item({ key: m.ModelId, text: m.Name }))),
         change: (e) => { s[key] = e.getParameter("selectedItem").getKey(); onPicked(); this._changed(true); } });
       this._field(edit, "Copy from model", pick("ModelId", () => { s.SourceVersion = ""; }));
       this._field(edit, "Copy into model", pick("TargetModelId", () => { s.TargetVersion = ""; s.Fixed = ""; }), "Dimensions and measures are matched by their ids; what the target does not have is left out and reported.");

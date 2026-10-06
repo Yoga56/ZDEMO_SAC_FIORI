@@ -88,8 +88,10 @@ sap.ui.define([
     onNew() {
       if (!this._models || !this._models.length) { this.toast("Create a dataset first"); return; }
       const name = new Input({ width: "100%", placeholder: "Name" });
-      const model = new Select({ width: "100%", selectedKey: this._models[0].ModelId });
-      this._models.forEach((m) => model.addItem(new Item({ key: m.ModelId, text: m.Name })));
+      const writable = this._models.filter((m) => !(m.Source && m.Source.Mode === "LIVE"));   // a live model is read from its source and cannot be written
+      if (!writable.length) { this.toast("Create a dataset first (a live model cannot be written)"); return; }
+      const model = new Select({ width: "100%", selectedKey: writable[0].ModelId });
+      writable.forEach((m) => model.addItem(new Item({ key: m.ModelId, text: m.Name })));
       const dlg = new Dialog({ title: "Create data action",
         content: [this._margin({ width: "22rem", items: [new Label({ text: "Name", required: true }), name, new Label({ text: "Model", required: true }), model] })],
         beginButton: new Button({ text: "Create", type: "Emphasized", press: this.guard(async () => {

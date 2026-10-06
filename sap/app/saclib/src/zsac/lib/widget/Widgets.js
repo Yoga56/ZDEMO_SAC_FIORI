@@ -965,6 +965,15 @@ sap.ui.define([
       }
       if (widget.Props && "Dimension" in widget.Props && !widget.Props.Dimension && dims[0]) { widget.Props.Dimension = dims[0].DimId; }
     }
+    // a variance explainer starts on the actuals against the budget (else the forecast, else the first two public versions)
+    if (widget.Type === "variance" && widget.Props) {
+      const pub = (versions || []).filter((v) => v.Category !== "PRIVATE");
+      const base = pub.find((v) => v.Category === "ACTUAL") || pub[0];
+      const other = pub.find((v) => v.Category === "BUDGET" && v !== base) || pub.find((v) => v.Category === "FORECAST" && v !== base) || pub.find((v) => v !== base);
+      if (!b.Measure && model && model.Measures && model.Measures[0]) { b.Measure = model.Measures[0].MeasureId; }
+      if (!widget.Props.BaseVersion && base) { widget.Props.BaseVersion = base.VersionId; }
+      if (!widget.Props.CompareVersion && other) { widget.Props.CompareVersion = other.VersionId; }
+    }
     // a planning table starts on an unlocked budget version, everything else on the first public one
     const first = widget.Type === "planning.table"
       ? ((versions || []).find((v) => v.Category === "BUDGET" && !v.Locked) || (versions || []).find((v) => v.Category !== "PRIVATE" && !v.Locked))
