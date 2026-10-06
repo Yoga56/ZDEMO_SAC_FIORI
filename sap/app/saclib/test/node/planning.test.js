@@ -169,3 +169,12 @@ test("formulas: arithmetic, shorthand, percentages, references, errors", () => {
   assert.ok(!FormulaEngine.isFormula("-5") && !FormulaEngine.isFormula("1,234") && !FormulaEngine.isFormula("10%") && !FormulaEngine.isFormula(""));
   assert.strictEqual(run("=-5"), -5);                      // with "=" a sign is a sign, not shorthand
 });
+
+test("formula names: version, measure, and measure@version", () => {
+  const FormulaEngine = req("zsac/lib/planning/FormulaEngine");
+  const f = FormulaEngine.compile("=COST@ACT * 2 + REV - current");
+  assert.deepStrictEqual(f.names.sort(), ["COST@ACT", "REV"]);
+  assert.strictEqual(f.evaluate({ current: 1, refs: { "COST@ACT": 10, REV: 5 } }), 24);
+  assert.ok(FormulaEngine.compile("=A@").error);
+  assert.strictEqual(FormulaEngine.compile("*1.1").evaluate({ current: 10, refs: {} }), 11);
+});

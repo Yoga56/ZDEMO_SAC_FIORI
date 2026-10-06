@@ -51,5 +51,11 @@ A calculated measure is a formula over measures, for example `PROFIT = REVENUE -
 * **Currency Conversion** (data action step): converts values from the currency of the members of a dimension (its `CURRENCY` attribute) or from one currency into another with rates written as `USD>EUR=0.92`, `USD>EUR@2026-Q2=0.94`, `USD>EUR@2026-03=0.93` (month beats quarter beats year beats no period; a pair also converts back). It can write into another version or measure. A missing rate stops the action, nothing is written.
 * **Copy to another Model** (multi action step): copies a version's values into a version of another model. Dimensions and measures are matched by id; target dimensions the source lacks take a fixed member (`SCENARIO=BASE`); values landing on the same target cell are added up; what the target cannot hold (a measure it does not have, a month outside its periods, an unknown member) is left out and reported in the log.
 
+## Formulas
+The formula bar (`fx`) knows `current`, version ids (`=ACT*1.05`), **measure ids** (`=COST*0.6`: the same cell in that measure of the table's version) and **MEASURE@VERSION** (`=COST@ACT`). The table must show one measure for measure names to work. Formulas still cannot refer to single members or to other cells.
+
+* **Advanced Formula** (data action step): `REVENUE - COST`, `REVENUE@ACT * 1.05`, worked out for every combination of members the step's filter covers and written to a target measure (and version); a cell where it cannot be worked out is skipped. It works on single values, so a ratio is not summed over members: for a ratio of totals use a calculated measure.
+* **Undo and redo** in the Modeller (every change to measures, dimensions, members, calculations and settings, until the model is saved or closed).
+
 ## Gaps that remain
-Planning: an allocation designer beyond the data action's allocation step, calculated rows (calculations are columns), cell validation by lookup of master data, the page-level filters of SAC stories as a bar over several tables. Planning formulas still cannot refer to members or other measures.
+Planning: an allocation designer beyond the data action's allocation step, calculated rows (calculations are columns), cell validation by lookup of master data, the page-level filters of SAC stories as a bar over several tables. Planning formulas cannot refer to single members; a data action runs on single values and not on aggregated cells.

@@ -4,6 +4,8 @@
  *   =120000*1.05          arithmetic with + - * / ^ and parentheses
  *   *1.1   +500   -10%    a leading operator works on the cell's current value:  current*1.1, current+500, current-10%
  *   =ACT*1.05             a version id stands for the same cell in that version
+ *   =COST*0.6             a measure id stands for the same cell in that measure (in the table's version)
+ *   =COST@ACT             a measure id and a version id: that measure in that version
  *   =current+ACT/12       `current` is the cell's own value
  *
  * A percentage after + or - is relative to the left side (a+10% is a*1.1, a-10% is a*0.9); after * it is a fraction (a*10% is a*0.1);
@@ -30,7 +32,7 @@ sap.ui.define([], function () {
       if (/\s/.test(c)) { i++; continue; }
       let m = /^(\d+(\.\d+)?|\.\d+)/.exec(src.slice(i));
       if (m) { out.push({ t: "num", v: Number(m[1]) }); i += m[1].length; continue; }
-      m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(src.slice(i));
+      m = /^[A-Za-z_][A-Za-z0-9_]*(?:@[A-Za-z_][A-Za-z0-9_]*)?/.exec(src.slice(i));
       if (m) { out.push({ t: "id", v: m[0] }); i += m[0].length; continue; }
       if ("+-*/^()%".indexOf(c) >= 0) { out.push({ t: c }); i++; continue; }
       throw new Error("Unexpected \"" + c + "\" in the formula");

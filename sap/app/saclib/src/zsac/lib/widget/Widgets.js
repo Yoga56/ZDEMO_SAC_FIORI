@@ -474,7 +474,7 @@ sap.ui.define([
         const view = Object.assign({ suppressZero: !!p.SuppressZero, swap: !!p.Swap, scale: Number(p.Scale) || 1, decimals: p.Decimals === undefined || p.Decimals === "" ? -1 : p.Decimals,
           variance: p.VarianceVs ? { vs: p.VarianceVs, mode: "ABS" } : null, thresholds: GridView.parseThresholds(p.Thresholds), calcs: GridView.parseCalcs(p.Calcs) }, p.View);
         grid.setContext({ model, facts, versions, plan: ctx.plan, comments, lock, view,
-          readReference: (versionId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }))),
+          readReference: (versionId, measureId) => ctx.provider.readFacts(b.ModelId, QueryEngine.expandFilters(model, Object.assign({}, filters, { VERSION: [versionId] }, measureId ? { MEASURE: [measureId] } : {}))),
           spec: { rows: b.Rows || [], columns: b.Columns || [], filters, hierarchies: activeHierarchies(b) },
           options: { editable: widget.Props.Editable !== false, expandRows: Math.max(1, Number(widget.Props.ExpandRows) || 3), expandCols: Math.max(1, Number(widget.Props.ExpandCols) || 2),
             attributes: widget.Props.Attributes || [], showTotals: widget.Props.ShowTotals !== false } });

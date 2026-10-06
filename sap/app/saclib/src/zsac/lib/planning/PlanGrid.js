@@ -489,13 +489,22 @@ sap.ui.define([
       const f = FormulaEngine.compile(FormulaEngine.isFormula(t) || /^=/.test(t) ? t : "=" + t);
       if (f.error) { MessageToast.show(f.error); this.invalidate(); return; }
       const ids = (this._ctx.versions || []).map((v) => v.VersionId);
+      const measureIds = (this._ctx.model.Measures || []).map((m) => m.MeasureId);
       const usable = this.getReferenceVersions().map((v) => v.VersionId);
+      const own = PlanEditor.valueFor({ spec: this._spec() }, this._result, this._rows[0], this._cols[0], "VERSION");
       const refs = {};
       for (const name of f.names) {
-        const id = ids.find((x) => x.toUpperCase() === name.toUpperCase());
-        if (!id) { MessageToast.show("Unknown name " + name + ". Use current or a version id: " + ids.join(", ")); this.invalidate(); return; }
-        if (usable.indexOf(id) < 0) { MessageToast.show("Version " + id + " cannot be used in this table"); this.invalidate(); return; }
-        refs[name] = await this.getReferenceValues(id, cells);
+        // NAME is a version or a measure; MEASURE@VERSION is a measure in a version
+        const [a, b] = name.split("@");
+        const find = (list, x) => list.find((y) => y.toUpperCase() === String(x).toUpperCase());
+        let version = ""; let measure = "";
+        if (b !== undefined) { measure = find(measureIds, a) || ""; version = find(ids, b) || ""; if (!measure || !version) { MessageToast.show("Unknown name " + name + ". Write MEASURE@VERSION with a measure (" + measureIds.join(", ") + ") and a version (" + ids.join(", ") + ")"); this.invalidate(); return; } }
+        else if (find(ids, a)) { version = find(ids, a); }
+        else if (find(measureIds, a)) { measure = find(measureIds, a); version = own; }
+        else { MessageToast.show("Unknown name " + name + ". Use current, a version (" + ids.join(", ") + ") or a measure (" + measureIds.join(", ") + ")"); this.invalidate(); return; }
+        if (version !== own && usable.indexOf(version) < 0) { MessageToast.show("Version " + version + " cannot be used in this table"); this.invalidate(); return; }
+        if (measure && (this._spec().rows.concat(this._spec().columns).indexOf("MEASURE") >= 0)) { MessageToast.show("A measure can be used in a formula when the table shows one measure"); this.invalidate(); return; }
+        refs[name] = await this.getReferenceValues(version, cells, measure);
       }
       const items = [];
       let bad = 0;
@@ -578,10 +587,11 @@ sap.ui.define([
     },
 
     /** Values of the selected cells in another version, aligned with `cells` (undefined where the reference has no value). */
-    async getReferenceValues(versionId, cells) {
+    async getReferenceValues(versionId, cells, measureId) {
       const c = this._ctx;
       const own = PlanEditor.valueFor({ spec: this._spec() }, this._result, this._rows[0], this._cols[0], "VERSION");
-      const facts = (await c.readReference(versionId)).map((f) => Object.assign({}, f, { VersionId: own }));
+      const ownMeasure = PlanEditor.valueFor({ spec: this._spec() }, this._result, this._rows[0], this._cols[0], "MEASURE");
+      const facts = (await c.readReference(versionId, measureId || "")).map((f) => Object.assign({}, f, { VersionId: own }, measureId && ownMeasure ? { Measure: ownMeasure } : {}));
       const r = QueryEngine.aggregate(c.model, facts, { rows: this._spec().rows, columns: this._spec().columns, filters: this._spec().filters, hierarchies: this._spec().hierarchies });
       return cells.map((x) => r.cell(x.rk, x.ck));
     },
