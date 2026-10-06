@@ -23,7 +23,7 @@ sap.ui.define([
         const w = { Id: "ANALYSER", Page: 1, Type: "table", Title: "Analysis", X: 0, Y: 0, W: 12, H: 6,
           Binding: { ModelId: "", Rows: [], Columns: [], Measure: "", Filters: {} }, Props: { ShowTotals: true, Decimals: 0 } };
         if (models.length) {
-          const m = models[0];
+          const m = models.find((x) => !(x.Source && x.Source.Mode === "LIVE")) || models[0];   // start on a model held here: a live one needs its source
           w.Binding.Rows = [m.Dimensions[0].DimId];
           w.Binding.Columns = ["VERSION"];
           Widgets.autoBind(w, m, await p.listVersions(m.ModelId));

@@ -46,7 +46,7 @@ sap.ui.define([
       sel.destroyItems();
       this._models.forEach((m) => sel.addItem(new Item({ key: m.ModelId, text: m.Name })));
       if (!this._models.length) { this.byId("lockStrip").setText("Create a dataset first (Datasets).").setType("Warning").setVisible(true); return; }
-      const id = this._models.some((m) => m.ModelId === query.model) ? query.model : (this._model ? this._model.ModelId : this._models[0].ModelId);
+      const id = this._models.some((m) => m.ModelId === query.model) ? query.model : (this._model ? this._model.ModelId : (this._models.find((m) => !(m.Source && m.Source.Mode === "LIVE")) || this._models[0]).ModelId);   // a live model is read only: start on one that can be planned
       sel.setSelectedKey(id);
       await this._setModel(id, query.version);
       this._bookmarkMenu();
