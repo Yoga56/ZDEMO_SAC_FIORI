@@ -1,0 +1,7 @@
+@EndUserText.label: 'Business data for SAC on Fiori'
+define service ZUI_SAC_BIZ {
+  expose ZI_SAC_SALES_PERIOD      as SAC_SALES_PERIOD;
+  expose ZI_SAC_PURCHASE_PERIOD   as SAC_PURCHASE_PERIOD;
+  expose ZI_SAC_COSTCENTER_PERIOD as SAC_COSTCENTER_PERIOD;
+  expose ZI_SAC_OPENITEM_PERIOD   as SAC_OPENITEM_PERIOD;
+}
