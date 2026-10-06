@@ -288,6 +288,30 @@ sap.ui.define([], function () {
     return Object.assign({}, e, { Status: f.to, Progress: f.progress !== undefined ? f.progress : (f.to === "OPEN" ? 0 : e.Progress) });
   }
 
+  // ---- planning tasks: what a run leaves behind ------------------------------------------------------------------------------------------
+  const RUNNABLE = { DATAACTION: "data action", MULTIACTION: "multi action", LOCK: "version" };
+  const isRunnable = (event) => !!RUNNABLE[event.Type];
+
+  /**
+   * The event after a run. outcome = { ok, message }: a task that ran completes (100%); one that failed is in progress, so it shows it needs a look;
+   * every run is remembered in Config.LastRun. A task that is cancelled stays as it is.
+   */
+  function afterRun(event, outcome, at) {
+    const e = normalize(event);
+    const last = { At: at || new Date().toISOString(), Status: outcome.ok ? "S" : "E", Message: String(outcome.message || "").slice(0, 200) };
+    const config = Object.assign({}, e.Config, { LastRun: last });
+    if (e.Status === "CANCELLED") { return Object.assign({}, e, { Config: config }); }
+    return Object.assign({}, e, { Config: config }, outcome.ok ? { Status: "DONE", Progress: 100 } : { Status: e.Status === "OPEN" || e.Status === "ON_HOLD" ? "ACTIVE" : e.Status });
+  }
+
+  /** "Succeeded on Oct 6, 2026: 12 values changed" for the last run of a task, or empty. */
+  function describeRun(event) {
+    const r = normalize(event).Config.LastRun;
+    if (!r) { return ""; }
+    const day = new Date(r.At).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    return (r.Status === "S" ? "Succeeded" : "Failed") + " on " + day + (r.Message ? ": " + r.Message : "");
+  }
+
   // ---- generating events ---------------------------------------------------------------------------------------------------------------
   const REPEAT = { DAILY: (d, n) => addDays(d, n), WEEKLY: (d, n) => addDays(d, 7 * n), MONTHLY: (d, n) => addMonths(d, n), QUARTERLY: (d, n) => addMonths(d, 3 * n), YEARLY: (d, n) => addMonths(d, 12 * n) };
   function label(repeat, date) {
@@ -347,5 +371,5 @@ sap.ui.define([], function () {
     return [process].concat(tasks);
   }
 
-  return { TYPES, STATUSES, FLOW, TEMPLATES, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
+  return { TYPES, STATUSES, FLOW, TEMPLATES, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
 });

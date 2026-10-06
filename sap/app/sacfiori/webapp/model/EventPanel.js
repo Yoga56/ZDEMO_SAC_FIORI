@@ -2,8 +2,8 @@ sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/m/Title", "sap/m/VBox", "sap/m/HBox", "sap/m/TextArea", "sap/m/DatePicker", "sap/m/StepInput",
   "sap/m/MessageStrip", "sap/m/MultiComboBox", "sap/m/ObjectStatus", "sap/m/Link", "sap/m/FlexItemData",
-  "zsac/lib/calendar/CalendarEngine"
-], function (Item, Button, Input, Select, Label, Text, Title, VBox, HBox, TextArea, DatePicker, StepInput, MessageStrip, MultiComboBox, ObjectStatus, Link, FlexItemData, Engine) {
+  "zsac/lib/calendar/CalendarEngine", "zsac/lib/calendar/TaskRunner", "zsac/lib/planning/DataActionRun"
+], function (Item, Button, Input, Select, Label, Text, Title, VBox, HBox, TextArea, DatePicker, StepInput, MessageStrip, MultiComboBox, ObjectStatus, Link, FlexItemData, Engine, TaskRunner, Run) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -11,7 +11,7 @@ sap.ui.define([
   /**
    * The details of one event, on the right of the calendar: its fields, what can be done with its status, Save and Delete.
    *
-   * EventPanel.show(box, { event, isNew, events, models, versions, canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
+   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, onRun(event), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
    * Nothing is written until Save; a status change on an event that exists is saved at once, as in SAC.
    */
   function show(box, ctx) {
@@ -76,8 +76,42 @@ sap.ui.define([
     if (draft.ModelId && draft.VersionId && ctx.onOpenPlan) { body.addItem(new Link({ text: "Open the plan", press: () => ctx.onOpenPlan(draft) })); }
     if (draft.Type === "REVIEW" || draft.Approver) { field("Reviewer", new Input({ value: draft.Approver, width: "100%", placeholder: "CFO", maxLength: 12, enabled: !readOnly, liveChange: (e) => { draft.Approver = e.getParameter("value"); showFlow(); } }), draft.Type === "REVIEW"); }
 
-    const extra = (ctx.sections || []).map((build) => build({ box: body, draft: () => draft, readOnly, field })); // sections of later steps (task settings, people, files)
-    void extra;
+    // planning tasks: which action or version, the parameters kept for the run, what the last run did, and Run
+    if (Engine.isRunnable(draft)) {
+      body.addItem(new Title({ text: "Task", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+      const kind = draft.Type === "MULTIACTION" ? "MULTI" : "DATA";
+      if (draft.Type === "DATAACTION" || draft.Type === "MULTIACTION") {
+        const actions = (draft.Type === "DATAACTION" ? ctx.dataActions : ctx.multiActions) || [];
+        const pick = new Select({ width: "100%", forceSelection: false, selectedKey: draft.Config.ActionId || "", enabled: !readOnly, change: (e) => {
+          draft.Config.ActionId = e.getParameter("selectedItem").getKey(); draft.Config.Values = {};
+          const a = actions.find((x) => x.Id === draft.Config.ActionId);
+          if (a && a.ModelId) { draft.ModelId = a.ModelId; model.setSelectedKey(a.ModelId); draft.VersionId = ""; fillVersions(); }
+        } });
+        pick.addItem(new Item({ key: "", text: "(choose an action)" }));
+        actions.forEach((a) => pick.addItem(new Item({ key: a.Id, text: a.Name })));
+        field(draft.Type === "DATAACTION" ? "Data action" : "Multi action", pick, true);
+        if (ctx.provider) {
+          body.addItem(new Button({ text: "Parameters", icon: "sap-icon://syntax", type: "Transparent", enabled: !readOnly, press: async () => {
+            if (!draft.Config.ActionId) { note("Choose the action first"); return; }
+            const v = await Run.chooseValues({ provider: ctx.provider, kind, actionId: draft.Config.ActionId, values: draft.Config.Values });
+            if (v) { draft.Config.Values = v; note("The parameters are kept when you save.", "Information"); }
+          } }));
+        }
+      } else {
+        const mode = new Select({ width: "100%", selectedKey: draft.Config.Mode === "UNLOCK" ? "UNLOCK" : "LOCK", enabled: !readOnly, change: (e) => { draft.Config.Mode = e.getParameter("selectedItem").getKey(); } });
+        mode.addItem(new Item({ key: "LOCK", text: "Lock the version" })); mode.addItem(new Item({ key: "UNLOCK", text: "Unlock the version" }));
+        field("What it does", mode);
+      }
+      const last = Engine.describeRun(draft);
+      if (last) { body.addItem(new ObjectStatus({ text: last, state: draft.Config.LastRun.Status === "S" ? "Success" : "Error", icon: draft.Config.LastRun.Status === "S" ? "sap-icon://sys-enter-2" : "sap-icon://error" }).addStyleClass("sapUiTinyMarginTop")); }
+      if (!ctx.isNew && ctx.onRun) {
+        body.addItem(new Button({ text: "Run now", icon: "sap-icon://play", type: "Emphasized", press: () => {
+          if (JSON.stringify(draft) !== JSON.stringify(Engine.normalize(clone(ctx.event)))) { note("Save your changes first: the task runs as it was saved."); return; }
+          ctx.onRun(clone(draft));
+        } }).addStyleClass("sapUiTinyMarginTop"));
+        body.addItem(new Text({ text: "Runs now, from your browser. Nothing runs by itself on the start date." }).addStyleClass("zsacSmall"));
+      }
+    }
 
     const buttons = new HBox({ justifyContent: "End", items: [
       new Button({ text: "Delete", type: "Reject", visible: !ctx.isNew && ctx.canDelete !== false, press: () => ctx.onDelete(draft) }).addStyleClass("sapUiTinyMarginEnd"),

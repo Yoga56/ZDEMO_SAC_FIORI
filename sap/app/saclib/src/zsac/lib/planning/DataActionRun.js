@@ -4,6 +4,7 @@
  *   DataActionRun.open({ provider, actionId, values, onDone })   dialog: asks for the parameters of the action, "Preview" traces the
  *                                                                steps without writing, "Run" writes; the result is shown as a trace
  *   DataActionRun.paramControls(action, model, versions, values) { box, values }   the parameter inputs on their own (trigger widget)
+ *   DataActionRun.chooseValues({ provider, kind: "DATA" | "MULTI", actionId, values }) Promise<values | undefined>   only the parameters, to keep them (calendar tasks)
  *   DataActionRun.traceView(result)                              one card per step: counts and sample values
  *   DataActionRun.memberItems(model, versions, dimId)            [{Id, Text}] for a dimension, incl. Version and Date
  */
@@ -142,5 +143,29 @@ sap.ui.define([
     }).catch(fail);
   }
 
-  return { open, openMulti, paramControls, traceView, memberItems };
+  /** The parameters of an action on their own, with OK and Cancel: resolves to the values entered (the defaults filled in), or undefined. */
+  function chooseValues(opts) {
+    const { provider } = opts;
+    return new Promise((resolve) => {
+      const load = opts.kind === "MULTI"
+        ? Promise.all([provider.getMultiAction(opts.actionId), provider.listModels(), provider.listVersions()]).then(([action, models, versions]) => {
+          const norm = MultiSchema.normalizeAction(action);
+          const lookup = (p) => ({ model: models.find((m) => m.ModelId === p.ModelId), versions: versions.filter((v) => v.ModelId === p.ModelId) });
+          return { pc: paramControls({ Parameters: norm.Parameters }, null, null, opts.values, lookup), name: action.Name };
+        })
+        : provider.getDataAction(opts.actionId).then(async (action) => {
+          const [model, versions] = await Promise.all([provider.getModel(action.ModelId), provider.listVersions(action.ModelId)]);
+          return { pc: paramControls(action, model, versions, opts.values), name: action.Name };
+        });
+      load.then(({ pc, name }) => {
+        if (!pc.count) { MessageBox.information("This action has no parameters."); resolve({}); return; }
+        const dlg = new Dialog({ title: "Parameters of " + name, content: [new VBox({ width: "26rem", items: [pc.box] }).addStyleClass("sapUiSmallMargin")],
+          beginButton: new Button({ text: "OK", type: "Emphasized", press: () => { dlg.close(); resolve(pc.values); } }),
+          endButton: new Button({ text: "Cancel", press: () => { dlg.close(); resolve(undefined); } }), afterClose: () => dlg.destroy() });
+        dlg.open();
+      }).catch((e) => { MessageBox.error((e && e.message) || String(e)); resolve(undefined); });
+    });
+  }
+
+  return { open, openMulti, chooseValues, paramControls, traceView, memberItems };
 });

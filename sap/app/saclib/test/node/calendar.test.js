@@ -238,3 +238,51 @@ test("toRecord keeps the fields of the first calendar in step", () => {
   assert.deepStrictEqual([r.Assignee, r.DueDate, r.Notes, r.Type], ["ALICE", "2026-10-12", "note", "GENERAL"]);
   assert.strictEqual(C.toRecord(ev("U")).Assignee, "");
 });
+
+test("planning tasks: only data action, multi action and locking tasks run; a run leaves its mark", () => {
+  assert.deepStrictEqual(Object.keys(C.TYPES).filter((t) => C.isRunnable({ Type: t })), ["LOCK", "DATAACTION", "MULTIACTION"]);
+  const t = ev("R", { Type: "DATAACTION", Config: { ActionId: "DA1" }, Status: "OPEN" });
+  const ok = C.afterRun(t, { ok: true, message: "12 values changed" }, "2026-10-06T10:00:00.000Z");
+  assert.deepStrictEqual([ok.Status, ok.Progress, ok.Config.LastRun.Status, ok.Config.ActionId], ["DONE", 100, "S", "DA1"]);
+  assert.strictEqual(C.describeRun(ok), "Succeeded on Oct 6, 2026: 12 values changed");
+  const bad = C.afterRun(t, { ok: false, message: "Version BUD is locked" }, "2026-10-06T10:00:00.000Z");
+  assert.deepStrictEqual([bad.Status, bad.Progress], ["ACTIVE", 0]); // a failed task is in progress: it is not finished
+  assert.strictEqual(C.describeRun(bad), "Failed on Oct 6, 2026: Version BUD is locked");
+  assert.strictEqual(C.afterRun(ev("R", { Status: "IN_REVIEW" }), { ok: false, message: "x" }).Status, "IN_REVIEW");
+  assert.strictEqual(C.afterRun(ev("R", { Status: "CANCELLED" }), { ok: true, message: "x" }).Status, "CANCELLED"); // a cancelled task is not brought back by a run
+  assert.strictEqual(C.describeRun(ev("N")), "");
+  assert.strictEqual(C.afterRun(t, { ok: true, message: "y".repeat(500) }).Config.LastRun.Message.length, 200);
+  assert.strictEqual(t.Config.LastRun, undefined); // the event given is not changed
+});
+
+const fs = require("fs");
+const path = require("path");
+const TaskRunner = req("zsac/lib/calendar/TaskRunner");
+const MockProvider = req("zsac/lib/provider/MockProvider");
+
+function mock() {
+  const dir = path.resolve(__dirname, "../../src/zsac/lib/provider/mockdata");
+  const seed = {};
+  ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "comments", "shares"].forEach((n) => {
+    const f = path.join(dir, n + ".json"); seed[n] = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : [];
+  });
+  return new MockProvider({ seed, persist: false });
+}
+
+test("locking task: locks the version, unlocks it, says so when nothing changes, refuses what cannot be done", async () => {
+  const p = mock();
+  const task = ev("L", { Type: "LOCK", ModelId: "SALES_PLAN", VersionId: "BUD" });
+  assert.match(TaskRunner.target(task), /Locks version BUD of SALES_PLAN/);
+  assert.strictEqual((await p.listVersions("SALES_PLAN")).find((v) => v.VersionId === "BUD").Locked, false);
+  assert.deepStrictEqual(await TaskRunner.lock(p, task), { ok: true, message: "Version BUD locked" });
+  assert.strictEqual((await p.listVersions("SALES_PLAN")).find((v) => v.VersionId === "BUD").Locked, true);
+  assert.match((await TaskRunner.lock(p, task)).message, /already locked/);
+  const un = Object.assign({}, task, { Config: { Mode: "UNLOCK" } });
+  assert.match(TaskRunner.target(un), /^Unlocks/);
+  assert.deepStrictEqual(await TaskRunner.lock(p, un), { ok: true, message: "Version BUD unlocked" });
+  assert.strictEqual((await p.listVersions("SALES_PLAN")).find((v) => v.VersionId === "BUD").Locked, false);
+  await assert.rejects(TaskRunner.lock(p, Object.assign({}, task, { VersionId: "NOPE" })), /does not exist/);
+  await assert.rejects(TaskRunner.lock(p, ev("X", { Type: "LOCK" })), /Choose the model/);
+  await assert.rejects(TaskRunner.lock(p, ev("X")), /not a data locking task/);
+  assert.strictEqual(TaskRunner.target(ev("A", { Type: "DATAACTION" })), "No action chosen");
+});

@@ -6,9 +6,11 @@ sap.ui.define([
   "zsac/lib/calendar/CalendarEngine",
   "zsac/lib/calendar/CalendarView",
   "zsac/lib/core/StorySchema",
+  "zsac/lib/calendar/TaskRunner",
+  "zsac/lib/planning/DataActionRun",
   "../model/EventPanel",
   "../model/EventWizard"
-], function (BaseController, Item, IconPool, MenuItem, Engine, View, StorySchema, EventPanel, EventWizard) {
+], function (BaseController, Item, IconPool, MenuItem, Engine, View, StorySchema, TaskRunner, Run, EventPanel, EventWizard) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -43,8 +45,8 @@ sap.ui.define([
     // ---- data -------------------------------------------------------------------------------------------------------------------------
     async _load() {
       this._p = await this.provider();
-      [this._events, this._models, this._versions, this._me] = await Promise.all([this._p.listTasks(), this._p.listModels(), this._p.listVersions(), this._p.currentUser()])
-        .then(([e, m, v, u]) => [e.map(Engine.normalize), m, v, u]);
+      [this._events, this._models, this._versions, this._me, this._dataActions, this._multiActions] = await Promise.all([this._p.listTasks(), this._p.listModels(), this._p.listVersions(), this._p.currentUser(),
+        this._p.listDataActions(), this._p.listMultiActions()]).then(([e, m, v, u, d, mu]) => [e.map(Engine.normalize), m, v, u, d, mu]);
       if (this._selected && !this._events.some((e) => e.Id === this._selected)) { this._selected = ""; this._hidePanel(); }
       this._render();
     },
@@ -140,6 +142,7 @@ sap.ui.define([
       const children = this._events.some((e) => e.ParentId === event.Id);
       EventPanel.show(panel, {
         event, isNew, events: this._events.filter((e) => e.Id !== event.Id || !isNew), models: this._models, versions: this._versions, hasChildren: children,
+        provider: this._p, dataActions: this._dataActions, multiActions: this._multiActions, onRun: (e) => this._runTask(e),
         canEdit: event.Access !== "READ", canDelete: event.Access === "OWNER" || !event.Owner,
         onSave: (e, o) => this._save(e, isNew, o), onDelete: (e) => this._deleteEvent(e), onClose: () => { this._selected = ""; this._hidePanel(); this._render(); },
         onOpenPlan: (e) => this.router().navTo("planning", { query: { model: e.ModelId, version: e.VersionId } })
@@ -165,6 +168,33 @@ sap.ui.define([
         this.toast(isNew ? "Event created" : "Saved");
       } catch (e) { this.fail(e); }
       void opts;
+    },
+
+    // ---- running a planning task ------------------------------------------------------------------------------------------------------
+    /** Data action and multi action tasks are run in the dialog of the action (parameters kept in the task, trace of the result); a locking task asks first. */
+    _runTask(event) {
+      const record = async (outcome) => {
+        const current = this._events.find((x) => x.Id === event.Id) || event;
+        await this._p.saveTask(Engine.toRecord(Engine.afterRun(current, outcome)));
+        await this._load();
+        this._select(event.Id);
+      };
+      const done = (outcome) => record(outcome).catch((e) => this.fail(e));
+      if (event.Type === "DATAACTION") {
+        Run.open({ provider: this._p, actionId: event.Config.ActionId, values: event.Config.Values,
+          onDone: (r, err) => done(r ? { ok: true, message: r.Changed + " values changed" } : { ok: false, message: err && err.message }) });
+      } else if (event.Type === "MULTIACTION") {
+        Run.openMulti({ provider: this._p, actionId: event.Config.ActionId, values: event.Config.Values,
+          onDone: (r) => done({ ok: r.Status === "S", message: r.Status === "S" ? "Done" + (r.Changed ? ", " + r.Changed + " values changed" : "") : "Stopped at a failing step" }) });
+      } else if (event.Type === "LOCK") {
+        this.guard(async () => {
+          if (!(await this.confirm(TaskRunner.target(event) + "?", "Run"))) { return; }
+          let outcome;
+          try { outcome = await TaskRunner.lock(this._p, event); } catch (e) { outcome = { ok: false, message: e.message }; }
+          await record(outcome);
+          this.toast(outcome.message);
+        })();
+      }
     },
 
     // ---- new, copy, delete ------------------------------------------------------------------------------------------------------------
