@@ -1,7 +1,7 @@
 @Metadata.allowExtensions: true
 @Metadata.ignorePropagatedAnnotations: true
 @EndUserText.label: 'Cell Comment'
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 define root view entity ZC_SAC_COMMENT
   provider contract transactional_query
   as projection on ZR_SAC_COMMENT

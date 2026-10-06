@@ -1,7 +1,7 @@
 @Metadata.allowExtensions: true
 @Metadata.ignorePropagatedAnnotations: true
 @EndUserText.label: 'Planning Version'
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 define root view entity ZC_SAC_VERSION
   provider contract transactional_query
   as projection on ZR_SAC_VERSION

@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for multi action step (projection)'
+@MappingRole: true
+define role ZC_SAC_MASTEP
+{
+  grant select on ZC_SAC_MASTEP
+    where inheriting conditions from entity ZR_SAC_MASTEP;
+}

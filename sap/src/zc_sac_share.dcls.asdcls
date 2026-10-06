@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for share (projection)'
+@MappingRole: true
+define role ZC_SAC_SHARE
+{
+  grant select on ZC_SAC_SHARE
+    where inheriting conditions from entity ZR_SAC_SHARE;
+}

@@ -81,7 +81,7 @@ def r_ddls(e, E):
 def c_ddls(e, E):
     root = "parent" not in e
     lines = ["@Metadata.allowExtensions: true", "@Metadata.ignorePropagatedAnnotations: true",
-             f"@EndUserText.label: '{e['label']}'", "@AccessControl.authorizationCheck: #NOT_REQUIRED"]
+             f"@EndUserText.label: '{e['label']}'", "@AccessControl.authorizationCheck: " + ("#CHECK" if e.get("dcl") else "#NOT_REQUIRED")]
     head = f"define {'root ' if root else ''}view entity {S.c_view(e)}\n  {'provider contract transactional_query' + chr(10) + '  ' if root else ''}as projection on {S.r_view(e)}"
     body = [f"  {'key ' if n.startswith('*') else ''}{elem(e, n)}" for n, _ in S.all_fields(e)]
     body += [f"  {name}" for name, _ in e.get("calc", [])]
@@ -182,6 +182,13 @@ def dcls(e, E):
     return (f"@EndUserText.label: 'Access control for {e['label'].lower()}'\n@MappingRole: true\ndefine role {name}\n{{\n  grant select on {name}\n{body}\n}}\n")
 
 
+def c_dcls(e):
+    """The service reads the projection: it takes the access control of the view it projects on (a projection marked #NOT_REQUIRED is not filtered)."""
+    name = S.c_view(e)
+    return (f"@EndUserText.label: 'Access control for {e['label'].lower()} (projection)'\n@MappingRole: true\ndefine role {name}\n{{\n  grant select on {name}\n"
+            f"    where inheriting conditions from entity {S.r_view(e)};\n}}\n")
+
+
 def abstract(name, label, elements):
     body = "\n".join(f"  {el} : {t};" for el, t in elements)
     return f"@EndUserText.label: '{label}'\ndefine abstract entity {name}\n{{\n{body}\n}}\n"
@@ -217,6 +224,7 @@ def main():
     for e in S.ENTITIES:
         if e.get("dcl"):
             write(f"{S.r_view(e).lower()}.dcls.asdcls", dcls(e, E))
+            write(f"{S.c_view(e).lower()}.dcls.asdcls", c_dcls(e))
     write("zui_sac_o4.srvd.srvdsrv", service(E))
     print("sources written to", SRC)
 

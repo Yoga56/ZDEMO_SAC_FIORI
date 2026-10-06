@@ -1,7 +1,7 @@
 @Metadata.allowExtensions: true
 @Metadata.ignorePropagatedAnnotations: true
 @EndUserText.label: 'Model Dimension'
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 define view entity ZC_SAC_DIM
   as projection on ZR_SAC_DIM
 {

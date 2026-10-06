@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for model measure (projection)'
+@MappingRole: true
+define role ZC_SAC_MEASURE
+{
+  grant select on ZC_SAC_MEASURE
+    where inheriting conditions from entity ZR_SAC_MEASURE;
+}

@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for planning model (projection)'
+@MappingRole: true
+define role ZC_SAC_MODEL
+{
+  grant select on ZC_SAC_MODEL
+    where inheriting conditions from entity ZR_SAC_MODEL;
+}

@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access control for model dimension (projection)'
+@MappingRole: true
+define role ZC_SAC_DIM
+{
+  grant select on ZC_SAC_DIM
+    where inheriting conditions from entity ZR_SAC_DIM;
+}
