@@ -88,12 +88,19 @@ sap.ui.define([
         card.setMessage("");
         await load();
       } catch (e) {
-        card.setMessage(e.message || String(e));
+        card.setMessage(friendly(e));
       } finally {
         card.setBusy(false);
       }
     };
     return card;
+  }
+
+  /** A dataset that is not there for this user is not found: say what that means instead of the path of the request. */
+  function friendly(e) {
+    const text = (e && e.message) || String(e);
+    const m = /^Not found: \/Model (\S+)/.exec(text);
+    return m ? "The dataset " + m[1] + " does not exist or is not shared with you. Ask its owner to share it." : text;
   }
 
   const baseBuilder = [

@@ -1,9 +1,9 @@
 sap.ui.define([
   "sap/ui/core/Item",
-  "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Text", "sap/m/Title", "sap/m/VBox", "sap/m/HBox", "sap/m/MessageStrip", "sap/m/FlexItemData",
+  "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Text", "sap/m/Title", "sap/m/VBox", "sap/m/HBox", "sap/m/MessageStrip", "sap/m/FlexItemData", "sap/m/CheckBox",
   "zsac/lib/core/Access",
   "zsac/lib/designer/ValueHelp"
-], function (Item, Dialog, Button, Input, Select, Text, Title, VBox, HBox, MessageStrip, FlexItemData, Access, ValueHelp) {
+], function (Item, Dialog, Button, Input, Select, Text, Title, VBox, HBox, MessageStrip, FlexItemData, CheckBox, Access, ValueHelp) {
   "use strict";
 
   /**
@@ -22,6 +22,7 @@ sap.ui.define([
       const users = ValueHelp.lazyUsers(provider);
       const note = (text, type) => { status.destroyItems(); if (text) { status.addItem(new MessageStrip({ text, type: type || "Error", showIcon: true }).addStyleClass("sapUiTinyMarginTop")); } };
       let everyone = ""; let people = []; let canEdit = false; let object = null; let me = "";
+      let datasets = []; let alsoDatasets = true;   // a story shows nothing to someone who cannot open the datasets it reads: the ones the owner owns can be shared along
 
       const accessSelect = (value, onChange, withNone) => {
         const sel = new Select({ selectedKey: value, width: "9rem", enabled: canEdit, change: (e) => onChange(e.getParameter("selectedItem").getKey()) });
@@ -49,6 +50,10 @@ sap.ui.define([
           new Text({ text: p.Principal, layoutData: new FlexItemData({ growFactor: 1 }) }),
           accessSelect(p.Access, (v) => { p.Access = v; }, false),
           new Button({ icon: "sap-icon://decline", type: "Transparent", tooltip: "Remove", visible: canEdit, press: () => { people.splice(i, 1); render(); } })] })));
+        if (canEdit && datasets.length) {
+          body.addItem(new CheckBox({ text: "Also share the dataset" + (datasets.length > 1 ? "s" : "") + " this story reads (" + datasets.join(", ") + ") with them, view only", selected: alsoDatasets,
+            select: (e) => { alsoDatasets = e.getParameter("selected"); } }).addStyleClass("sapUiSmallMarginTop"));
+        }
         if (canEdit) {
           const name = ValueHelp.input({ items: users, title: "Users", placeholder: "User name, e.g. BOB", maxLength: 12, layoutData: new FlexItemData({ growFactor: 1 }),
             submit: () => add() });
@@ -65,8 +70,23 @@ sap.ui.define([
 
       const save = new Button({ text: "Save", type: "Emphasized", enabled: false, press: async () => {
         const shares = (everyone ? [{ Principal: Access.EVERYONE, Access: everyone }] : []).concat(people);
-        try { const saved = await provider.saveShares(kind, id, shares); dlg.close(); resolve(saved); } catch (e) { note((e && e.message) || String(e)); }
+        try {
+          const saved = await provider.saveShares(kind, id, shares);
+          if (alsoDatasets) { for (const mid of datasets) { await shareDataset(mid, shares); } }
+          dlg.close(); resolve(saved);
+        } catch (e) { note((e && e.message) || String(e)); }
       } });
+      /** Gives the people of the story at least view access to a dataset: what they have already is kept when it is more. */
+      async function shareDataset(mid, shares) {
+        const have = await provider.listShares("MODEL", mid);
+        const merged = have.map((x) => ({ Principal: x.Principal, Access: x.Access }));
+        shares.forEach((n) => {
+          const at = merged.find((x) => x.Principal === n.Principal);
+          if (!at) { merged.push({ Principal: n.Principal, Access: "READ" }); } else if (at.Access !== "WRITE") { at.Access = "READ"; }
+        });
+        await provider.saveShares("MODEL", mid, merged);
+      }
+
       const dlg = new Dialog({ title: "Share " + noun, contentWidth: "32rem", content: [new VBox({ items: [body, status] })],
         beginButton: save, endButton: new Button({ text: "Close", press: () => { dlg.close(); resolve(undefined); } }), afterClose: () => dlg.destroy() });
       dlg.open();
@@ -79,6 +99,11 @@ sap.ui.define([
           const shares = await provider.listShares(kind, id);
           everyone = (shares.find((s) => s.Principal === Access.EVERYONE) || {}).Access || "";
           people = shares.filter((s) => s.Principal !== Access.EVERYONE).map((s) => ({ Principal: s.Principal, Access: s.Access }));
+          if (kind === "STORY" && canEdit) {   // the datasets of the story that this user owns
+            const story = await provider.getStory(id).catch(() => null);
+            const ids = Array.from(new Set(((story && story.Widgets) || []).map((w) => w.Binding && w.Binding.ModelId).concat(story ? [story.ModelId] : []).filter(Boolean)));
+            for (const mid of ids) { const m = await provider.getShareable("MODEL", mid).catch(() => null); if (m && m.Access === "OWNER" && !Access.isOpen(m.Owner)) { datasets.push(mid); } }
+          }
           save.setEnabled(canEdit);
           render();
         } catch (e) { note((e && e.message) || String(e)); } finally { dlg.setBusy(false); }

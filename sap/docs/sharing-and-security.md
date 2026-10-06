@@ -66,3 +66,15 @@ After activation check, with two users A and B: A creates a story; B does not se
 An event (task or process) is owned by its creator. The people named on it become shares: **owners and assignees can edit it, viewers can look at it**, "Everyone can view" shares it with all users, and nobody else sees it. Only the owner of the event changes the people; an assignee can change the status, progress and dates. Events without an owner (the sample events, events saved before this) are open to everyone and their people lists are not enforced. A process whose child events a user cannot see shows only the events the user can see.
 
 A planning task (data action, multi action, data locking) runs with the rights of the user who presses *Run now*: the model checks still apply.
+
+## Sharing a story and the data it reads
+
+A story shows nothing to someone who cannot open the datasets (models) its widgets read: each widget says the dataset does not exist or is not
+shared. The share dialog of a story therefore offers "Also share the datasets this story reads with them, view only" (on by default). It only
+applies to datasets you own; what a person already has on a dataset is kept when it is more than view.
+
+## The service reads the projection views
+
+The OData service reads the `ZC_SAC_*` projection views, so each carries `@AccessControl.authorizationCheck: #CHECK` and an access control that
+inherits the conditions of the `ZR_SAC_*` view it projects on. A projection marked `#NOT_REQUIRED` returned every owner's rows. To check after an
+activation, read `Model` as a second user: only models with no owner, own models and shared ones come back.
