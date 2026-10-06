@@ -205,6 +205,13 @@ sap.ui.define([
       return (await this._allShares()).filter((x) => x.Kind === kind && x.ObjectId === id).map((x) => ({ Principal: x.Principal, Access: x.Access }));
     }
 
+    /** The shares of an object go with it: a share row of an object that is gone would give its name to a new object of the same id. */
+    async _dropShares(kind, id) {
+      for (const x of await this.listShares(kind, id).catch(() => [])) {
+        await this._delete("/Share(ObjectKind=" + quote(kind) + ",ObjectId=" + quote(id) + ",Principal=" + quote(x.Principal) + ")").catch(() => {});
+      }
+    }
+
     async saveShares(kind, id, shares) {
       const object = await this.getShareable(kind, id);
       if (Access.isOpen(object.Owner)) { throw new Error("This object has no owner, so it is open to everyone and cannot be shared."); }
@@ -280,6 +287,7 @@ sap.ui.define([
         const versions = await this.listVersions(id);
         for (const v of versions) { await this._invokeDelete("/Version(ModelId=" + quote(id) + ",VersionId=" + quote(v.VersionId) + ")"); }
       }
+      await this._dropShares("MODEL", id);
       await this._invokeDelete("/Model(ModelId=" + quote(id) + ")");
       await this._dropFile("MODEL", id);
     }
@@ -388,7 +396,7 @@ sap.ui.define([
       else { await this._post("/Story", this._storyPayload(s)); }
       return this.getStory(s.Id).catch(() => s);
     }
-    async deleteStory(id) { await this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); await this._dropFile("STORY", id); }
+    async deleteStory(id) { await this._dropShares("STORY", id); await this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); await this._dropFile("STORY", id); }
 
     // ---- data actions -----------------------------------------------------------------------
     /** A step is its own columns for what every step has and CONFIG (JSON) for what depends on the step type. */
@@ -426,7 +434,7 @@ sap.ui.define([
       else { await this._post("/DataAction", this._dataActionPayload(a)); }
       return this.getDataAction(a.Id).catch(() => a);
     }
-    async deleteDataAction(id) { await this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); await this._dropFile("DATAACTION", id); }
+    async deleteDataAction(id) { await this._dropShares("DATAACTION", id); await this._invokeDelete("/DataAction(ActionId=" + quote(id) + ")"); await this._dropFile("DATAACTION", id); }
     // executing (executeDataAction, previewDataAction, runMultiAction) is inherited: the steps run in the client and the difference is written as facts
 
     // ---- comments on cells --------------------------------------------------------------------
@@ -491,7 +499,7 @@ sap.ui.define([
       else { await this._post("/MultiAction", this._multiPayload(a)); }
       return this.getMultiAction(a.Id).catch(() => a);
     }
-    async deleteMultiAction(id) { await this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); await this._dropFile("MULTIACTION", id); }
+    async deleteMultiAction(id) { await this._dropShares("MULTIACTION", id); await this._invokeDelete("/MultiAction(ActionId=" + quote(id) + ")"); await this._dropFile("MULTIACTION", id); }
 
     // ---- files and calendar -----------------------------------------------------------------
     _toFile(e) { return { Id: e.FileId, ParentId: e.ParentId, Type: e.FileKind, ObjectId: e.ObjectId, Name: e.FileName, Description: e.Description,
@@ -527,7 +535,7 @@ sap.ui.define([
       } else { await this._post("/CalendarTask", payload); }
       return this.getTask(t.Id).catch(() => t);
     }
-    deleteTask(id) { return this._invokeDelete("/CalendarTask(TaskId=" + quote(id) + ")"); }
+    async deleteTask(id) { await this._dropShares("CALEVENT", id); return this._invokeDelete("/CalendarTask(TaskId=" + quote(id) + ")"); }
   }
 
   return ODataV4Provider;
