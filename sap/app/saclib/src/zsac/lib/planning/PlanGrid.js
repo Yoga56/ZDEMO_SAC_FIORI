@@ -345,6 +345,9 @@ sap.ui.define([
         this._focusNext = null;
       }
       this._paint();
+      // a table nobody has worked in yet is the one the toolbar acts on, so Export and Table Functions are not greyed out after the page opens
+      const plan = this._ctx && this._ctx.plan;
+      if (plan && !(plan.active && plan.active.getDomRef() && document.body.contains(plan.active.getDomRef()))) { plan.active = this; plan.notifySelection(this); }
       if (root._zsacBound) { return; }
       root._zsacBound = true;
       this._bindSelection(root);
