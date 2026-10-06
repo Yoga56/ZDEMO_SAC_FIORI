@@ -2,9 +2,9 @@
 "! Called by the actions that write plan facts (WriteFacts, DeleteFacts, Publish), so a client that does not use zsac.lib is held to the same rules.
 "!
 "! The client stores the rules with the model: ZSAC_MODEL-LOCK_JSON and VALID_JSON are {"regions": [...], "srv": [...]} and
-{"rules": [...], "srv": [...]}. The part under "srv" is for this class: lower case names, and every slice already expanded
-to the members it covers (hierarchy nodes, quarters and years resolved by the client when the model is saved), so no hierarchy
-is read here. Rules saved by an older client (a plain list) have no "srv" part and are not enforced here.
+"! {"rules": [...], "srv": [...]}. The part under "srv" is for this class: lower case names, and every slice already expanded
+"! to the members it covers (hierarchy nodes, quarters and years resolved by the client when the model is saved), so no hierarchy
+"! is read here. Rules saved by an older client (a plain list) have no "srv" part and are not enforced here.
 CLASS zcl_sac_data_rules DEFINITION PUBLIC FINAL CREATE PRIVATE.
 
   PUBLIC SECTION.

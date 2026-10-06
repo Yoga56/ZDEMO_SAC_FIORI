@@ -19,10 +19,9 @@ CLASS lhc_story IMPLEMENTATION.
     LOOP AT keys INTO DATA(key).
       may_edit = zcl_sac_access=>can_edit( kind = 'STORY' id = key-StoryId ).
       may_delete = zcl_sac_access=>can_delete( kind = 'STORY' id = key-StoryId ).
-      APPEND VALUE #( %tky           = key-%tky
-                      %update        = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
-                      %delete        = COND #( WHEN may_delete = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
-                      %assoc-_Widget = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) ) TO result.
+      APPEND VALUE #( %tky    = key-%tky
+                %update = COND #( WHEN may_edit = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized )
+                %delete = COND #( WHEN may_delete = abap_true THEN if_abap_behv=>auth-allowed ELSE if_abap_behv=>auth-unauthorized ) ) TO result.
     ENDLOOP.
   ENDMETHOD.
 
