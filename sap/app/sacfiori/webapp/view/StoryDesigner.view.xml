@@ -20,6 +20,7 @@
         <Button id="renamePage" icon="sap-icon://edit" tooltip="Rename page" press=".onRenamePage" visible="false"/>
         <Button id="deletePage" icon="sap-icon://delete" tooltip="Delete page" press=".onDeletePage" visible="false"/>
         <ToolbarSpacer/>
+        <Button id="tidy" icon="sap-icon://arrow-top" text="Tidy up" tooltip="Move the widgets up to close the gaps. Arrow keys move the selected widget, Shift+arrows resize it." press=".onTidy" visible="false"/>
         <Button id="dup" icon="sap-icon://duplicate" text="Duplicate widget" press=".onDuplicateWidget" enabled="false" visible="false"/>
         <Button id="del" icon="sap-icon://delete" text="Remove widget" press=".onRemoveWidget" enabled="false" visible="false"/>
         <Button id="share" icon="sap-icon://share-2" text="Share" press=".onShare" visible="false"/>

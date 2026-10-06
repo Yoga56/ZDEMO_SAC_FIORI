@@ -69,7 +69,7 @@ sap.ui.define([
       const edit = key === "edit";
       this.byId("mode").setSelectedKey(key);
       this.byId("canvas").setEditable(edit);
-      ["palette", "right", "addPage", "renamePage", "deletePage", "dup", "del", "publish"].forEach((id) => this.byId(id).setVisible(edit));
+      ["palette", "right", "addPage", "renamePage", "deletePage", "tidy", "dup", "del", "publish"].forEach((id) => this.byId(id).setVisible(edit));
       this.byId("name").setVisible(edit);
       this.byId("title").setVisible(!edit);
       this.byId("canvas").invalidate();
@@ -156,6 +156,8 @@ sap.ui.define([
 
     onBuilderChange(e) { this.byId("canvas").updateWidget(e.getParameter("widget").Id); },
     onRemoveWidget() { const w = this.byId("canvas").getSelected(); if (w) { this.byId("canvas").removeWidget(w.Id); } },
+    onTidy() { if (!this.byId("canvas").tidy()) { this.toast("The page is already tidy"); } },
+
     onDuplicateWidget() { const w = this.byId("canvas").getSelected(); if (w) { this.byId("canvas").duplicateWidget(w.Id); } },
 
     // ---- story ---------------------------------------------------------------------------

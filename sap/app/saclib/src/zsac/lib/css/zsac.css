@@ -11,7 +11,19 @@
 .zsacShield { position: absolute; inset: 0; z-index: 1; cursor: move; }
 .zsacCellBar { position: absolute; top: 0; left: 0; right: 0; height: 1.5rem; z-index: 2; cursor: move; display: none; padding: 0 0.5rem; font-size: 0.6875rem; line-height: 1.5rem; color: #fff; background: var(--sapContent_FocusColor, #0070f2); border-radius: 0.75rem 0.75rem 0 0; }
 .zsacSelected .zsacCellBar { display: block; }
-.zsacResize { position: absolute; right: 0; bottom: 0; width: 1.25rem; height: 1.25rem; z-index: 3; cursor: nwse-resize; display: none; background: linear-gradient(135deg, transparent 50%, var(--sapContent_FocusColor, #0070f2) 50%); border-bottom-right-radius: 0.75rem; }
+.zsacResize { position: absolute; z-index: 3; display: none; }
+.zsacSelected .zsacResize { display: block; }
+.zsacResize-se, .zsacResize-sw, .zsacResize-ne, .zsacResize-nw { width: min(1.25rem, 35%); height: 1.25rem; }
+.zsacResize-se { right: 0; bottom: 0; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, var(--sapContent_FocusColor, #0070f2) 50%); border-bottom-right-radius: 0.75rem; }
+.zsacResize-sw { left: 0; bottom: 0; cursor: nesw-resize; background: linear-gradient(225deg, transparent 50%, var(--sapContent_FocusColor, #0070f2) 50%); border-bottom-left-radius: 0.75rem; }
+.zsacResize-ne { right: 0; top: 1.5rem; cursor: nesw-resize; background: linear-gradient(45deg, transparent 50%, var(--sapContent_FocusColor, #0070f2) 50%); }
+.zsacResize-nw { left: 0; top: 1.5rem; cursor: nwse-resize; background: linear-gradient(315deg, transparent 50%, var(--sapContent_FocusColor, #0070f2) 50%); }
+.zsacResize-e, .zsacResize-w { top: 2.75rem; bottom: 1.25rem; width: .5rem; cursor: ew-resize; }
+.zsacResize-e { right: -.25rem; } .zsacResize-w { left: -.25rem; }
+.zsacResize-s { left: 35%; right: 35%; bottom: -.25rem; height: .5rem; cursor: ns-resize; }
+.zsacResize-n { left: 35%; right: 35%; top: -.25rem; height: .5rem; cursor: ns-resize; }
+.zsacResize-e:hover, .zsacResize-w:hover, .zsacResize-s:hover, .zsacResize-n:hover { background: var(--sapContent_FocusColor, #0070f2); opacity: .5; }
+.zsacCanvas.zsacEditable:focus { outline: none; }
 .zsacSelected .zsacResize { display: block; }
 
 .zsacCard { box-sizing: border-box; display: flex; flex-direction: column; background: var(--sapTile_Background, #fff); border: 1px solid var(--sapTile_BorderColor, #e5e5e5); border-radius: 0.75rem; box-shadow: var(--sapContent_Shadow0, 0 0 0 1px rgba(85, 107, 129, .1)); overflow: hidden; }

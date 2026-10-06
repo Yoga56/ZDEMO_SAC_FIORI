@@ -45,3 +45,24 @@ test("no overlap means nothing moves; other pages are left alone", () => {
   assert.strictEqual(a.Y, 7);
   assert.strictEqual(at(s, "P2").Y, 0);
 });
+
+test("tidy up: widgets move up until something is in the way, gaps close, columns are independent", () => {
+  const s = story(w("A", 0, 2, 6, 2), w("B", 6, 5, 6, 2), w("C", 0, 9, 12, 2), w("D", 0, 0, 3, 1, 2));
+  assert.strictEqual(StorySchema.compact(s, 1), true);
+  assert.deepStrictEqual(s.Widgets.map((x) => x.Id + x.Y).join(" "), "A0 B0 C2 D0");   // D is on another page: untouched
+  assert.strictEqual(StorySchema.compact(s, 1), false);                                  // already tidy
+});
+
+test("resize from any edge or corner keeps the box in the grid and at its minimum size", () => {
+  const st = { X: 4, Y: 3, W: 4, H: 3 };
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "e", 3, 0), { X: 4, Y: 3, W: 7, H: 3 });
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "e", 99, 0), { X: 4, Y: 3, W: 8, H: 3 });      // stops at the right edge of the grid
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "w", -2, 0), { X: 2, Y: 3, W: 6, H: 3 });      // the right side stays put
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "w", -99, 0), { X: 0, Y: 3, W: 8, H: 3 });
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "w", 99, 0, 2), { X: 6, Y: 3, W: 2, H: 3 });    // not smaller than the minimum
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "n", 0, -2), { X: 4, Y: 1, W: 4, H: 5 });      // the bottom stays put
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "n", 0, -99), { X: 4, Y: 0, W: 4, H: 6 });
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "nw", -1, -1), { X: 3, Y: 2, W: 5, H: 4 });
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "se", 1, 2), { X: 4, Y: 3, W: 5, H: 5 });
+  assert.deepStrictEqual(StorySchema.resizeBox(st, "s", 0, -99), { X: 4, Y: 3, W: 4, H: 1 });
+});

@@ -47,6 +47,38 @@ sap.ui.define(["./WidgetRegistry"], function (WidgetRegistry) {
     return moved;
   }
 
+  /**
+   * "Tidy up": every widget moves up as far as it can (reading order, no overlaps), so the gaps a page collects while it is edited close.
+   * @returns {boolean} true when a widget moved
+   */
+  function compact(story, page) {
+    const items = story.Widgets.filter((x) => x.Page === page).sort((a, b) => a.Y - b.Y || a.X - b.X);
+    const placed = [];
+    let moved = false;
+    items.forEach((o) => {
+      let y = o.Y;
+      const hit = (yy) => placed.some((i) => o.X < i.X + i.W && o.X + o.W > i.X && yy < i.Y + i.H && yy + o.H > i.Y);
+      while (y > 0 && !hit(y - 1)) { y--; }
+      if (y !== o.Y) { o.Y = y; moved = true; }
+      placed.push(o);
+    });
+    return moved;
+  }
+
+  /**
+   * The box of a widget when one of its edges or corners is dragged by (dx, dy) grid cells from the box it started in.
+   * edge: any of n, s, e, w combined (se, nw ...). The box stays inside the grid and keeps at least minW x minH (default 1 x 1).
+   */
+  function resizeBox(start, edge, dx, dy, minW, minH) {
+    const mw = minW || 1, mh = minH || 1;
+    let { X, Y, W, H } = start;
+    if (edge.indexOf("e") >= 0) { W = Math.max(mw, Math.min(COLUMNS - X, start.W + dx)); }
+    if (edge.indexOf("w") >= 0) { const nx = Math.max(0, Math.min(start.X + start.W - mw, start.X + dx)); W = start.X + start.W - nx; X = nx; }
+    if (edge.indexOf("s") >= 0) { H = Math.max(mh, start.H + dy); }
+    if (edge.indexOf("n") >= 0) { const ny = Math.max(0, Math.min(start.Y + start.H - mh, start.Y + dy)); H = start.Y + start.H - ny; Y = ny; }
+    return { X, Y, W, H };
+  }
+
   function newWidget(story, page, type) {
     const def = WidgetRegistry.get(type);
     if (!def) { throw new Error("Widget type not registered: " + type); }
@@ -72,5 +104,5 @@ sap.ui.define(["./WidgetRegistry"], function (WidgetRegistry) {
     return errors;
   }
 
-  return { COLUMNS, uid, newStory, newWidget, freeSpot, settle, validate };
+  return { COLUMNS, uid, newStory, newWidget, freeSpot, settle, compact, resizeBox, validate };
 });

@@ -69,7 +69,7 @@ sap.ui.define([
       apiVersion: 2,
       render(rm, canvas) {
         rm.openStart("div", canvas).class("zsacCanvas");
-        if (canvas.getEditable()) { rm.class("zsacEditable"); }
+        if (canvas.getEditable()) { rm.class("zsacEditable").attr("tabindex", "0"); }
         rm.style("grid-auto-rows", canvas.getRowHeight() + "px").style("--zsac-row", canvas.getRowHeight() + "px").openEnd();
         canvas._visible().forEach((w) => {
           const card = canvas._cardOf(w.Id);
@@ -82,7 +82,7 @@ sap.ui.define([
             const def = WidgetRegistry.get(w.Type);
             rm.openStart("div").class("zsacShield").openEnd().close("div");
             rm.openStart("div").class("zsacCellBar").attr("data-drag", "1").openEnd().text(def ? def.name : w.Type).close("div");
-            rm.openStart("div").class("zsacResize").attr("data-resize", "1").openEnd().close("div");
+            ["n", "s", "e", "w", "ne", "nw", "se", "sw"].forEach((edge) => rm.openStart("div").class("zsacResize").class("zsacResize-" + edge).attr("data-resize", edge).openEnd().close("div"));
           }
           rm.close("div");
         });
@@ -142,6 +142,7 @@ sap.ui.define([
       if (this.getEditable() && !root._zsacBound) {
         root._zsacBound = true;
         root.addEventListener("pointerdown", (e) => this._onPointerDown(e));
+        root.addEventListener("keydown", (e) => this._onKey(e));
       }
     },
 
@@ -227,7 +228,9 @@ sap.ui.define([
       const w = this._story.Widgets.find((x) => x.Id === id);
       if (!w) { return; }
       if (this._selected !== id) { this._selected = id; this.fireSelectionChange({ widgetId: id }); this._markSelected(id); }
-      const mode = e.target.closest("[data-resize]") ? "resize" : e.target.closest("[data-drag]") || e.target.closest(".zsacShield") ? "drag" : null;
+      const handle = e.target.closest("[data-resize]");
+      const edge = handle ? handle.getAttribute("data-resize") : "";
+      const mode = handle ? "resize" : e.target.closest("[data-drag]") || e.target.closest(".zsacShield") ? "drag" : null;
       if (!mode) { return; }
       e.preventDefault();
       const rect = this.getDomRef().getBoundingClientRect();
@@ -242,8 +245,7 @@ sap.ui.define([
           w.X = Math.max(0, Math.min(12 - w.W, start.X + dx));
           w.Y = Math.max(0, start.Y + dy);
         } else {
-          w.W = Math.max(1, Math.min(12 - w.X, start.W + dx));
-          w.H = Math.max(1, start.H + dy);
+          Object.assign(w, StorySchema.resizeBox(start, edge.length > 1 || /^[nsew]$/.test(edge) ? edge : "se", dx, dy));
         }
         cell.style.gridColumn = (w.X + 1) + " / span " + w.W;
         cell.style.gridRow = (w.Y + 1) + " / span " + w.H;
@@ -259,6 +261,27 @@ sap.ui.define([
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+    },
+
+    /** Arrow keys move the selected widget by one cell, Shift+arrows resize it from its bottom right corner, Delete is left to the toolbar. */
+    _onKey(e) {
+      const w = this._story && this._selected && this._story.Widgets.find((x) => x.Id === this._selected);
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!w || !d || /input|textarea|select/i.test((e.target && e.target.tagName) || "")) { return; }
+      e.preventDefault();
+      if (e.shiftKey) { Object.assign(w, StorySchema.resizeBox(w, "se", d[0], d[1])); }
+      else { w.X = Math.max(0, Math.min(12 - w.W, w.X + d[0])); w.Y = Math.max(0, w.Y + d[1]); }
+      StorySchema.settle(this._story, w);
+      this.invalidate();
+      this.fireStoryChange();
+    },
+
+    /** "Tidy up": the widgets of the page move up so the gaps close. @returns {boolean} true when something moved */
+    tidy() {
+      if (!this._story || !StorySchema.compact(this._story, this.getPage())) { return false; }
+      this.invalidate();
+      this.fireStoryChange();
+      return true;
     },
 
     _markSelected(id) {
