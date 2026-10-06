@@ -1092,5 +1092,333 @@
         }
       }
     ]
+  },
+  {
+    "Id": "STORY_BOARD",
+    "Name": "Board pack",
+    "Description": "Shared with you by Alice",
+    "ModelId": "OPEX_PLAN",
+    "Status": "D",
+    "Pages": [
+      {
+        "Id": 1,
+        "Title": "Opex"
+      }
+    ],
+    "Filters": {},
+    "Widgets": [
+      {
+        "Id": "O1",
+        "Page": 1,
+        "Type": "kpi",
+        "Title": "Opex (Actual)",
+        "X": 0,
+        "Y": 0,
+        "W": 4,
+        "H": 2,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ],
+            "PERIOD": [
+              "2026-01",
+              "2026-02",
+              "2026-03",
+              "2026-04",
+              "2026-05",
+              "2026-06",
+              "2026-07",
+              "2026-08",
+              "2026-09"
+            ]
+          }
+        },
+        "Props": {
+          "CompareVersion": "BUD",
+          "Format": "k",
+          "LowerIsBetter": true
+        }
+      },
+      {
+        "Id": "O2",
+        "Page": 1,
+        "Type": "chart.bar",
+        "Title": "Opex by department",
+        "X": 0,
+        "Y": 2,
+        "W": 8,
+        "H": 4,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [
+            "DEPARTMENT"
+          ],
+          "Columns": [
+            "VERSION"
+          ],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT",
+              "BUD"
+            ],
+            "PERIOD": [
+              "2026-01",
+              "2026-02",
+              "2026-03",
+              "2026-04",
+              "2026-05",
+              "2026-06",
+              "2026-07",
+              "2026-08",
+              "2026-09"
+            ]
+          }
+        },
+        "Props": {}
+      },
+      {
+        "Id": "O3",
+        "Page": 1,
+        "Type": "chart.donut",
+        "Title": "Opex by account group",
+        "X": 8,
+        "Y": 2,
+        "W": 4,
+        "H": 4,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [
+            "ACCOUNT"
+          ],
+          "Columns": [],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {
+            "ACCOUNT": "PNL"
+          }
+        },
+        "Props": {
+          "Level": 2
+        }
+      },
+      {
+        "Id": "O4",
+        "Page": 1,
+        "Type": "table",
+        "Title": "Opex by organization",
+        "X": 0,
+        "Y": 6,
+        "W": 12,
+        "H": 5,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [
+            "DEPARTMENT"
+          ],
+          "Columns": [
+            "VERSION"
+          ],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT",
+              "BUD"
+            ],
+            "PERIOD": [
+              "2026-01",
+              "2026-02",
+              "2026-03",
+              "2026-04",
+              "2026-05",
+              "2026-06",
+              "2026-07",
+              "2026-08",
+              "2026-09"
+            ]
+          },
+          "Hierarchies": {
+            "DEPARTMENT": "ORG"
+          }
+        },
+        "Props": {
+          "ExpandLevel": 2
+        }
+      }
+    ],
+    "Owner": "ALICE"
+  },
+  {
+    "Id": "STORY_ALICE_PRIVATE",
+    "Name": "Alice private scenarios",
+    "Description": "Only Alice can open this",
+    "ModelId": "OPEX_PLAN",
+    "Status": "D",
+    "Pages": [
+      {
+        "Id": 1,
+        "Title": "Opex"
+      }
+    ],
+    "Filters": {},
+    "Widgets": [
+      {
+        "Id": "O1",
+        "Page": 1,
+        "Type": "kpi",
+        "Title": "Opex (Actual)",
+        "X": 0,
+        "Y": 0,
+        "W": 4,
+        "H": 2,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [],
+          "Columns": [],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ],
+            "PERIOD": [
+              "2026-01",
+              "2026-02",
+              "2026-03",
+              "2026-04",
+              "2026-05",
+              "2026-06",
+              "2026-07",
+              "2026-08",
+              "2026-09"
+            ]
+          }
+        },
+        "Props": {
+          "CompareVersion": "BUD",
+          "Format": "k",
+          "LowerIsBetter": true
+        }
+      },
+      {
+        "Id": "O2",
+        "Page": 1,
+        "Type": "chart.bar",
+        "Title": "Opex by department",
+        "X": 0,
+        "Y": 2,
+        "W": 8,
+        "H": 4,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [
+            "DEPARTMENT"
+          ],
+          "Columns": [
+            "VERSION"
+          ],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT",
+              "BUD"
+            ],
+            "PERIOD": [
+              "2026-01",
+              "2026-02",
+              "2026-03",
+              "2026-04",
+              "2026-05",
+              "2026-06",
+              "2026-07",
+              "2026-08",
+              "2026-09"
+            ]
+          }
+        },
+        "Props": {}
+      },
+      {
+        "Id": "O3",
+        "Page": 1,
+        "Type": "chart.donut",
+        "Title": "Opex by account group",
+        "X": 8,
+        "Y": 2,
+        "W": 4,
+        "H": 4,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [
+            "ACCOUNT"
+          ],
+          "Columns": [],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT"
+            ]
+          },
+          "Hierarchies": {
+            "ACCOUNT": "PNL"
+          }
+        },
+        "Props": {
+          "Level": 2
+        }
+      },
+      {
+        "Id": "O4",
+        "Page": 1,
+        "Type": "table",
+        "Title": "Opex by organization",
+        "X": 0,
+        "Y": 6,
+        "W": 12,
+        "H": 5,
+        "Binding": {
+          "ModelId": "OPEX_PLAN",
+          "Rows": [
+            "DEPARTMENT"
+          ],
+          "Columns": [
+            "VERSION"
+          ],
+          "Measure": "AMOUNT",
+          "Filters": {
+            "VERSION": [
+              "ACT",
+              "BUD"
+            ],
+            "PERIOD": [
+              "2026-01",
+              "2026-02",
+              "2026-03",
+              "2026-04",
+              "2026-05",
+              "2026-06",
+              "2026-07",
+              "2026-08",
+              "2026-09"
+            ]
+          },
+          "Hierarchies": {
+            "DEPARTMENT": "ORG"
+          }
+        },
+        "Props": {
+          "ExpandLevel": 2
+        }
+      }
+    ],
+    "Owner": "ALICE"
   }
 ]

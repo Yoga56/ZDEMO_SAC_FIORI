@@ -7,8 +7,9 @@ sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/VBox",
   "zsac/lib/core/WidgetRegistry",
   "zsac/lib/core/StorySchema",
+  "../model/ShareDialog",
   "zsac/lib/widget/Widgets"
-], function (BaseController, SegmentedButtonItem, List, StandardListItem, GroupHeaderListItem, Dialog, Button, Input, VBox, WidgetRegistry, StorySchema) {
+], function (BaseController, SegmentedButtonItem, List, StandardListItem, GroupHeaderListItem, Dialog, Button, Input, VBox, WidgetRegistry, StorySchema, ShareDialog) {
   "use strict";
 
   /** Story designer and viewer: palette (from WidgetRegistry) | canvas | builder panel (generated from the widget's builder list). */
@@ -33,7 +34,8 @@ sap.ui.define([
       this.byId("name").setValue(story.Name);
       this._pages();
       this._palette();
-      this._mode(story.Widgets.length ? "view" : "edit");
+      this._access();
+      this._mode(story.Widgets.length || story.Access === "READ" ? "view" : "edit");
       this._status();
       await this.byId("builder").bind(null, p);
     },
@@ -44,7 +46,26 @@ sap.ui.define([
       this.byId("publish").setText(this._story.Status === "P" ? "Unpublish" : "Publish");
     },
 
+    /** What the user may do with this story: someone with view access only looks at it. Owner-less and new stories are open. */
+    _access() {
+      const a = this._story.Access;
+      const readOnly = a === "READ";
+      this.byId("mode").getItems()[1].setVisible(!readOnly);
+      this.byId("save").setVisible(!readOnly);
+      this.byId("share").setVisible(a === "OWNER");
+      this.byId("access").setText(a === "READ" ? "Shared with you by " + this._story.Owner + ": you can view" : a === "WRITE" && this._story.Owner && this._story.Owner !== "*" ? "Shared with you by " + this._story.Owner + ": you can edit" : a === "OWNER" ? "You are the owner" : "");
+    },
+
+    onShare() {
+      this.guard(async () => {
+        if (this._dirty) { throw new Error("Save the story first"); }
+        const saved = await ShareDialog.open({ provider: this._p, kind: "STORY", id: this._story.Id });
+        if (saved) { this.toast(saved.length ? "Sharing saved" : "Not shared with anyone"); }
+      })();
+    },
+
     _mode(key) {
+      if (this._story && this._story.Access === "READ") { key = "view"; }
       const edit = key === "edit";
       this.byId("mode").setSelectedKey(key);
       this.byId("canvas").setEditable(edit);
@@ -149,7 +170,8 @@ sap.ui.define([
         const problems = StorySchema.validate(this._story);
         if (problems.length) { throw new Error(problems.join("\n")); }
         this._story.Filters = JSON.parse(JSON.stringify(this.byId("canvas").getFilters()));
-        await this._p.saveStory(this._story);
+        const saved = await this._p.saveStory(this._story);
+        if (saved && saved.Owner !== undefined) { this._story.Owner = saved.Owner; this._story.Access = saved.Access; this._access(); } // a new story now has its owner
         this._dirty = false;
         this._status();
         this.toast("Story saved");

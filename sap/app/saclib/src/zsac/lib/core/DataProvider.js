@@ -6,7 +6,7 @@
  * A subclass implements the underscore-free primitives below (all return promises). `query`, `saveStory`,
  * `saveModel` ... are composed here from those primitives so every provider behaves the same.
  */
-sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource"], function (QueryEngine, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource) {
+sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource"], function (QueryEngine, Access, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource) {
   "use strict";
 
   const abstract = (name) => function () { return Promise.reject(new Error(this.constructor.name + " does not implement " + name)); };
@@ -16,6 +16,24 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
 
     /** What this source supports beyond reading and planning: { audit: change history of plan data, comments: comments on plan cells }. */
     get capabilities() { return {}; }
+
+    // --- ownership and sharing of stories and models (see core/Access) -----------------------------
+    /** The user the data source works for ("" when it cannot tell). */
+    currentUser() { return Promise.resolve(""); }
+    /**
+     * Who an object is shared with: [{ Principal: "BOB" | "*", Access: "READ" | "WRITE" }]. kind is "STORY" or "MODEL". The owner sees every row,
+     * anyone else only the rows that are about them or about everyone.
+     */
+    listShares(/* kind, id */) { return Promise.resolve([]); }
+    /** Replaces the shares of an object (owner only). Returns the list that was stored. */
+    saveShares(/* kind, id, shares */) { return Promise.reject(new Error("Sharing is not supported by the data source " + this.id)); }
+    /** The access of the current user to an object read from this provider: "OWNER" | "WRITE" | "READ" | "NONE". */
+    async accessOf(kind, object) {
+      const owner = object && object.Owner;
+      if (Access.isOpen(owner)) { return "WRITE"; }
+      const user = await this.currentUser();
+      return Access.level(user, owner, user && owner && String(owner).toUpperCase() === String(user).toUpperCase() ? [] : await this.listShares(kind, kind === "STORY" ? object.Id : object.ModelId));
+    }
 
     // --- models (datasets) -------------------------------------------------------------------
     /** @returns {Promise<object[]>} models with Dimensions[] and Measures[] */
@@ -317,7 +335,7 @@ sap.ui.define(["./QueryEngine", "../planning/DataActionEngine", "../planning/Dat
       const files = await this.listFiles();
       const existing = files.find((f) => f.Type === type && f.ObjectId === objectId);
       await this.saveFile(Object.assign({
-        Id: "F_" + type + "_" + objectId, ParentId: "", Owner: "ME", Favourite: false, Shared: false
+        Id: "F_" + type + "_" + objectId, ParentId: "", Owner: (await this.currentUser()) || "ME", Favourite: false, Shared: false
       }, existing || {}, { Type: type, ObjectId: objectId, Name: name, Description: description || "",
         ChangedAt: new Date().toISOString() }));
     }

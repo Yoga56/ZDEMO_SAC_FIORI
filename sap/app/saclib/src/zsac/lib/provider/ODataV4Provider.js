@@ -11,11 +11,12 @@
  */
 sap.ui.define([
   "../core/DataProvider",
+  "../core/Access",
   "../core/ModelSchema",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
   "./LiveSource"
-], function (DataProvider, ModelSchema, Filter, FilterOperator, LiveSource) {
+], function (DataProvider, Access, ModelSchema, Filter, FilterOperator, LiveSource) {
   "use strict";
 
   const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
@@ -101,6 +102,30 @@ sap.ui.define([
       return payload;
     }
 
+
+    /**
+     * Saves an object that exists: its own fields with a PATCH, its children replaced (deleted, then created through the composition).
+     * Unlike delete and create this keeps the object, so its owner and its shares stay, and a user with edit access (who may not
+     * delete the object) can save it. If a step is refused the old children and fields are put back (best effort) and the refusal is reported.
+     * children = [{ prop: "_Widget", path: "/Widget", keys: ["StoryId", "WidgetId"] }]; keyFields are not sent with the PATCH.
+     */
+    async _updateDeep(keyPath, payload, old, children, keyFields) {
+      const own = (o) => { const c = {}; Object.keys(o).forEach((k) => { if (k.charAt(0) !== "_" && keyFields.indexOf(k) < 0) { c[k] = o[k]; } }); return c; };
+      const childKey = (c, row) => c.path + "(" + c.keys.map((k) => k + "=" + quote(row[k])).join(",") + ")";
+      const patch = (target) => this._request("PATCH", keyPath, own(target), { "If-Match": "*" });
+      const clear = async (list) => { for (const c of children) { for (const row of (list[c.prop] || [])) { await this._delete(childKey(c, row)).catch((e) => { if (!e || e.status !== 404) { throw e; } }); } } };
+      const fill = async (target) => { for (const c of children) { for (const row of (target[c.prop] || [])) { await this._post(keyPath + "/" + c.prop, row); } } };
+      await patch(payload);
+      try {
+        await clear(old);
+        await fill(payload);
+      } catch (e) {
+        try { await clear(payload); await patch(old); await fill(old); } catch (x) { /* it could not be put back */ }
+        throw e;
+      }
+      return payload;
+    }
+
     /** Changes fields of an existing row with a PATCH (no delete, so determinations and dependants of a delete do not fire). Rejects when the row is missing. */
     async _patch(keyPath, values) {
       const context = this._m.bindContext(keyPath).getBoundContext();
@@ -117,10 +142,52 @@ sap.ui.define([
       return op.getBoundContext().getObject();
     }
 
+    // ---- ownership and sharing ---------------------------------------------------------------
+    // The server stamps the owner on a new story or model and answers with the user's name in CurrentUser. The rows of /Share a user may see are
+    // the shares of their own objects and the ones about them or about everyone, which is all the client needs to work out the access.
+    _noteUser(rows) { const r = rows.find((x) => x && x.CurrentUser); if (r) { this._user = String(r.CurrentUser); } }
+
+    async currentUser() {
+      if (this._user) { return this._user; }
+      for (const set of ["/Story", "/Model"]) {
+        const rows = await this._list(set, [], { $select: "CurrentUser", $top: 1 }).catch(() => []);
+        this._noteUser(rows);
+        if (this._user) { return this._user; }
+      }
+      return "";
+    }
+
+    async _allShares() { return (await this._list("/Share")).map((e) => ({ Kind: e.ObjectKind, ObjectId: e.ObjectId, Principal: e.Principal, Access: e.AccessLevel })); }
+
+    async _withAccess(kind, objects) {
+      const user = await this.currentUser();
+      const shares = objects.some((o) => !Access.isOpen(o.Owner) && String(o.Owner).toUpperCase() !== String(user).toUpperCase()) ? await this._allShares().catch(() => []) : [];
+      return objects.map((o) => Object.assign({}, o, { Access: Access.level(user, o.Owner, shares.filter((x) => x.Kind === kind && x.ObjectId === (kind === "STORY" ? o.Id : o.ModelId))) }));
+    }
+
+    async listShares(kind, id) {
+      return (await this._allShares()).filter((x) => x.Kind === kind && x.ObjectId === id).map((x) => ({ Principal: x.Principal, Access: x.Access }));
+    }
+
+    async saveShares(kind, id, shares) {
+      const object = kind === "STORY" ? await this.getStory(id) : await this.getModel(id);
+      if (Access.isOpen(object.Owner)) { throw new Error("This " + kind.toLowerCase() + " has no owner, so it is open to everyone and cannot be shared."); }
+      const n = Access.normalize(shares, object.Owner);
+      if (n.errors.length) { throw new Error(n.errors.join(" ")); }
+      const old = await this.listShares(kind, id);
+      const key = (p) => "/Share(ObjectKind=" + quote(kind) + ",ObjectId=" + quote(id) + ",Principal=" + quote(p) + ")";
+      const same = (p, a) => old.some((o) => o.Principal === p && o.Access === a);
+      for (const o of old) { if (!n.shares.some((x) => x.Principal === o.Principal && x.Access === o.Access)) { await this._delete(key(o.Principal)); } }
+      for (const x of n.shares) { if (!same(x.Principal, x.Access)) { await this._post("/Share", { ObjectKind: kind, ObjectId: id, Principal: x.Principal, AccessLevel: x.Access }); } }
+      const file = (await this._list("/File", [new Filter("ObjectId", FilterOperator.EQ, id)])).find((f) => f.FileKind === kind);
+      if (file && !!file.Shared !== (n.shares.length > 0)) { await this._request("PATCH", "/File(FileId=" + quote(file.FileId) + ")", { Shared: n.shares.length > 0 }, { "If-Match": "*" }).catch(() => {}); }
+      return n.shares;
+    }
+
     // ---- models -----------------------------------------------------------------------------
     _toModel(e) {
       return ModelSchema.normalize({
-        ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency,
+        ModelId: e.ModelId, Name: e.ModelName, Description: e.Description, Currency: e.Currency, Owner: e.OwnerId || "",
         PeriodFrom: e.PeriodFrom, PeriodTo: e.PeriodTo, PlanningEnabled: !!e.PlanningEnabled, DataLocking: !!e.DataLocking,
         DataAudit: !!e.DataAudit, DataSource: e.DataSource, Source: json(e.SourceJson, null),
         Dimensions: (e._Dimension || []).map((d) => ({ DimId: d.DimId, Label: d.DimLabel, Slot: d.Slot, Members: json(d.Members, []), Type: d.DimType || "GENERIC",
@@ -132,9 +199,15 @@ sap.ui.define([
       });
     }
     async listModels() {
-      return (await this._list("/Model", [], { $expand: "_Dimension,_Measure" })).map((e) => this._toModel(e));
+      const rows = await this._list("/Model", [], { $expand: "_Dimension,_Measure" });
+      this._noteUser(rows);
+      return this._withAccess("MODEL", rows.map((e) => this._toModel(e)));
     }
-    async getModel(id) { return this._toModel(await this._one("/Model", ["ModelId", id], { $expand: "_Dimension,_Measure" })); }
+    async getModel(id) {
+      const row = await this._one("/Model", ["ModelId", id], { $expand: "_Dimension,_Measure" });
+      this._noteUser([row]);
+      return (await this._withAccess("MODEL", [this._toModel(row)]))[0];
+    }
     _modelPayload(m) {
       return {
         ModelId: m.ModelId, ModelName: m.Name, Description: m.Description || "", Currency: m.Currency || "",
@@ -149,8 +222,13 @@ sap.ui.define([
     }
     async _putModel(m) {
       const old = await this.getModel(m.ModelId).then((x) => this._modelPayload(x)).catch(() => null);
-      await this._replaceDeep("/Model", "/Model(ModelId=" + quote(m.ModelId) + ")", this._modelPayload(m), old);
-      return m;
+      const keyPath = "/Model(ModelId=" + quote(m.ModelId) + ")";
+      if (old) {
+        await this._updateDeep(keyPath, this._modelPayload(m), old, [{ prop: "_Dimension", path: "/Dimension", keys: ["ModelId", "DimId"] }, { prop: "_Measure", path: "/Measure", keys: ["ModelId", "MeasureId"] }], ["ModelId"]);
+      } else {
+        await this._post("/Model", this._modelPayload(m)); // the owner is the user who creates it: the server sets it
+      }
+      return this.getModel(m.ModelId).catch(() => m);
     }
     /** Deleting an object also removes its entry in Files (the mock provider does the same). */
     async _dropFile(type, id) {
@@ -193,7 +271,7 @@ sap.ui.define([
       return rows.map((r) => [r.ModelId, r.VersionId, r.Period, r.Measure, r.Dim1 || "", r.Dim2 || "", r.Dim3 || "", r.Dim4 || "", r.Dim5 || "", r.Value].join("\t")).join("\n");
     }
 
-    get capabilities() { return { comments: true }; }
+    get capabilities() { return { comments: true, sharing: true }; }
 
     // ---- versions ---------------------------------------------------------------------------
     _toVersion(e) { return { ModelId: e.ModelId, VersionId: e.VersionId, Name: e.VersionName, Category: e.Category, Locked: !!e.Locked, Owner: e.OwnerId, SourceVersion: e.SourceVersion, Status: e.Status }; }
@@ -232,7 +310,7 @@ sap.ui.define([
     // ---- stories ----------------------------------------------------------------------------
     _toStory(e, withWidgets) {
       return {
-        Id: e.StoryId, Name: e.StoryName, Description: e.Description, ModelId: e.ModelId, Status: e.Status,
+        Id: e.StoryId, Name: e.StoryName, Description: e.Description, ModelId: e.ModelId, Status: e.Status, Owner: e.OwnerId || "",
         Pages: json(e.PagesJson, [{ Id: 1, Title: "Page 1" }]), Filters: json(e.Filters, {}),
         Widgets: withWidgets ? (e._Widget || []).map((w) => ({
           Id: w.WidgetId, Page: w.PageNo, Type: w.WidgetKind, Title: w.Title, X: w.GridX, Y: w.GridY, W: w.GridW, H: w.GridH,
@@ -240,8 +318,12 @@ sap.ui.define([
         })) : undefined
       };
     }
-    async listStories() { return (await this._list("/Story")).map((e) => this._toStory(e, false)); }
-    async getStory(id) { return this._toStory(await this._one("/Story", ["StoryId", id], { $expand: "_Widget" }), true); }
+    async listStories() { const rows = await this._list("/Story"); this._noteUser(rows); return this._withAccess("STORY", rows.map((e) => this._toStory(e, false))); }
+    async getStory(id) {
+      const row = await this._one("/Story", ["StoryId", id], { $expand: "_Widget" });
+      this._noteUser([row]);
+      return (await this._withAccess("STORY", [this._toStory(row, true)]))[0];
+    }
     _storyPayload(s) {
       return {
         StoryId: s.Id, StoryName: s.Name, Description: s.Description || "", ModelId: s.ModelId || "", Status: s.Status || "D", PagesJson: str(s.Pages), Filters: str(s.Filters || {}),
@@ -251,8 +333,10 @@ sap.ui.define([
     }
     async _putStory(s) {
       const old = await this.getStory(s.Id).then((x) => this._storyPayload(x)).catch(() => null);
-      await this._replaceDeep("/Story", "/Story(StoryId=" + quote(s.Id) + ")", this._storyPayload(s), old);
-      return s;
+      const keyPath = "/Story(StoryId=" + quote(s.Id) + ")";
+      if (old) { await this._updateDeep(keyPath, this._storyPayload(s), old, [{ prop: "_Widget", path: "/Widget", keys: ["StoryId", "WidgetId"] }], ["StoryId"]); }
+      else { await this._post("/Story", this._storyPayload(s)); }
+      return this.getStory(s.Id).catch(() => s);
     }
     async deleteStory(id) { await this._invokeDelete("/Story(StoryId=" + quote(id) + ")"); await this._dropFile("STORY", id); }
 

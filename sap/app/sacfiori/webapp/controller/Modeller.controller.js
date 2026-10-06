@@ -3,13 +3,14 @@ sap.ui.define([
   "../model/DataTools",
   "../model/MasterDataDialog",
   "../model/SourceDialog",
+  "../model/ShareDialog",
   "sap/ui/model/json/JSONModel",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/ui/core/Item",
   "zsac/lib/core/ModelSchema",
   "zsac/lib/planning/DataActionEngine"
-], function (BaseController, DataTools, MasterDataDialog, SourceDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema) {
+], function (BaseController, DataTools, MasterDataDialog, SourceDialog, ShareDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema) {
   "use strict";
 
   const BUILTIN_ROWS = (versions, periods) => [
@@ -299,6 +300,13 @@ sap.ui.define([
           ExceptionAggregation: x.ExceptionAggregation || "", ExceptionDims: x.ExceptionAggregation ? (x.ExceptionDims || []).filter((k) => k !== "MEASURE") : [],
           UnitType: x.UnitType, Unit: x.UnitType === "None" ? "" : x.Unit || "", Scale: Number(x.ScaleKey) || 1, Decimals: Number(x.Decimals) || 0 }))
       };
+    },
+
+    onShare: function () {
+      this.guard(async () => {
+        const saved = await ShareDialog.open({ provider: this._p, kind: "MODEL", id: this._m.getProperty("/ModelId") });
+        if (saved) { this.toast(saved.length ? "Sharing saved" : "Not shared with anyone"); }
+      })();
     },
 
     onSave: function () {

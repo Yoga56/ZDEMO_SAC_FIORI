@@ -1,6 +1,7 @@
 sap.ui.define([
   "./BaseController",
   "../model/FileTypes",
+  "../model/ShareDialog",
   "sap/ui/model/json/JSONModel",
   "sap/m/Dialog",
   "sap/m/Button",
@@ -9,7 +10,7 @@ sap.ui.define([
   "sap/m/Label",
   "sap/m/VBox",
   "sap/ui/core/Item"
-], function (BaseController, FileTypes, JSONModel, Dialog, Button, Input, Select, Label, VBox, Item) {
+], function (BaseController, FileTypes, ShareDialog, JSONModel, Dialog, Button, Input, Select, Label, VBox, Item) {
   "use strict";
 
   /** Files: folders and every saved object (stories, datasets, actions) with favourites, sharing and move. */
@@ -28,7 +29,9 @@ sap.ui.define([
     date: (d) => (d ? new Date(d).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" }) : ""),
 
     async _load() {
-      this._files = await (await this.provider()).listFiles();
+      const p = await this.provider();
+      this._files = await p.listFiles();
+      this._me = String(await p.currentUser()).toUpperCase();
       this._render();
     },
 
@@ -42,7 +45,9 @@ sap.ui.define([
       this._model.setData({ items, path: cur ? "Files / " + cur.Name : "Files", inFolder: !!this._folder });
     },
 
-    _match(f) { return this._type === "ACTION" ? /ACTION$/.test(f.Type) : f.Type === this._type; },
+    /** Content someone else owns and shared with the user: not a folder, not an owner-less sample, not their own. */
+    _sharedWithMe(f) { const o = String(f.Owner || "").toUpperCase(); return /^(STORY|MODEL)$/.test(f.Type) && o && ["*", "SEED", "SYSTEM"].indexOf(o) < 0 && o !== this._me; },
+    _match(f) { return this._type === "ACTION" ? /ACTION$/.test(f.Type) : this._type === "SHARED" ? this._sharedWithMe(f) : f.Type === this._type; },
     _file(e) { return e.getSource().getBindingContext("view").getObject(); },
 
     onSearch(e) { this._q = e.getParameter("newValue") || ""; this._render(); },
@@ -55,7 +60,13 @@ sap.ui.define([
     },
 
     onFavourite: function (e) { this.guard(async () => { const f = this._file(e); f.Favourite = !f.Favourite; await (await this.provider()).saveFile(f); await this._load(); })(); },
-    onShare: function (e) { this.guard(async () => { const f = this._file(e); f.Shared = !f.Shared; await (await this.provider()).saveFile(f); await this._load(); this.toast(f.Shared ? "Shared" : "Not shared"); })(); },
+    onShare: function (e) {
+      this.guard(async () => {
+        const f = this._file(e);
+        const saved = await ShareDialog.open({ provider: await this.provider(), kind: f.Type, id: f.ObjectId });
+        if (saved) { await this._load(); this.toast(saved.length ? "Sharing saved" : "Not shared with anyone"); }
+      })();
+    },
 
     onDelete: function (e) {
       this.guard(async () => {

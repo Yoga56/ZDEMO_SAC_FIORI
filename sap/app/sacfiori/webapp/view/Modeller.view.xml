@@ -12,8 +12,8 @@
           <core:Item key="data" text="Data Management"/>
         </Select>
         <ToolbarSeparator/>
-        <Button icon="sap-icon://save" tooltip="Save" press=".onSave"/>
-        <MenuButton icon="sap-icon://add" tooltip="Add">
+        <Button icon="sap-icon://save" tooltip="Save" press=".onSave" enabled="{= ${m>/Access} !== 'READ'}"/>
+        <MenuButton icon="sap-icon://add" tooltip="Add" enabled="{= ${m>/Access} !== 'READ'}">
           <menu>
             <Menu>
               <MenuItem text="Measure" icon="sap-icon://measure" press=".onAddMeasure"/>
@@ -23,9 +23,11 @@
         </MenuButton>
         <Button icon="sap-icon://delete" tooltip="Delete the selected measure or dimension (new ones only)" press=".onDeleteSelected" enabled="{sel>/canDelete}"/>
         <ToolbarSpacer/>
+        <Text text="{= ${m>/Access} === 'READ' ? 'Shared with you by ' + ${m>/Owner} + ': you can view' : (${m>/Access} === 'WRITE' &amp;&amp; ${m>/Owner} &amp;&amp; ${m>/Owner} !== '*' ? 'Shared with you by ' + ${m>/Owner} + ': you can edit' : '')}" class="zsacSub"/>
+        <Button icon="sap-icon://share-2" text="Share" press=".onShare" visible="{= ${m>/Access} === 'OWNER'}"/>
         <SearchField width="14rem" liveChange=".onSearch" placeholder="Search"/>
         <ToggleButton icon="sap-icon://detail-view" pressed="true" press=".onTogglePanel" tooltip="Details panel"/>
-        <Button text="Save" type="Emphasized" press=".onSave"/>
+        <Button text="Save" type="Emphasized" press=".onSave" enabled="{= ${m>/Access} !== 'READ'}"/>
       </OverflowToolbar>
     </subHeader>
     <content>

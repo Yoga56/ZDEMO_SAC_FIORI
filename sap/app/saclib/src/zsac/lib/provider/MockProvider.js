@@ -7,17 +7,18 @@
  */
 sap.ui.define([
   "../core/DataProvider",
+  "../core/Access",
   "../core/QueryEngine",
   "../core/ModelSchema",
   "../planning/DataActionEngine",
   "../planning/VersionEngine",
   "./LiveSource",
   "./FakeODataService"
-], function (DataProvider, QueryEngine, ModelSchema, DataActionEngine, VersionEngine, LiveSource, FakeODataService) {
+], function (DataProvider, Access, QueryEngine, ModelSchema, DataActionEngine, VersionEngine, LiveSource, FakeODataService) {
   "use strict";
 
   const STORE_KEY = "zsac.mock.v1";
-  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit", "runs", "comments"];
+  const COLLECTIONS = ["models", "facts", "versions", "stories", "dataactions", "multiactions", "files", "tasks", "audit", "runs", "comments", "shares"];
   const AUDIT_LIMIT = 2000;
   const RUN_LIMIT = 500;
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -27,6 +28,7 @@ sap.ui.define([
     constructor(options) {
       super();
       this._persist = !!(options && options.persist);
+      this._user = String((options && options.user) || "ME").toUpperCase(); // ?user=ALICE in the URL plays another user
       this._seed = clone(options.seed);
       this._db = null;
       this._load();
@@ -34,7 +36,7 @@ sap.ui.define([
 
     get id() { return "mock"; }
 
-    get capabilities() { return { audit: true, comments: true }; }
+    get capabilities() { return { audit: true, comments: true, sharing: true }; }
 
     static async create(options) {
       const seed = {};
@@ -79,14 +81,67 @@ sap.ui.define([
       this._save();
     }
 
+    // ---- ownership and sharing -----------------------------------------------------------
+    currentUser() { return Promise.resolve(this._user); }
+    /** Another user on the same data (for tests and demos): the store is shared, only the identity differs. */
+    asUser(user) {
+      const other = new MockProvider({ seed: this._seed, persist: false, user });
+      other._db = this._db;
+      return other;
+    }
+    _idOf(kind, o) { return kind === "STORY" ? o.Id : o.ModelId; }
+    _sharesOf(kind, id) { return this._db.shares.filter((x) => x.Kind === kind && x.ObjectId === id); }
+    _level(kind, o) { return Access.level(this._user, o.Owner, this._sharesOf(kind, this._idOf(kind, o))); }
+    _can(kind, o, action) { return Access.can(this._level(kind, o), action, Access.isOpen(o.Owner)); }
+    _withAccess(kind, o) { return Object.assign({}, o, { Access: Access.isOpen(o.Owner) ? "WRITE" : this._level(kind, o) }); }
+    _denied(kind, o, verb) {
+      const what = kind === "STORY" ? "story" : "model";
+      return new Error("You are not allowed to " + verb + " the " + what + " " + this._idOf(kind, o) + (o.Owner ? " (owner " + o.Owner + ")" : "") + ".");
+    }
+    async _assertEditable(modelId) {
+      const m = this._db.models.find((x) => x.ModelId === modelId);
+      if (m && !this._can("MODEL", m, "edit")) { throw this._denied("MODEL", m, "change the data of"); }
+    }
+    async listShares(kind, id) {
+      const o = this._find(kind, id);
+      if (!o) { throw new Error("Not found: " + id); }
+      const mine = this._level(kind, o) === "OWNER";
+      return wait(this._sharesOf(kind, id).filter((x) => mine || x.Principal === "*" || x.Principal.toUpperCase() === this._user).map((x) => ({ Principal: x.Principal, Access: x.Access })));
+    }
+    _find(kind, id) { return kind === "STORY" ? this._db.stories.find((x) => x.Id === id) : this._db.models.find((x) => x.ModelId === id); }
+    async saveShares(kind, id, shares) {
+      const o = this._find(kind, id);
+      if (!o) { throw new Error("Not found: " + id); }
+      if (Access.isOpen(o.Owner)) { throw new Error("This " + kind.toLowerCase() + " has no owner, so it is open to everyone and cannot be shared."); }
+      if (this._level(kind, o) !== "OWNER") { throw new Error("Only the owner (" + o.Owner + ") can change who has access."); }
+      const n = Access.normalize(shares, o.Owner);
+      if (n.errors.length) { throw new Error(n.errors.join(" ")); }
+      this._remove("shares", (x) => x.Kind === kind && x.ObjectId === id);
+      n.shares.forEach((s) => this._db.shares.push({ Kind: kind, ObjectId: id, Principal: s.Principal, Access: s.Access }));
+      const file = this._db.files.find((f) => f.Type === kind && f.ObjectId === id);
+      if (file) { file.Shared = n.shares.length > 0; }
+      this._save();
+      return clone(n.shares);
+    }
+
     // models
-    listModels() { return wait(this._db.models.map(ModelSchema.normalize)); }
+    listModels() { return wait(this._db.models.filter((m) => this._can("MODEL", m, "read")).map((m) => this._withAccess("MODEL", ModelSchema.normalize(m)))); }
     getModel(id) {
       const m = this._db.models.find((x) => x.ModelId === id);
-      return m ? wait(ModelSchema.normalize(m)) : Promise.reject(new Error("Model not found: " + id));
+      if (!m) { return Promise.reject(new Error("Model not found: " + id)); }
+      return this._can("MODEL", m, "read") ? wait(this._withAccess("MODEL", ModelSchema.normalize(m))) : Promise.reject(this._denied("MODEL", m, "open"));
     }
-    _putModel(model) { return Promise.resolve(this._upsert("models", ModelSchema.normalize(model), (x) => x.ModelId)).then(clone); }
+    _putModel(model) {
+      const old = this._db.models.find((x) => x.ModelId === model.ModelId);
+      if (old && !this._can("MODEL", old, "edit")) { return Promise.reject(this._denied("MODEL", old, "change")); }
+      const stored = ModelSchema.normalize(Object.assign({}, model, { Owner: old ? old.Owner : this._user }));
+      delete stored.Access;
+      return Promise.resolve(this._upsert("models", stored, (x) => x.ModelId)).then((m) => this._withAccess("MODEL", clone(m)));
+    }
     deleteModel(id) {
+      const m = this._db.models.find((x) => x.ModelId === id);
+      if (m && !this._can("MODEL", m, "delete")) { return Promise.reject(this._denied("MODEL", m, "delete")); }
+      this._remove("shares", (x) => x.Kind === "MODEL" && x.ObjectId === id);
       this._remove("models", (x) => x.ModelId === id);
       this._remove("facts", (x) => x.ModelId === id);
       this._remove("versions", (x) => x.ModelId === id);
@@ -119,13 +174,14 @@ sap.ui.define([
     }
 
     async readFacts(modelId, filters) {
-      const model = await this.getModel(modelId);
+      const model = await this.getModel(modelId); // refused when the user may not open the model
       if (LiveSource.isLive(model)) { return clone(await LiveSource.readFacts(model, filters, this.sourceFetch().json)); }
       const own = this._db.facts.filter((f) => f.ModelId === modelId);
       return clone(QueryEngine.applyFilters(model, own, filters || {}));
     }
     async writeFacts(modelId, rows) {
       await this._assertWritable(modelId);
+      await this._assertEditable(modelId);
       const model = this._db.models.find((x) => x.ModelId === modelId);
       const audit = !!(model && model.DataAudit);
       const at = new Date().toISOString();
@@ -146,6 +202,7 @@ sap.ui.define([
     }
     async deleteFacts(modelId, rows) {
       await this._assertWritable(modelId);
+      await this._assertEditable(modelId);
       const keys = new Set(rows.map((r) => DataActionEngine.keyOf(Object.assign({ ModelId: modelId, Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r))));
       this._remove("facts", (f) => keys.has(DataActionEngine.keyOf(f)));
       return rows.length;
@@ -198,13 +255,23 @@ sap.ui.define([
     }
 
     // stories
-    listStories() { return wait(this._db.stories.map((s) => Object.assign({}, s, { Widgets: undefined }))); }
+    listStories() { return wait(this._db.stories.filter((s) => this._can("STORY", s, "read")).map((s) => this._withAccess("STORY", Object.assign({}, s, { Widgets: undefined })))); }
     getStory(id) {
       const s = this._db.stories.find((x) => x.Id === id);
-      return s ? wait(s) : Promise.reject(new Error("Story not found: " + id));
+      if (!s) { return Promise.reject(new Error("Story not found: " + id)); }
+      return this._can("STORY", s, "read") ? wait(this._withAccess("STORY", s)) : Promise.reject(this._denied("STORY", s, "open"));
     }
-    _putStory(story) { return Promise.resolve(this._upsert("stories", story, (x) => x.Id)).then(clone); }
+    _putStory(story) {
+      const old = this._db.stories.find((x) => x.Id === story.Id);
+      if (old && !this._can("STORY", old, "edit")) { return Promise.reject(this._denied("STORY", old, "change")); }
+      const stored = Object.assign({}, story, { Owner: old ? old.Owner : this._user });
+      delete stored.Access;
+      return Promise.resolve(this._upsert("stories", stored, (x) => x.Id)).then((x) => this._withAccess("STORY", clone(x)));
+    }
     async deleteStory(id) {
+      const st = this._db.stories.find((x) => x.Id === id);
+      if (st && !this._can("STORY", st, "delete")) { throw this._denied("STORY", st, "delete"); }
+      this._remove("shares", (x) => x.Kind === "STORY" && x.ObjectId === id);
       this._remove("stories", (x) => x.Id === id);
       this._remove("files", (x) => x.Type === "STORY" && x.ObjectId === id);
     }
@@ -261,7 +328,14 @@ sap.ui.define([
     }
 
     // files and calendar
-    listFiles() { return wait(this._db.files); }
+    /** Folders are open; any other file shows when the user may open what it stands for (a story or model they cannot open is not listed). */
+    listFiles() {
+      return wait(this._db.files.filter((f) => {
+        if (f.Type === "STORY") { const o = this._db.stories.find((x) => x.Id === f.ObjectId); return !o || this._can("STORY", o, "read"); }
+        if (f.Type === "MODEL") { const o = this._db.models.find((x) => x.ModelId === f.ObjectId); return !o || this._can("MODEL", o, "read"); }
+        return true;
+      }));
+    }
     saveFile(file) { return Promise.resolve(this._upsert("files", file, (x) => x.Id)).then(clone); }
     deleteFile(id) { this._remove("files", (x) => x.Id === id); return Promise.resolve(); }
     listTasks() { return wait(this._db.tasks); }

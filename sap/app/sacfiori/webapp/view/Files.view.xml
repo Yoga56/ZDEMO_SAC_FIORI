@@ -14,6 +14,7 @@
                 <SegmentedButtonItem key="STORY" text="Stories"/>
                 <SegmentedButtonItem key="MODEL" text="Datasets"/>
                 <SegmentedButtonItem key="ACTION" text="Actions"/>
+                <SegmentedButtonItem key="SHARED" text="Shared with me"/>
               </items>
             </SegmentedButton>
             <Button text="New folder" icon="sap-icon://add-folder" press=".onNewFolder"/>
@@ -38,7 +39,7 @@
               <Text text="{path: 'view>ChangedAt', formatter: '.date'}"/>
               <HBox justifyContent="End">
                 <Button icon="{= ${view>Favourite} ? 'sap-icon://favorite' : 'sap-icon://unfavorite'}" type="Transparent" press=".onFavourite" tooltip="Favourite"/>
-                <Button icon="{= ${view>Shared} ? 'sap-icon://share-2' : 'sap-icon://share'}" type="Transparent" press=".onShare" tooltip="Share"/>
+                <Button icon="{= ${view>Shared} ? 'sap-icon://share-2' : 'sap-icon://share'}" type="Transparent" press=".onShare" tooltip="Share" visible="{= ${view>Type} === 'STORY' || ${view>Type} === 'MODEL'}"/>
                 <Button icon="sap-icon://move" type="Transparent" press=".onMove" tooltip="Move to folder"/>
                 <Button icon="sap-icon://delete" type="Transparent" press=".onDelete" tooltip="Delete"/>
               </HBox>

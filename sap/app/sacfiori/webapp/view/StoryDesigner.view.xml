@@ -6,6 +6,7 @@
         <Input id="name" width="16rem" change=".onName" visible="false"/>
         <Title id="title" level="H3"/>
         <Text id="dirty" class="zsacDirty"/>
+        <Text id="access" class="zsacSub"/>
         <ToolbarSeparator/>
         <SegmentedButton id="mode" selectedKey="view" selectionChange=".onMode">
           <items>
@@ -21,6 +22,7 @@
         <ToolbarSpacer/>
         <Button id="dup" icon="sap-icon://duplicate" text="Duplicate widget" press=".onDuplicateWidget" enabled="false" visible="false"/>
         <Button id="del" icon="sap-icon://delete" text="Remove widget" press=".onRemoveWidget" enabled="false" visible="false"/>
+        <Button id="share" icon="sap-icon://share-2" text="Share" press=".onShare" visible="false"/>
         <Button id="publish" text="Publish" press=".onPublish" visible="false"/>
         <Button id="save" text="Save" type="Emphasized" press=".onSave"/>
       </OverflowToolbar>

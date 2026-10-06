@@ -23,7 +23,8 @@ sap.ui.define([
     async _createProvider() {
       const fromUrl = new URLSearchParams(window.location.search).get("provider");
       const name = fromUrl || this.getManifestEntry("/sap.ui5/config/provider") || "mock";
-      if (name !== "odata") { return ProviderRegistry.get({ name }); }
+      // ?user=ALICE plays another user of the sample data: sharing and ownership can be tried without a backend
+      if (name !== "odata") { return ProviderRegistry.get({ name, user: new URLSearchParams(window.location.search).get("user") || undefined }); }
       const ODataModel = await new Promise((resolve) => sap.ui.require(["sap/ui/model/odata/v4/ODataModel"], resolve));
       const model = new ODataModel({
         serviceUrl: this.getManifestEntry("/sap.app/dataSources/mainService/uri"),
