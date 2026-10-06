@@ -2,27 +2,25 @@
 @EndUserText.label: 'Purchase order value per period for SAC on Fiori'
 @Metadata.ignorePropagatedAnnotations: true
 define view entity ZI_SAC_PURCHASE_PERIOD
-  as select from I_PurchaseOrderItemAPI01 as item
-    inner join   I_PurchaseOrderAPI01     as head on head.PurchaseOrder = item.PurchaseOrder
+  as select from ZI_SAC_PURCHASE_B
 {
-  key substring( head.PurchaseOrderDate, 1, 6 ) as FiscalPeriod,
-  key head.CompanyCode,
-  key head.PurchasingOrganization,
-  key head.Supplier,
-  key item.Plant,
-  key item.Material,
-  key item.DocumentCurrency                     as Currency,
+  key FiscalPeriod,
+  key CompanyCode,
+  key PurchasingOrganization,
+  key Supplier,
+  key Plant,
+  key Material,
+  key Currency,
 
       @Semantics.amount.currencyCode: 'Currency'
       @Aggregation.default: #SUM
-      sum( item.NetAmount )                     as Amount
+      sum( Amount ) as Amount
 }
-where item.PurchasingDocumentDeletionCode = ''
 group by
-  substring( head.PurchaseOrderDate, 1, 6 ),
-  head.CompanyCode,
-  head.PurchasingOrganization,
-  head.Supplier,
-  item.Plant,
-  item.Material,
-  item.DocumentCurrency
+  FiscalPeriod,
+  CompanyCode,
+  PurchasingOrganization,
+  Supplier,
+  Plant,
+  Material,
+  Currency

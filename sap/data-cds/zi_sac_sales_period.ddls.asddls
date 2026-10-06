@@ -2,25 +2,23 @@
 @EndUserText.label: 'Billed sales per period for SAC on Fiori'
 @Metadata.ignorePropagatedAnnotations: true
 define view entity ZI_SAC_SALES_PERIOD
-  as select from I_BillingDocumentItem as item
-    inner join   I_BillingDocument     as head on head.BillingDocument = item.BillingDocument
+  as select from ZI_SAC_SALES_B
 {
-  key substring( head.BillingDocumentDate, 1, 6 ) as FiscalPeriod,
-  key item.SalesOrganization,
-  key item.DistributionChannel,
-  key item.Division,
-  key item.Product,
-  key item.TransactionCurrency                    as Currency,
+  key FiscalPeriod,
+  key SalesOrganization,
+  key DistributionChannel,
+  key Division,
+  key Product,
+  key Currency,
 
       @Semantics.amount.currencyCode: 'Currency'
       @Aggregation.default: #SUM
-      sum( item.NetAmount )                       as Amount
+      sum( Amount ) as Amount
 }
-where head.BillingDocumentIsCancelled = ''
 group by
-  substring( head.BillingDocumentDate, 1, 6 ),
-  item.SalesOrganization,
-  item.DistributionChannel,
-  item.Division,
-  item.Product,
-  item.TransactionCurrency
+  FiscalPeriod,
+  SalesOrganization,
+  DistributionChannel,
+  Division,
+  Product,
+  Currency

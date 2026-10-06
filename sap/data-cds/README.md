@@ -14,7 +14,8 @@ then works like any other model in stories, the Data Analyser and Planning (read
 Period field is `FiscalPeriod`, format `YYYYMM`, amount field `Amount`, currency field `Currency`.
 
 ## Create them in ADT (package ZDEMO_SAC_FIORI_DATA)
-1. New, Data Definition, name as in the table, template Define View Entity, paste the file. Activate (Ctrl+F3).
+1. New, Data Definition, name as in the table, template Define View Entity, paste the file. Activate (Ctrl+F3). A group by cannot hold an expression, so the
+   views that take the month from a date have a base view (`ZI_SAC_SALES_B`, `ZI_SAC_PURCHASE_B`, `ZI_SAC_OPENITEM_B`): activate the base first.
 2. New, Service Definition `ZUI_SAC_BIZ`, paste `zui_sac_biz.srvd.srvdsrv`. Activate. (`ZUI_SAC_GL` exposes `ZI_SAC_GL_PERIOD as SAC_GL_PERIOD`.)
 3. New, Service Binding `ZUI_SAC_BIZ`, binding type OData V4 - Web API (or UI), Publish.
 4. In the app, Modeller, New model, Data Source: service
