@@ -7,7 +7,7 @@
  * `values` are the resolved parameters of the multi action, `parameters` their definitions (needed to tell "@Name" from other text).
  * A step throws when it fails; the caller turns that into a failed run.
  */
-sap.ui.define(["./MultiActionSchema", "./ImportEngine", "./Forecaster", "../core/HierarchyEngine"], function (Schema, ImportEngine, Forecaster, HierarchyEngine) {
+sap.ui.define(["./MultiActionSchema", "./ImportEngine", "./Forecaster", "./ModelCopy", "../core/HierarchyEngine"], function (Schema, ImportEngine, Forecaster, ModelCopy, HierarchyEngine) {
   "use strict";
 
   const one = (v, values) => Schema.scalar(v, values);
@@ -129,7 +129,33 @@ sap.ui.define(["./MultiActionSchema", "./ImportEngine", "./Forecaster", "../core
     return { touched: r.Written, message: "Read " + r.Read + " values from the source" + (r.Deleted ? ", replaced " + r.Deleted + " existing values" : "") + (months.length ? " (" + months[0] + " to " + months[months.length - 1] + ")" : "") };
   }
 
-  const RUNNERS = { SOURCE: runSource, IMPORT: runImport, PREDICT: runPredict, API: runApi, PAPM: runPapm, COMMENT: runComment };
+  async function runCopyModel(provider, step, values) {
+    const src = await provider.getModel(step.ModelId);
+    const tgt = await provider.getModel(step.TargetModelId);
+    const from = one(step.SourceVersion, values);
+    const to = one(step.TargetVersion, values);
+    await openVersion(provider, step.ModelId, from, "source", false);
+    await openVersion(provider, step.TargetModelId, to, "target", true);
+    const fm = one(step.FromPeriod, values); const tm = one(step.ToPeriod, values);
+    const months = fm || tm ? HierarchyEngine.monthRange(fm || tm, tm || fm) : [];
+    if ((fm || tm) && !months.length) { throw new Error("the months " + (fm || "(empty)") + " to " + (tm || "(empty)") + " are not valid"); }
+    const facts = await provider.readFacts(step.ModelId, Object.assign({ VERSION: [from] }, months.length ? { PERIOD: months } : {}));
+    const built = ModelCopy.build(src, tgt, facts, { targetVersion: to, fixed: ModelCopy.parseFixed(step.Fixed) });
+    if (built.problems.length) { throw new Error(built.problems[0]); }
+    let rows = built.facts;
+    if (step.Mode === "ADD" && rows.length) {
+      const existing = await provider.readFacts(step.TargetModelId, { VERSION: [to] });
+      const key = (f) => [f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|");
+      const have = new Map(existing.map((f) => [key(f), f.Value]));
+      rows = rows.map((f) => Object.assign({}, f, { Value: Math.round(((have.get(key(f)) || 0) + f.Value) * 100) / 100 }));
+    }
+    if (rows.length) { await provider.writeFacts(step.TargetModelId, rows); }
+    const s = built.skipped;
+    const left = [s.measures.length ? "measures " + s.measures.join(", ") + " are not in the target" : "", s.periods ? s.periods + " values outside the target's months" : "", s.members ? s.members + " values with members the target does not have" : ""].filter(Boolean);
+    return { touched: rows.length, message: "Copied " + rows.length + " values from " + src.Name + " " + from + " into " + tgt.Name + " " + to + (left.length ? ". Left out: " + left.join("; ") : "") };
+  }
+
+  const RUNNERS = { COPYMODEL: runCopyModel, SOURCE: runSource, IMPORT: runImport, PREDICT: runPredict, API: runApi, PAPM: runPapm, COMMENT: runComment };
 
   return { run: (provider, step, values, parameters) => RUNNERS[step.StepType](provider, step, values, parameters), handles: (type) => !!RUNNERS[type], statusOk };
 });

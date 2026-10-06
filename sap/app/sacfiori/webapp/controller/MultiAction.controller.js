@@ -319,6 +319,7 @@ sap.ui.define([
       else if (s.StepType === "IMPORT") { this._importEditor(edit, s); }
       else if (s.StepType === "PREDICT") { this._predictEditor(edit, s); }
       else if (s.StepType === "SOURCE") { this._sourceEditor(edit, s); }
+      else if (s.StepType === "COPYMODEL") { this._copyModelEditor(edit, s); }
       else if (s.StepType === "API") { this._apiEditor(edit, s); }
       else if (s.StepType === "PAPM") { this._papmEditor(edit, s); }
       else { this._versionStepEditor(edit, s); }
@@ -482,6 +483,27 @@ sap.ui.define([
     },
 
     // Import from Source -------------------------------------------------------------------------------------------------------
+    _copyModelEditor(edit, s) {
+      const pick = (key, onPicked) => new Select({ width: "100%", forceSelection: false, selectedKey: s[key],
+        items: [new Item({ key: "", text: "Choose a model" })].concat(this._models.map((m) => new Item({ key: m.ModelId, text: m.Name }))),
+        change: (e) => { s[key] = e.getParameter("selectedItem").getKey(); onPicked(); this._changed(true); } });
+      this._field(edit, "Copy from model", pick("ModelId", () => { s.SourceVersion = ""; }));
+      this._field(edit, "Copy into model", pick("TargetModelId", () => { s.TargetVersion = ""; s.Fixed = ""; }), "Dimensions and measures are matched by their ids; what the target does not have is left out and reported.");
+      if (!s.ModelId || !s.TargetModelId) { return; }
+      const src = this._model(s.ModelId); const tgt = this._model(s.TargetModelId);
+      const pp = this._params("MEMBER", "PERIOD"); const per = this._members(s.ModelId, "PERIOD");
+      this._field(edit, "From version", this._combo((raw) => { s.SourceVersion = raw; }, s.SourceVersion, this._params("MEMBER", "VERSION"), this._members(s.ModelId, "VERSION")));
+      this._field(edit, "Into version", this._combo((raw) => { s.TargetVersion = raw; }, s.TargetVersion, this._params("MEMBER", "VERSION"), this._members(s.TargetModelId, "VERSION")), "The version must not be locked.");
+      this._field(edit, "First month", this._combo((raw) => { s.FromPeriod = raw; }, s.FromPeriod, pp, per), "Leave both months empty to copy every month.");
+      this._field(edit, "Last month", this._combo((raw) => { s.ToPeriod = raw; }, s.ToPeriod, pp, per));
+      const missing = (tgt.Dimensions || []).filter((d) => !(src.Dimensions || []).some((x) => x.DimId === d.DimId)).map((d) => d.DimId);
+      if (missing.length) {
+        this._field(edit, "Fixed members", new TextArea({ width: "100%", rows: 2, value: s.Fixed, placeholder: missing.map((d) => d + "=member").join("; "),
+          liveChange: (e) => { s.Fixed = e.getParameter("value"); this._changed(false); } }), "The target has dimensions the source lacks (" + missing.join(", ") + "): every copied value goes to the member you give.");
+      }
+      this._field(edit, "Existing values", this._choice(s.Mode, [["OVERWRITE", "Overwrite the same cells"], ["ADD", "Add to the existing values"]], (v) => { s.Mode = v; }));
+    },
+
     _sourceEditor(edit, s) {
       const importModels = this._models.filter((m) => m.Source && m.Source.Mode === "IMPORT");
       this._field(edit, "Import model", new Select({ width: "100%", forceSelection: false, selectedKey: s.ModelId,

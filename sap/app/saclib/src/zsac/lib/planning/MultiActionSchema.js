@@ -14,10 +14,11 @@
  *            API         Method, Url, Headers [{Name, Value}], Body, Expect ("2xx" or "200,201"), TimeoutSec     (text may hold @multiParam)
  *            PAPM        Environment, FunctionId, Parameters [{Name, Value}]                                      (values may be @multiParam)
  *            COMMENT     ModelId, Operation: COPY (SourceVersion, TargetVersion) | DELETE (Version)
+ *            COPYMODEL   ModelId (source), TargetModelId, SourceVersion, TargetVersion, FromPeriod, ToPeriod, Mode: OVERWRITE | ADD, Fixed ("DIM=member; ...": members for target dimensions the source lacks)
  *            SOURCE      ModelId (a model with an IMPORT source), TargetVersion, FromPeriod, ToPeriod (empty: every month), Mode: UPDATE | REPLACE }
  * A value written "@Name" is the parameter Name of the multi action.
  */
-sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvParser) {
+sap.ui.define(["./DataActionSchema", "../core/CsvParser", "./ModelCopy"], function (DA, CsvParser, ModelCopy) {
   "use strict";
 
   const STEP_TYPES = {
@@ -30,6 +31,7 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
     API: { label: "API", icon: "sap-icon://chain-link", hint: "Call an HTTP endpoint, for example to start a process in another system" },
     PAPM: { label: "PaPM Integration", icon: "sap-icon://connected", hint: "Run a function of SAP Profitability and Performance Management" },
     COMMENT: { label: "Comment Management", icon: "sap-icon://comment", hint: "Copy the comments of a version to another version, or delete them" },
+    COPYMODEL: { label: "Copy to another Model", icon: "sap-icon://shipping-status", hint: "Copy the values of a version into a version of another model; dimensions and measures are matched by id" },
     SOURCE: { label: "Import from Source", icon: "sap-icon://database", hint: "Copy rows of the CDS view behind an import model into a version" }
   };
   const OPERATIONS = {
@@ -48,10 +50,11 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
   function normalizeStep(step, index) {
     const type = STEP_TYPES[step.StepType] ? step.StepType : "DATAACTION";
     const s = Object.assign({ Name: "", Description: "", Active: true, ActionId: "", ParamMap: {}, ModelId: "", SourceVersion: "", TargetVersion: "", Version: "", VersionName: "",
-      Csv: "", Mapping: {}, MeasureId: "", FromPeriod: "", ToPeriod: "", Mode: "UPDATE", OnError: "FAIL",
+      Csv: "", Mapping: {}, MeasureId: "", TargetModelId: "", Fixed: "", FromPeriod: "", ToPeriod: "", Mode: "UPDATE", OnError: "FAIL",
       HistoryFrom: "", HistoryTo: "", ForecastFrom: "", ForecastTo: "", Method: type === "API" ? "POST" : "LINEAR", Window: 3, Alpha: 0.3,
       Url: "", Headers: [], Body: "", Expect: "2xx", TimeoutSec: 30, Environment: "", FunctionId: "", Parameters: [] }, clone(step), { StepType: type });
     if (OPERATIONS[type] && !OPERATIONS[type][s.Operation]) { s.Operation = Object.keys(OPERATIONS[type])[0]; }
+    if (type === "COPYMODEL" && ["OVERWRITE", "ADD"].indexOf(s.Mode) < 0) { s.Mode = "OVERWRITE"; }
     s.Id = s.Id || ("S" + (index + 1));
     s.Name = s.Name || (STEP_TYPES[type].label + " " + (index + 1));
     s.ParamMap = s.ParamMap || {};
@@ -257,6 +260,26 @@ sap.ui.define(["./DataActionSchema", "../core/CsvParser"], function (DA, CsvPars
           else if (isRef(m)) { refOk(m, "Measure", "MEMBER", "MEASURE"); }
           else if (!(model.Measures || []).some((x) => x.MeasureId === m)) { err(i, where + ": measure " + m + " does not exist"); }
         }
+      } else if (s.StepType === "COPYMODEL") {
+        const src = models.get(s.ModelId); const tgt = models.get(s.TargetModelId);
+        if (!src) { err(i, where + ": choose the model to copy from"); return; }
+        if (!tgt) { err(i, where + ": choose the model to copy into"); return; }
+        if (src.ModelId === tgt.ModelId) { err(i, where + ": the models are the same, use a data action to copy inside one model"); return; }
+        if (tgt.PlanningEnabled === false || (tgt.Source && tgt.Source.Mode === "LIVE")) { err(i, where + ": the target model cannot be planned in"); }
+        ModelCopy.check(src, tgt, ModelCopy.parseFixed(s.Fixed)).forEach((m) => err(i, where + ": " + m));
+        const ver = (v, modelId, what, mustBeOpen) => {
+          if (!v) { err(i, where + ": choose the " + what + " version"); return; }
+          if (isRef(v)) { refOk(v, what + " version", "MEMBER", "VERSION"); return; }
+          const x = versionsOf(modelId).get(v);
+          if (!x) { err(i, where + ": version " + v + " does not exist in " + modelId); } else if (mustBeOpen && x.Locked) { err(i, where + ": version " + v + " is locked"); }
+        };
+        ver(s.SourceVersion, s.ModelId, "source", false); ver(s.TargetVersion, s.TargetModelId, "target", true);
+        const month = (x, what) => {
+          if (!x) { return; }
+          if (isRef(x)) { refOk(x, what, "MEMBER", "PERIOD"); } else if (!PERIOD.test(x)) { err(i, where + ": " + what + " " + x + " is not of the form 2026-03"); }
+        };
+        month(s.FromPeriod, "first month"); month(s.ToPeriod, "last month");
+        if (["OVERWRITE", "ADD"].indexOf(s.Mode) < 0) { err(i, where + ": unknown mode " + s.Mode); }
       } else if (s.StepType === "SOURCE") {
         const model = models.get(s.ModelId);
         if (!model) { err(i, where + ": choose the model"); return; }

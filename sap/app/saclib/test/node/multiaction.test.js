@@ -111,3 +111,25 @@ test("comments: save, list by version, delete; cell lookup by coordinates", asyn
   await assert.rejects(() => plain.copyComments("M", "A", "B"), /not supported/);
   await assert.rejects(() => plain.deleteComments("M", "A"), /not supported/);
 });
+
+test("copy to another model: matched by id, fixed members, sums over dropped dimensions, what does not fit is counted", () => {
+  const ModelCopy = req("zsac/lib/planning/ModelCopy");
+  const src = { ModelId: "S", Name: "Source", PeriodFrom: "2026-01", PeriodTo: "2026-12",
+    Dimensions: [{ DimId: "REGION", Slot: 1, Members: [{ Id: "A" }, { Id: "B" }, { Id: "Z" }] }, { DimId: "CHANNEL", Slot: 2, Members: [{ Id: "D" }, { Id: "P" }] }],
+    Measures: [{ MeasureId: "REV" }, { MeasureId: "COST" }, { MeasureId: "ONLY_SRC" }] };
+  const tgt = { ModelId: "T", Name: "Target", PeriodFrom: "2026-02", PeriodTo: "2026-12",
+    Dimensions: [{ DimId: "REGION", Slot: 1, Members: [{ Id: "A" }, { Id: "B" }] }, { DimId: "SCENARIO", Slot: 2, Members: [{ Id: "BASE" }] }],
+    Measures: [{ MeasureId: "REV" }, { MeasureId: "COST" }] };
+  const f = (r, ch, p, m, v) => ({ ModelId: "S", VersionId: "BUD", Period: p, Measure: m, Dim1: r, Dim2: ch, Dim3: "", Dim4: "", Dim5: "", Value: v });
+  const facts = [f("A", "D", "2026-03", "REV", 10), f("A", "P", "2026-03", "REV", 5), f("B", "D", "2026-03", "COST", 2), f("Z", "D", "2026-03", "REV", 9),
+    f("A", "D", "2026-01", "REV", 1), f("A", "D", "2026-03", "ONLY_SRC", 4)];
+  const r = ModelCopy.build(src, tgt, facts, { targetVersion: "FCT", fixed: ModelCopy.parseFixed("scenario=BASE") });
+  assert.deepStrictEqual(r.problems, []);
+  assert.strictEqual(r.facts.length, 2);
+  const a = r.facts.find((x) => x.Dim1 === "A");
+  assert.deepStrictEqual([a.ModelId, a.VersionId, a.Measure, a.Dim2, a.Value], ["T", "FCT", "REV", "BASE", 15]);       // channels added up
+  assert.deepStrictEqual(r.skipped, { measures: ["ONLY_SRC"], periods: 1, members: 1 });
+  assert.match(ModelCopy.build(src, tgt, facts, {}).problems[0], /SCENARIO is not in the source model/);
+  assert.match(ModelCopy.check(src, tgt, { SCENARIO: "NOPE" })[0], /not a member of SCENARIO/);
+  assert.ok(ModelCopy.check(src, Object.assign({}, tgt, { Measures: [{ MeasureId: "X" }] }), { SCENARIO: "BASE" }).some((m) => /share no measure/.test(m)));
+});
