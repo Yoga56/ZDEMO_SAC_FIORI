@@ -26,6 +26,9 @@ A review task is submitted by whoever may edit it and approved or rejected by it
 ## Reminders
 In the app only: the Calendar's bell button and the bell in the header count what needs the user's attention today and list it: reviews waiting for them, their overdue and delayed events, events that end within the number of days they chose (3 by default, per event under *Remind the people on it*, or never) and events that start today or tomorrow. A person is involved as reviewer, owner or assignee. Choosing an entry shows the event. There is no e-mail or push: reminders are worked out when a page is opened, because the app has no server job.
 
+## Your own templates
+*Save as template* on a process (in its panel) keeps it with the tasks directly inside it: their type, length, place in time relative to the start of the process, what they wait for, and their settings (action, parameters, what a locking task does, reminders, colour). It then appears under *New, Process from Template* next to the built-in ones, and can be deleted from there. The template is stored like an event but is not shown in the calendar, and, like an event, it is private to its creator unless shared.
+
 ## Planning tasks
 * A **data action task** and a **multi action task** run the action in its run dialog, with the parameters kept in the task (*Parameters*). The result is recorded in the task: completed at 100 percent, or in progress with the message when it failed.
 * A **data locking task** locks (or unlocks) a version of a model.
