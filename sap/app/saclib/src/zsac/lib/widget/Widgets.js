@@ -428,7 +428,7 @@ sap.ui.define([
           + '<details class="zsacCpDet"' + (sc.result ? "" : " open") + '><summary>Drivers <span class="zsacCpSub">' + drivers.length + " \u00b7 " + uncertain + " with a range</span></summary>"
           + CompassView.driversHtml(drivers, sc.settings, unit()) + "</details>";
         if (sc.result) {
-          const thr = '<div class="zsacCpKpi zsacCpKpiIn"><span class="zsacVCap">Chance of reaching a value</span><span class="zsacCpKpiV"><input type="number" step="any" data-a="threshold" placeholder="value" value="' + Format.esc(threshold) + '"></span></div>';
+          const thr = '<div class="zsacCpKpi zsacCpKpiIn" title="Type a target (in the units of the numbers, for example 100000). A new tile then shows the share of the simulated results that reach it or more."><span class="zsacVCap">Chance of reaching a target</span><span class="zsacCpKpiV"><input type="number" step="any" data-a="threshold" placeholder="type a target" value="' + Format.esc(threshold) + '"></span></div>';
           h += '<div class="zsacCpResult">' + CompassView.statsHtml(sc.result, unit(), threshold, thr)
             + '<div class="zsacCpMain"><div class="zsacCpChartBox">' + CompassView.chartSvg(results, { w: chartW, h: 230 }) + CompassView.casesHtml(sc.result, unit()) + "</div>"
             + '<div class="zsacCpSide">' + CompassView.influenceHtml(sc.result) + "</div></div>"
