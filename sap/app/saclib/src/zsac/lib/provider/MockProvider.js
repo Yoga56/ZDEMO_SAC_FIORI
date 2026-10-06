@@ -201,7 +201,9 @@ sap.ui.define([
     async writeFacts(modelId, rows) {
       await this._assertWritable(modelId);
       await this._assertEditable(modelId);
-      await this._assertUnlocked(modelId, this._changed(modelId, rows));
+      const changed = this._changed(modelId, rows);
+      await this._assertUnlocked(modelId, changed);
+      await this._assertValid(modelId, changed);
       const model = this._db.models.find((x) => x.ModelId === modelId);
       const audit = !!(model && model.DataAudit);
       const at = new Date().toISOString();
@@ -223,7 +225,7 @@ sap.ui.define([
     /** The rows that change the stored data (a new fact, or another value): data locking only looks at changes. */
     _changed(modelId, rows) {
       const m = this._db.models.find((x) => x.ModelId === modelId);
-      if (!m || !m.DataLocking) { return rows; }
+      if (!m || (!m.DataLocking && !(m.ValidationRules || []).length)) { return rows; }
       const have = new Map(this._db.facts.filter((f) => f.ModelId === modelId).map((f) => [DataActionEngine.keyOf(f), f.Value]));
       return rows.filter((r) => {
         const k = DataActionEngine.keyOf(Object.assign({ Dim1: "", Dim2: "", Dim3: "", Dim4: "", Dim5: "" }, r, { ModelId: modelId }));
@@ -271,8 +273,9 @@ sap.ui.define([
       const now = after.filter((f) => f.VersionId === targetId);
       const nowKeys = new Set(now.map((f) => DataActionEngine.keyOf(f)));
       await this._assertEditable(modelId);
-      await this._assertUnlocked(modelId, now.filter((f) => !was.has(DataActionEngine.keyOf(f)) || was.get(DataActionEngine.keyOf(f)).Value !== f.Value)
-        .concat(Array.from(was.values()).filter((f) => !nowKeys.has(DataActionEngine.keyOf(f)))));
+      const changedNow = now.filter((f) => !was.has(DataActionEngine.keyOf(f)) || was.get(DataActionEngine.keyOf(f)).Value !== f.Value);
+      await this._assertUnlocked(modelId, changedNow.concat(Array.from(was.values()).filter((f) => !nowKeys.has(DataActionEngine.keyOf(f)))));
+      await this._assertValid(modelId, changedNow);
       this._db.facts = this._db.facts.filter((f) => f.ModelId !== modelId).concat(after);
       this._save();
       return { Published: after.filter((f) => f.VersionId === targetId).length };

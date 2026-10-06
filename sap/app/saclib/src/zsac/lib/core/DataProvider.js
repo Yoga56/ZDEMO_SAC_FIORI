@@ -6,7 +6,7 @@
  * A subclass implements the underscore-free primitives below (all return promises). `query`, `saveStory`,
  * `saveModel` ... are composed here from those primitives so every provider behaves the same.
  */
-sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource", "../planning/LockEngine"], function (QueryEngine, Access, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource, LockEngine) {
+sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../planning/DataActionSchema", "../planning/MultiActionSchema", "../planning/StepRunners", "../provider/LiveSource", "../planning/LockEngine", "../planning/ValidationEngine"], function (QueryEngine, Access, DataActionEngine, DataActionSchema, MultiActionSchema, StepRunners, LiveSource, LockEngine, ValidationEngine) {
   "use strict";
 
   const abstract = (name) => function () { return Promise.reject(new Error(this.constructor.name + " does not implement " + name)); };
@@ -94,6 +94,17 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
       priv = new Set((await this.listVersions(modelId)).filter((v) => v.Category === "PRIVATE").map((v) => v.VersionId));
       const list = first.filter((b) => !priv.has(b.fact.VersionId));
       if (list.length) { throw new Error(LockEngine.message(list)); }
+    }
+
+    /** Validation rules: refuses rows whose value breaks an ERROR rule of the model (warnings are for the planner typing, not for writes). Private versions are exempt. */
+    async _assertValid(modelId, rows) {
+      const model = await this.getModel(modelId);
+      if (!(model.ValidationRules || []).length || !rows.length) { return; }
+      const first = ValidationEngine.run(model, rows).errors;
+      if (!first.length) { return; }
+      const priv = new Set((await this.listVersions(modelId)).filter((v) => v.Category === "PRIVATE").map((v) => v.VersionId));
+      const list = first.filter((b) => !priv.has(b.fact.VersionId));
+      if (list.length) { throw new Error("Validation stops this change: " + ValidationEngine.message(list) + "."); }
     }
 
     /** Models with a live source are read only. */

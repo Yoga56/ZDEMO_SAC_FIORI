@@ -14,10 +14,11 @@ sap.ui.define([
   "./VersionManager",
   "./VersionHistory",
   "./LockDialog",
+  "./RulesDialog",
   "./TableFunctionsDialog",
   "./GridExport",
   "./CommentDialog"
-], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, LockDialog, TableFunctionsDialog, GridExport, CommentDialog) {
+], function (Control, OverflowToolbar, Button, ToggleButton, Text, ToolbarSpacer, MessageBox, MessageToast, PlanPublisher, DistributeDialog, VersionManager, VersionHistory, LockDialog, RulesDialog, TableFunctionsDialog, GridExport, CommentDialog) {
   "use strict";
 
   return Control.extend("zsac.lib.planning.PlanToolbar", {
@@ -47,13 +48,18 @@ sap.ui.define([
       this._comment = new Button({ icon: "sap-icon://comment", tooltip: "Comments on the selected cell", type: "Transparent", enabled: false, press: () => this._doComment() });
       this._versions = new Button({ text: "Versions", icon: "sap-icon://documents", tooltip: "Version Management", type: "Transparent", press: () => this._openVersions() });
       this._locks = new Button({ icon: "sap-icon://locked", tooltip: "Data Locking: who can change which data", type: "Transparent", press: () => LockDialog.open({ provider: this._provider, modelId: this._modelId(), onChange: () => this._onChange() }) });
+      this._rules = new Button({ icon: "sap-icon://validate", tooltip: "Validation Rules: limits plan values must keep", type: "Transparent", press: () => RulesDialog.open({ provider: this._provider, modelId: this._modelId(), onChange: () => this._onChange() }) });
+      this._mass = new ToggleButton({ text: "Mass Entry", icon: "sap-icon://edit", tooltip: "Mass data entry: type many values, nothing is recalculated until you apply them", type: "Transparent", pressed: false,
+        press: (e) => this._toggleMass(e.getParameter("pressed")) });
+      this._applyMass = new Button({ text: "Apply", type: "Emphasized", visible: false, tooltip: "Apply the typed values as one step", press: () => { const g = this._grid(); if (g) { g.applyMass(); } } });
+      this._cancelMass = new Button({ icon: "sap-icon://decline", type: "Transparent", visible: false, tooltip: "Drop the typed values", press: () => { const g = this._grid(); if (g) { g.clearMass(); } } });
       this._table = new Button({ icon: "sap-icon://table-view", tooltip: "Table Functions: sort, hide zero rows, scale, variance, thresholds, swap", type: "Transparent", enabled: false,
         press: () => { if (this._grid()) { TableFunctionsDialog.open(this._grid(), { onApply: (v) => { if (this._opts.onView) { this._opts.onView(v); } } }); } } });
       this._export = new Button({ icon: "sap-icon://excel-attachment", tooltip: "Export the table to a CSV file", type: "Transparent", enabled: false, press: () => this._doExport() });
       this._refresh = new Button({ icon: "sap-icon://refresh", tooltip: "Refresh the data", type: "Transparent", press: () => this._onChange() });
       this._historyBtn = new Button({ icon: "sap-icon://history", tooltip: "Version History", type: "Transparent", press: () => this._openHistory() });
-      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx, this._table, this._export, this._comment,
-        this._versions, this._locks, this._historyBtn, this._refresh, new ToolbarSpacer(), this._status] }));
+      this.setAggregation("_bar", new OverflowToolbar({ content: [this._publish, this._discard, this._undo, this._redo, this._distribute, this._copy, this._paste, this._fx, this._mass, this._applyMass, this._cancelMass, this._table, this._export, this._comment,
+        this._versions, this._locks, this._rules, this._historyBtn, this._refresh, new ToolbarSpacer(), this._status] }));
       this._guard = (e) => { if (this._plan && this._plan.dirty) { e.preventDefault(); e.returnValue = ""; } };
       window.addEventListener("beforeunload", this._guard);
     },
@@ -114,6 +120,14 @@ sap.ui.define([
         onChange: (all) => t.g.setComments(all) });
     },
 
+    _toggleMass(on) {
+      const g = this._grid();
+      if (!on && g && g.massCount()) { g.applyMass(); }       // switching it off keeps the typed values
+      this._plan.massEntry = on;
+      this._plan.notifySelection(this._plan.active);
+      this._update();
+    },
+
     _doExport() {
       const g = this._grid();
       if (!g) { return; }
@@ -149,6 +163,10 @@ sap.ui.define([
       const g = this._grid();
       const sel = g ? g.selectionInfo() : { count: 0, editable: 0 };
       this._distribute.setEnabled(sel.editable > 0);
+      const waiting = g ? g.massCount() : 0;
+      this._mass.setPressed(!!p.massEntry);
+      this._applyMass.setVisible(!!p.massEntry); this._cancelMass.setVisible(!!p.massEntry);
+      this._applyMass.setText("Apply" + (waiting ? " (" + waiting + ")" : "")).setEnabled(waiting > 0); this._cancelMass.setEnabled(waiting > 0);
       this._table.setEnabled(!!g);
       this._export.setEnabled(!!g);
       this._copy.setEnabled(sel.count > 0);

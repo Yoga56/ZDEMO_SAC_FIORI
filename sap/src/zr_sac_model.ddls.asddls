@@ -22,6 +22,7 @@ define root view entity ZR_SAC_MODEL
   owner_id as OwnerId,
   lock_default as LockDefault,
   lock_json as LockJson,
+  valid_json as ValidJson,
   @Semantics.user.createdBy: true
   created_by as CreatedBy,
   @Semantics.systemDateTime.createdAt: true

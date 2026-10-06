@@ -114,3 +114,52 @@ test("provider: writes into a locked region fail whole; unchanged values and pri
   await p.saveModel(Object.assign({}, m, { LockRegions: [] }));
   await p.publishVersion("SALES_PLAN", v.VersionId, "BUD");
 });
+
+const ValidationEngine = req("zsac/lib/planning/ValidationEngine");
+const vmodel = Object.assign({}, model, { DataLocking: false, ValidationRules: [
+  { Id: "V1", Name: "No negative amounts", Measure: "X", Min: 0, Level: "ERROR" },
+  { Id: "V2", Name: "Region A cap", Filter: { REGION: ["A"] }, Max: 1000, Level: "WARNING", Message: "Unusually high" }
+] });
+
+test("validation rules: minimum, maximum, scope, error against warning, private versions", () => {
+  const r = ValidationEngine.run(vmodel, [fact("A", "2026-01", -5), fact("B", "2026-01", 5000), fact("A", "2026-02", 2000), fact("A", "2026-03", -1, "PRIV1")], (v) => v === "PRIV1");
+  assert.strictEqual(r.errors.length, 1);
+  assert.strictEqual(r.errors[0].fact.Value, -5);
+  assert.strictEqual(r.warnings.length, 1);
+  assert.strictEqual(r.warnings[0].fact.Period, "2026-02");
+  assert.match(ValidationEngine.message(r.warnings), /Unusually high: 1 value is above the maximum 1000 \(2000\)/);
+  assert.deepStrictEqual(ValidationEngine.run(Object.assign({}, vmodel, { ValidationRules: [] }), [fact("A", "2026-01", -5)]), { errors: [], warnings: [] });
+});
+
+test("validation rules are checked: names, bounds, measures, dimensions", () => {
+  assert.deepStrictEqual(ValidationEngine.validate(vmodel, ValidationEngine.normalize(vmodel.ValidationRules)), []);
+  const bad = ValidationEngine.validate(vmodel, [{ Id: "A", Name: "", Measure: "NOPE" }, { Id: "A", Name: "x", Min: 5, Max: 1, Filter: { Q: ["a"] } }]);
+  ["needs a name", "not a measure", "needs a minimum", "used twice", "minimum is above", "not a dimension"].forEach((t) => assert.ok(bad.some((e) => e.indexOf(t) >= 0), t));
+});
+
+test("typing: an error refuses the value, a warning applies it and says so", () => {
+  const versions = [{ VersionId: "BUD", Locked: false, Category: "BUDGET" }];
+  const facts = [fact("A", "2026-05", 20), fact("B", "2026-05", 20)];
+  const spec = { rows: ["REGION"], columns: ["PERIOD"], filters: { VERSION: ["BUD"], MEASURE: ["X"] }, hierarchies: {} };
+  const r = QueryEngine.aggregate(vmodel, facts, spec);
+  const ctx = { model: vmodel, spec, versions, editable: true };
+  assert.match(PlanEditor.edit(ctx, r, ["A"], ["2026-05"], -3).error, /No negative amounts: 1 value is below the minimum 0/);
+  const warned = PlanEditor.edit(ctx, r, ["A"], ["2026-05"], 4000);
+  assert.strictEqual(warned.changes[0].Value, 4000);
+  assert.match(warned.warning, /Unusually high/);
+  assert.strictEqual(PlanEditor.edit(ctx, r, ["B"], ["2026-05"], 4000).warning, undefined);
+});
+
+test("provider: an ERROR rule refuses the whole write and the publish; warnings and private versions pass", async () => {
+  const p = make();
+  const m = await p.getModel("SALES_PLAN");
+  await p.saveModel(Object.assign({}, m, { ValidationRules: [{ Id: "V1", Name: "No negatives", Measure: "REVENUE", Min: 0, Level: "ERROR" }, { Id: "V2", Name: "Cap", Max: 1, Level: "WARNING" }] }));
+  const rows = await p.readFacts("SALES_PLAN", { VERSION: ["BUD"], MEASURE: ["REVENUE"], PERIOD: ["2026-05"] });
+  await assert.rejects(p.writeFacts("SALES_PLAN", [Object.assign({}, rows[0], { Value: -1 }), Object.assign({}, rows[1], { Value: 7 })]), /Validation stops this change: No negatives: 1 value is below the minimum 0/);
+  assert.strictEqual((await p.readFacts("SALES_PLAN", { VERSION: ["BUD"], MEASURE: ["REVENUE"], PERIOD: ["2026-05"] }))[1].Value, rows[1].Value);
+  await p.writeFacts("SALES_PLAN", [Object.assign({}, rows[1], { Value: 99999 })]);     // above the warning cap only
+  const v = await p.createPrivateVersion("SALES_PLAN", "BUD", "What if");
+  const pr = (await p.readFacts("SALES_PLAN", { VERSION: [v.VersionId], MEASURE: ["REVENUE"], PERIOD: ["2026-05"] }))[0];
+  await p.writeFacts("SALES_PLAN", [Object.assign({}, pr, { Value: -50 })]);            // private: not validated on write
+  await assert.rejects(p.publishVersion("SALES_PLAN", v.VersionId, "BUD"), /Validation stops this change/);
+});

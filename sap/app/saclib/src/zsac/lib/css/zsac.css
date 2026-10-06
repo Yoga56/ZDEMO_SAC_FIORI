@@ -317,3 +317,6 @@ body.zsacResizing { user-select: none; cursor: col-resize; } body.zsacResizing i
 .zsacPlanGrid td.zsacVarPos { color: var(--sapPositiveTextColor, #256f3a); }
 .zsacPlanGrid td.zsacVarNeg { color: var(--sapNegativeTextColor, #aa0808); }
 .zsacViewNote { font-size: .75rem; color: var(--sapContent_LabelColor, #556b82); padding: .15rem .5rem; }
+
+/* mass data entry: typed, not applied yet */
+.zsacPlanGrid input.zsacPendingCell { background: var(--sapInformationBackground, #e1f0fc) !important; outline: 2px solid var(--sapHighlightColor, #0a6ed1); outline-offset: -2px; }

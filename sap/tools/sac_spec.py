@@ -51,7 +51,9 @@ ENTITIES = [
         ("PERIOD_FROM", "CHAR 7"), ("PERIOD_TO", "CHAR 7"), ("PLANNING_ENABLED", BOOL), ("DATA_LOCKING", BOOL),
         ("DATA_AUDIT", BOOL), ("DATA_SOURCE", "CHAR 80"), ("SOURCE_JSON", "STRG"), ("OWNER_ID", "CHAR 12"),
         # data locking: the default state outside every region (OPEN or LOCKED) and the JSON list of regions (see zsac.lib LockEngine)
-        ("LOCK_DEFAULT", "CHAR 10"), ("LOCK_JSON", "STRG")],
+        ("LOCK_DEFAULT", "CHAR 10"), ("LOCK_JSON", "STRG"),
+        # validation rules: JSON list of limits a plan value must keep (zsac.lib ValidationEngine)
+        ("VALID_JSON", "STRG")],
         validations=[("CheckStructure", "ModelName")],
         determinations=[("SetOwner", "on modify", "create;")],
         readonly=["OWNER_ID"], calc=[("CurrentUser", "$session.user")], auth="instance", dcl="owner", share_kind="MODEL", share_id="ModelId"),

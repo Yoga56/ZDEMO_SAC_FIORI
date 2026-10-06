@@ -29,6 +29,7 @@ sap.ui.define([
     metadata: { events: { rejected: { parameters: { reason: { type: "string" } } } } },
 
     init() {
+      this._mass = new Map();       // mass data entry: typed values not applied yet, "ri,ci" -> value
       this._rowOpen = new Map();
       this._colOpen = new Map();
       this._onPlan = () => this.invalidate();
@@ -55,6 +56,7 @@ sap.ui.define([
       this._viewOver = Object.assign({}, view);
       if (this.getView().swap !== swapped) { this._rowOpen.clear(); this._colOpen.clear(); }
       this._sel = null;
+      this._mass.clear();
       this._loadRef();
       this.invalidate();
       if (this._ctx && this._ctx.plan) { this._ctx.plan.notifySelection(this); }
@@ -109,6 +111,7 @@ sap.ui.define([
       if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); if (this._onSel) { this._ctx.plan.detachSelection(this._onSel); } }
       this._ctx = ctx;
       this._sel = null;
+      this._mass.clear();
       this._commentIndex = CommentKey.index(ctx.model, ctx.comments);
       this._base = new Map(ctx.facts.map((f) => [[f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|"), f.Value]));
       this._loadRef();
@@ -297,13 +300,14 @@ sap.ui.define([
           const state = o.editable ? PlanEditor.cellState({ model: c.model, spec, versions: c.versions, editable: true, lock: c.lock }, r, rk, ck) : { editable: false };
           const aggregated = (info && info.hasChildren) || (r.colInfo && r.colInfo(ck).hasChildren);
           const dirty = r.cellFacts(rk, ck).some((f) => c.plan && c.plan.has(f));
-          const text = v === undefined ? "" : Format.full(shown(v), dec);
+          const pendingText = this._mass.get(ri + "," + ci);
+          const text = pendingText !== undefined ? esc(pendingText.text) : v === undefined ? "" : Format.full(shown(v), dec);
           const th = GridView.level(view.thresholds, shown(v));
           const notes = this.commentsAt(rk, ck);
           const noted = (th ? " zsacTh" + th : "") + (notes.length ? " zsacHasComment" : "") + (state.lock && state.lock !== "OPEN" ? " zsacLock" + state.lock : "");
           const noteTip = notes.length ? ' title="' + esc(notes.map((n) => (n.Author ? n.Author + ": " : "") + n.Text).join("\n")) + '"' : "";
           if (state.editable) {
-            h += '<td class="num' + noted + '"' + noteTip + ' data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
+            h += '<td class="num' + noted + '"' + noteTip + ' data-ri="' + ri + '" data-ci="' + ci + '"><input class="zsacCell2' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + (pendingText !== undefined ? " zsacPendingCell" : "") + (v === undefined ? " zsacMissing" : "") + '" data-ri="' + ri + '" data-ci="' + ci + '" value="' + text + '"></td>';
           } else {
             h += '<td data-ri="' + ri + '" data-ci="' + ci + '" class="num' + (aggregated ? " zsacAggCell" : "") + (dirty ? " zsacDirtyCell" : "") + noted + '"'
               + (notes.length ? noteTip : (o.editable && state.reason ? ' title="' + esc(state.reason) + '"' : "")) + ">" + text + "</td>";
@@ -340,7 +344,15 @@ sap.ui.define([
       root.addEventListener("focusin", (e) => { if (e.target.matches("input.zsacCell2")) { e.target.select(); } });
       root.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" || !e.target.matches("input.zsacCell2")) { return; }
-        this._focusNext = { ri: Number(e.target.dataset.ri) + (e.shiftKey ? -1 : 1), ci: Number(e.target.dataset.ci) };
+        const next = { ri: Number(e.target.dataset.ri) + (e.shiftKey ? -1 : 1), ci: Number(e.target.dataset.ci) };
+        if (this._ctx.plan && this._ctx.plan.massEntry) {      // nothing is recalculated while typing: move on without re-rendering
+          this._onEdit(e.target);
+          const t = root.querySelector('input[data-ri="' + next.ri + '"][data-ci="' + next.ci + '"]');
+          if (t) { t.focus(); t.select(); }
+          e.preventDefault();
+          return;
+        }
+        this._focusNext = next;
         e.target.blur();      // commits the value through the change event; the re-render then moves the focus
         this.invalidate();
       });
@@ -501,6 +513,19 @@ sap.ui.define([
       this.invalidate();
     },
 
+    /** Mass data entry: the number of typed values waiting, apply them as one undoable step, or drop them. */
+    massCount() { return this._mass.size; },
+    applyMass() {
+      const items = Array.from(this._mass.values()).map((x) => ({ ri: x.ri, ci: x.ci, value: x.value }));
+      this._mass.clear();
+      if (!items.length) { return { cells: 0, skipped: 0, reason: "" }; }
+      const out = this.applyCellValues(items, "Mass entry into " + items.length + (items.length === 1 ? " cell" : " cells"));
+      this._report(out);
+      this.invalidate();
+      return out;
+    },
+    clearMass() { this._mass.clear(); this.invalidate(); if (this._ctx && this._ctx.plan) { this._ctx.plan.notifySelection(this); } },
+
     clearSelection() { this._sel = null; this._paint(); if (this._ctx && this._ctx.plan) { this._ctx.plan.notifySelection(this); } },
 
     _stateOf(rk, ck) {
@@ -619,10 +644,11 @@ sap.ui.define([
       const c = this._ctx;
       const ctx = { model: c.model, spec: this._spec(), versions: c.versions, editable: true, lock: c.lock };
       const changes = new Map();
-      let cells = 0; let skipped = 0; let reason = "";
+      let cells = 0; let skipped = 0; let reason = ""; const warnings = new Set();
       items.forEach((it) => {
         const out = PlanEditor.edit(ctx, this._result, this._rows[it.ri], this._cols[it.ci], it.value);
         if (out.error) { skipped++; reason = reason || out.error; return; }
+        if (out.warning) { warnings.add(out.warning); }
         cells++;
         out.changes.forEach((f) => changes.set(PlanEditor.keyOfFact(f), f));
       });
@@ -630,11 +656,12 @@ sap.ui.define([
         c.plan.apply(Array.from(changes.values()), (f) => { const v = this._base.get([f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|")); return v === undefined ? null : v; },
           label || "Edit " + cells + " cells");
       }
-      return { cells, skipped, reason };
+      return { cells, skipped, reason, warning: Array.from(warnings).join(" ") };
     },
 
     _report(out) {
       if (out.reason && !out.cells) { MessageToast.show(out.reason); return; }
+      if (out.warning) { MessageToast.show("Warning: " + out.warning, { duration: 5000 }); return; }
       MessageToast.show(out.cells + (out.cells === 1 ? " cell" : " cells") + " changed" + (out.skipped ? ", " + out.skipped + " skipped" + (out.reason ? " (" + out.reason + ")" : "") : ""));
     },
 
@@ -644,6 +671,14 @@ sap.ui.define([
       const ck = this._cols[Number(input.dataset.ci)];
       if (FormulaEngine.isFormula(input.value)) {
         this._formulaFor([{ ri: Number(input.dataset.ri), ci: Number(input.dataset.ci), rk, ck, value: this._result.cell(rk, ck), state: this._stateOf(rk, ck) }], input.value);
+        return;
+      }
+      if (c.plan && c.plan.massEntry) {
+        const ri = Number(input.dataset.ri); const ci = Number(input.dataset.ci);
+        const text = input.value.trim();
+        if (text === "" || !Number.isFinite(num(text))) { this._mass.delete(ri + "," + ci); } else { this._mass.set(ri + "," + ci, { ri, ci, text, value: num(text) * (this._vw ? this._vw.scale : 1) }); }
+        input.classList.toggle("zsacPendingCell", this._mass.has(ri + "," + ci));
+        c.plan.notifySelection(this);
         return;
       }
       const value = num(input.value) * (this._vw ? this._vw.scale : 1);
@@ -656,6 +691,7 @@ sap.ui.define([
       }
       if (!out.changes.length) { this.invalidate(); return; }
       const lookup = (f) => { const v = this._base.get([f.ModelId, f.VersionId, f.Period, f.Measure, f.Dim1, f.Dim2, f.Dim3, f.Dim4, f.Dim5].join("|")); return v === undefined ? null : v; };
+      if (out.warning) { MessageToast.show("Warning: " + out.warning, { duration: 5000 }); }
       if (c.plan) { c.plan.apply(out.changes, lookup, "Typed " + Format.full(value, this._dec) + " into " + this._cellLabel(rk, ck)); }
     }
   });

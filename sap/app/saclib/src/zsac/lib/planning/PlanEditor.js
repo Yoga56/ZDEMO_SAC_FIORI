@@ -5,7 +5,7 @@
  * lock (optional) is LockEngine.compile(model) and the user: cells in locked or restricted regions are not editable.
  * result = QueryEngine.aggregate(...) of the facts the table shows (unpublished changes already applied)
  */
-sap.ui.define(["../core/QueryEngine", "./Spreader", "./LockEngine"], function (QueryEngine, Spreader, LockEngine) {
+sap.ui.define(["../core/QueryEngine", "./Spreader", "./LockEngine", "./ValidationEngine"], function (QueryEngine, Spreader, LockEngine, ValidationEngine) {
   "use strict";
 
   /** The single member a coordinate has in this cell: from the row or column key, else from a one-member filter. */
@@ -73,14 +73,19 @@ sap.ui.define(["../core/QueryEngine", "./Spreader", "./LockEngine"], function (Q
     const n = Number(value);
     if (!Number.isFinite(n)) { return { error: "Enter a number" }; }
     const scope = result.cellFacts(r, c);
+    let changes;
     if (scope.length) {
-      const changes = Spreader.spread(state.measureSpec.Aggregation, scope, n);
-      return { changes };
+      changes = Spreader.spread(state.measureSpec.Aggregation, scope, n);
+    } else {
+      const fact = template(ctx, result, r, c, state);
+      if (!fact) { return { error: "This cell has no data yet. Add the row first, or choose single members for every dimension." }; }
+      fact.Value = Spreader.round(n);
+      changes = [fact];
     }
-    const fact = template(ctx, result, r, c, state);
-    if (!fact) { return { error: "This cell has no data yet. Add the row first, or choose single members for every dimension." }; }
-    fact.Value = Spreader.round(n);
-    return { changes: [fact] };
+    // validation rules of the model: an ERROR refuses the value, a WARNING lets it through and says so
+    const v = ValidationEngine.run(ctx.model, changes);
+    if (v.errors.length) { return { error: ValidationEngine.message(v.errors) }; }
+    return v.warnings.length ? { changes, warning: ValidationEngine.message(v.warnings) } : { changes };
   }
 
   /**
