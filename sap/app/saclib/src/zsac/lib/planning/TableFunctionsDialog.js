@@ -7,8 +7,8 @@
 sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/ui/core/Item", "sap/m/CheckBox", "sap/m/Label", "sap/m/Text", "sap/m/VBox", "sap/m/HBox",
   "sap/m/ScrollContainer", "sap/m/Title",
-  "./GridView"
-], function (Dialog, Button, Input, Select, Item, CheckBox, Label, Text, VBox, HBox, ScrollContainer, Title, GridView) {
+  "./GridView", "../designer/ValueHelp"
+], function (Dialog, Button, Input, Select, Item, CheckBox, Label, Text, VBox, HBox, ScrollContainer, Title, GridView, ValueHelp) {
   "use strict";
 
   const colKey = (k) => k.join("\u0001");
@@ -59,7 +59,7 @@ sap.ui.define([
       calcBox.destroyItems();
       calcs.forEach((c, i) => {
         const name = new Input({ width: "7rem", value: c.Name, placeholder: "Name", liveChange: () => { c.Name = name.getValue(); } });
-        const f = new Input({ width: "11rem", value: c.Formula, placeholder: "BUD/ACT-1", liveChange: () => { c.Formula = f.getValue(); } });
+        const f = ValueHelp.insert(new Input({ width: "11rem", value: c.Formula, placeholder: "BUD/ACT-1", liveChange: () => { c.Formula = f.getValue(); } }), grid.getFormulaNames(), "Versions and measures");
         const pct = new CheckBox({ text: "%", selected: c.Percent, select: () => { c.Percent = pct.getSelected(); } });
         calcBox.addItem(new HBox({ alignItems: "Center", class: "sapUiTinyMarginBottom", items: [name.addStyleClass("sapUiTinyMarginEnd"), new Text({ text: "=" }).addStyleClass("sapUiTinyMarginEnd"), f, pct,
           new Button({ icon: "sap-icon://delete", type: "Transparent", press: () => { calcs.splice(i, 1); renderCalcs(); } })] }));

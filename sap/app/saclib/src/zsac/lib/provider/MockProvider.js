@@ -92,6 +92,7 @@ sap.ui.define([
 
     // ---- ownership and sharing -----------------------------------------------------------
     currentUser() { return Promise.resolve(this._user); }
+    _shareUsers() { return Promise.resolve(this._db.shares.map((x) => x.Principal)); }
     /** ?user=ALICE plays Alice; the default user is a planner called Planner. */
     currentUserName() { return Promise.resolve(this._user === "ME" ? "Planner" : this._user.charAt(0) + this._user.slice(1).toLowerCase()); }
     /** Another user on the same data (for tests and demos): the store is shared, only the identity differs. */

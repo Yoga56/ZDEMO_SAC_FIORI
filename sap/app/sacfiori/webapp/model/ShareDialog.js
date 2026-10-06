@@ -1,8 +1,9 @@
 sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Text", "sap/m/Title", "sap/m/VBox", "sap/m/HBox", "sap/m/MessageStrip", "sap/m/FlexItemData",
-  "zsac/lib/core/Access"
-], function (Item, Dialog, Button, Input, Select, Text, Title, VBox, HBox, MessageStrip, FlexItemData, Access) {
+  "zsac/lib/core/Access",
+  "zsac/lib/designer/ValueHelp"
+], function (Item, Dialog, Button, Input, Select, Text, Title, VBox, HBox, MessageStrip, FlexItemData, Access, ValueHelp) {
   "use strict";
 
   /**
@@ -18,6 +19,7 @@ sap.ui.define([
       const noun = { STORY: "story", MODEL: "model", DATAACTION: "data action", MULTIACTION: "multi action" }[kind] || "object";
       const body = new VBox({ width: "30rem" }).addStyleClass("sapUiSmallMargin");
       const status = new VBox();
+      const users = ValueHelp.lazyUsers(provider);
       const note = (text, type) => { status.destroyItems(); if (text) { status.addItem(new MessageStrip({ text, type: type || "Error", showIcon: true }).addStyleClass("sapUiTinyMarginTop")); } };
       let everyone = ""; let people = []; let canEdit = false; let object = null; let me = "";
 
@@ -48,7 +50,7 @@ sap.ui.define([
           accessSelect(p.Access, (v) => { p.Access = v; }, false),
           new Button({ icon: "sap-icon://decline", type: "Transparent", tooltip: "Remove", visible: canEdit, press: () => { people.splice(i, 1); render(); } })] })));
         if (canEdit) {
-          const name = new Input({ placeholder: "User name, e.g. BOB", width: "100%", maxLength: 12, layoutData: new FlexItemData({ growFactor: 1 }),
+          const name = ValueHelp.input({ items: users, title: "Users", placeholder: "User name, e.g. BOB", maxLength: 12, layoutData: new FlexItemData({ growFactor: 1 }),
             submit: () => add() });
           const add = () => {
             const n = Access.normalize([{ Principal: name.getValue(), Access: "READ" }], object.Owner);

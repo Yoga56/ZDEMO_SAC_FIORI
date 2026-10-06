@@ -5,9 +5,10 @@ sap.ui.define([
   "sap/ui/core/Item", "sap/ui/core/Icon", "sap/m/Dialog", "sap/m/List", "sap/m/StandardListItem",
   "zsac/lib/planning/DataActionSchema",
   "zsac/lib/planning/DataActionRun",
-  "../model/ShareDialog"
+  "../model/ShareDialog",
+  "zsac/lib/designer/ValueHelp"
 ], function (BaseController, Button, MenuButton, Menu, MenuItem, ToolbarSpacer, Title, Text, Label, Input, TextArea, Select, ComboBox, MultiComboBox, CheckBox, Switch,
-  VBox, HBox, MessageStrip, ObjectStatus, Item, Icon, Dialog, List, StandardListItem, Schema, Run, ShareDialog) {
+  VBox, HBox, MessageStrip, ObjectStatus, Item, Icon, Dialog, List, StandardListItem, Schema, Run, ShareDialog, ValueHelp) {
   "use strict";
 
   const BUILTIN = [{ id: "VERSION", label: "Version" }, { id: "PERIOD", label: "Date" }];
@@ -414,6 +415,15 @@ sap.ui.define([
       this._field(edit, "Formula", new TextArea({ width: "100%", rows: 3, value: s.Formula, placeholder: "REVENUE - COST",
         liveChange: (e) => { s.Formula = e.getParameter("value"); this._changed(false); } }),
         "Measure ids (" + measures.join(", ") + "), numbers and + - * / ^ ( ). MEASURE@VERSION is the measure in another version, for example REVENUE@ACT * 1.05. It is worked out for every combination of members the filter covers, on the values as they are in the model.");
+      edit.addItem(new Button({ text: "Insert a measure or version...", icon: "sap-icon://add", type: "Transparent", press: () => {
+        const items = measures.map((id) => ({ key: id, text: id, description: ((this._model.Measures || []).find((m) => m.MeasureId === id) || {}).Label || "" }))
+          .concat((this._versions || []).map((v) => ({ key: "@" + v.VersionId, text: "@" + v.VersionId, description: "the measure written before it, in version " + v.Name })));
+        ValueHelp.open({ title: "Insert", items, onSelect: (keys) => {
+          const k = keys[0];
+          s.Formula = (s.Formula || "").replace(/\s+$/, "") + (k[0] === "@" ? k : (s.Formula ? " " : "") + k);
+          this._changed(true);
+        } });
+      } }));
       this._field(edit, "Write the result into measure", new Select({ width: "14rem", selectedKey: s.TgtMeasure, forceSelection: false,
         items: [new Item({ key: "", text: "Choose a measure" })].concat((this._model.Measures || []).map((m) => new Item({ key: m.MeasureId, text: m.Label }))),
         change: (e) => { s.TgtMeasure = e.getParameter("selectedItem").getKey(); this._changed(false); } }));
@@ -427,8 +437,8 @@ sap.ui.define([
       this._field(edit, "Currency comes from dimension", new Select({ width: "14rem", selectedKey: s.CurrencyDim, forceSelection: false,
         items: [new Item({ key: "", text: "One currency (below)" })].concat(dimsWithCurrency.map((d) => new Item({ key: d.DimId, text: d.Label }))),
         change: (e) => { s.CurrencyDim = e.getParameter("selectedItem").getKey(); this._changed(true); } }), "The CURRENCY attribute of its members says what currency their values are in.");
-      if (!s.CurrencyDim) { this._field(edit, "Convert from", this._combo(s, "FromCurrency", "MEMBER", false, "", []), "A currency code, for example USD."); }
-      this._field(edit, "Convert into", this._combo(s, "ToCurrency", "MEMBER", false, "", []), "A currency code, or a parameter.");
+      if (!s.CurrencyDim) { this._field(edit, "Convert from", this._combo(s, "FromCurrency", "MEMBER", false, "", ValueHelp.CURRENCIES.map((c) => ({ Id: c.key }))), "A currency code, for example USD."); }
+      this._field(edit, "Convert into", this._combo(s, "ToCurrency", "MEMBER", false, "", ValueHelp.CURRENCIES.map((c) => ({ Id: c.key }))), "A currency code, or a parameter.");
       this._field(edit, "Rates", new TextArea({ width: "100%", rows: 5, value: s.Rates, placeholder: "USD>EUR=0.92\nUSD>EUR@2026-Q2=0.94\nUSD>EUR@2026-03=0.93",
         liveChange: (e) => { s.Rates = e.getParameter("value"); this._changed(false); } }), "One rate per line. A rate for a month wins over its quarter, its year, then one without a period; a pair also converts back.");
       this._field(edit, "Write into version", this._combo(s, "TgtVersion", "MEMBER", false, "VERSION", this._members("VERSION")), "Empty keeps the version of the values.");

@@ -25,9 +25,11 @@ sap.ui.define([
   "../core/CalcMeasures",
   "../widget/Widgets",
   "./FilterEditor",
-  "./TreeEditor"
+  "./TreeEditor",
+  "./ValueHelp",
+  "sap/ui/core/IconPool"
 ], function (Control, Item, VBox, HBox, Label, Input, TextArea, Select, MultiComboBox, CheckBox, StepInput, Button, Title, Text,
-  WidgetRegistry, FilterEngine, QueryEngine, CalcMeasures, Widgets, FilterEditor, TreeEditor) {
+  WidgetRegistry, FilterEngine, QueryEngine, CalcMeasures, Widgets, FilterEditor, TreeEditor, ValueHelp, IconPool) {
   "use strict";
 
   const BUILTIN = [{ DimId: "VERSION", Label: "Version" }, { DimId: "PERIOD", Label: "Period" }, { DimId: "MEASURE", Label: "Measure" }];
@@ -74,18 +76,19 @@ sap.ui.define([
         return;
       }
       const def = WidgetRegistry.get(widget.Type);
-      const [models, model, versions, actions, multiActions] = await Promise.all([
+      const [models, model, versions, actions, multiActions, stories] = await Promise.all([
         provider.listModels(),
         widget.Binding && widget.Binding.ModelId ? provider.getModel(widget.Binding.ModelId).catch(() => null) : Promise.resolve(null),
         widget.Binding && widget.Binding.ModelId ? provider.listVersions(widget.Binding.ModelId).catch(() => []) : Promise.resolve([]),
         provider.listDataActions().catch(() => []),
-        provider.listMultiActions().catch(() => [])
+        provider.listMultiActions().catch(() => []),
+        provider.listStories().catch(() => [])
       ]);
       if (token !== this._token) { return; }
       const form = new VBox({ width: "100%" }).addStyleClass("zsacBuilderForm");
       form.addItem(new Title({ text: def ? def.name : widget.Type, level: "H5" }));
       (def ? def.builder : []).forEach((f) => {
-        const field = this._field(f, widget, { models, model, versions, multiActions, actions: actions.filter((a) => widget.Binding && a.ModelId === widget.Binding.ModelId) });
+        const field = this._field(f, widget, { models, model, versions, multiActions, stories, actions: actions.filter((a) => widget.Binding && a.ModelId === widget.Binding.ModelId) });
         if (field) {
           form.addItem(new Label({ text: f.label, design: "Bold" }).addStyleClass("sapUiSmallMarginTop"));
           form.addItem(field);
@@ -102,6 +105,19 @@ sap.ui.define([
       const val = getPath(widget, f.key);
       const dims = ((env.model && env.model.Dimensions) || []);
       switch (f.kind) {
+        case "icon": {
+          // the SAP icon names, with a search help that shows the icons
+          const items = (IconPool.getIconNames("SAP-icons") || []).map((n) => ({ key: "sap-icon://" + n, text: n, description: "", icon: "sap-icon://" + n }));
+          return ValueHelp.input({ items, title: "Icons", value: val || "", placeholder: "sap-icon://home", change: (e) => this._set(f.key, e.getParameter("value").trim()) });
+        }
+        case "route": {
+          const pages = ["home", "files", "stories", "analyser", "datasets", "modeller", "planning", "dataactions", "multiactions", "calendar"].map((p) => ({ key: p, text: p, description: "page" }))
+            .concat((env.stories || []).map((s) => ({ key: "stories/" + s.Id, text: "stories/" + s.Id, description: "story " + s.Name })))
+            .concat((env.models || []).map((m) => ({ key: "modeller/" + m.ModelId, text: "modeller/" + m.ModelId, description: "model " + m.Name })))
+            .concat((env.actions || []).map((a) => ({ key: "dataactions/" + a.Id, text: "dataactions/" + a.Id, description: "data action " + a.Name })))
+            .concat((env.multiActions || []).map((a) => ({ key: "multiactions/" + a.Id, text: "multiactions/" + a.Id, description: "multi action " + a.Name })));
+          return ValueHelp.input({ items: pages, title: "Pages", value: val || "", placeholder: "stories/STORY_SALES", change: (e) => this._set(f.key, e.getParameter("value").trim()) });
+        }
         case "text": return new Input({ value: val || "", width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });
         case "textarea": return new TextArea({ value: val || "", width: "100%", rows: 3, change: (e) => this._set(f.key, e.getParameter("value")) });
         case "number": return new StepInput({ value: val === undefined ? Number(f.default) || 0 : Number(val) || 0, min: f.min || 0, width: "100%", change: (e) => this._set(f.key, e.getParameter("value")) });

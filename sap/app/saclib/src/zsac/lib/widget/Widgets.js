@@ -543,9 +543,9 @@ sap.ui.define([
       { key: "Props.ShowTotals", label: "Show totals (flat tables)", kind: "bool", default: true },
       { key: "Props.SuppressZero", label: "Hide rows with only zeros", kind: "bool", default: false },
       { key: "Props.Swap", label: "Swap rows and columns", kind: "bool", default: false },
-      { key: "Props.Scale", label: "Scale (1, 1000, 1000000)", kind: "number", default: 1 },
+      { key: "Props.Scale", label: "Scale", kind: "select", options: [["1", "None"], ["1000", "Thousands"], ["1000000", "Millions"], ["1000000000", "Billions"]] },
       { key: "Props.Decimals", label: "Decimals (empty: from the measure)", kind: "number" },
-      { key: "Props.VarianceVs", label: "Variance to version (id, empty: none)", kind: "text" },
+      { key: "Props.VarianceVs", label: "Variance to version (empty: none)", kind: "version" },
       { key: "Props.Calcs", label: "Calculations, for example Growth % = BUD/ACT-1", kind: "text" },
       { key: "Props.Thresholds", label: "Thresholds, for example < 0 : bad; >= 100 : good", kind: "text" }
     ]),
@@ -796,7 +796,7 @@ sap.ui.define([
     { key: "Props.Action", label: "When pressed", kind: "select", options: ButtonAction.KINDS },
     { key: "Props.Page", label: "Page number (for: go to a page of the story)", kind: "number", min: 1 },
     { key: "Props.Url", label: "Web address (for: open a web address)", kind: "text" },
-    { key: "Props.Route", label: "Page of the app (for: go to a page of the app), e.g. stories/STORY_SALES", kind: "text" }
+    { key: "Props.Route", label: "Page of the app (for: go to a page of the app)", kind: "route" }
   ];
   function runAction(props, ctx) {
     if (ctx.isEditable && ctx.isEditable()) { MessageToast.show("Buttons work when the story is shown, not while it is edited"); return; }
@@ -813,7 +813,7 @@ sap.ui.define([
     defaults: { Binding: emptyBinding(), Props: { Text: "Button", Icon: "", ButtonType: "Emphasized", Action: "none", Page: 1, Url: "", Route: "" } },
     builder: [
       { key: "Props.Text", label: "Text", kind: "text" },
-      { key: "Props.Icon", label: "Icon, e.g. sap-icon://home (optional)", kind: "text" },
+      { key: "Props.Icon", label: "Icon (optional)", kind: "icon" },
       { key: "Props.ButtonType", label: "Look", kind: "select", options: [["Emphasized", "Emphasized"], ["Default", "Default"], ["Transparent", "Transparent"], ["Accept", "Positive"], ["Reject", "Negative"]] }
     ].concat(actionFields),
     create(widget, ctx) {
@@ -827,7 +827,7 @@ sap.ui.define([
     name: "Symbol", icon: "sap-icon://favorite", group: "Content", size: { w: 2, h: 2 }, static: true,
     defaults: { Binding: emptyBinding(), Props: { Icon: "sap-icon://home", Size: "medium", Color: "blue", Label: "", Action: "none", Page: 1, Url: "", Route: "" } },
     builder: [
-      { key: "Props.Icon", label: "Icon, e.g. sap-icon://home (the SAP icon names)", kind: "text" },
+      { key: "Props.Icon", label: "Icon", kind: "icon" },
       { key: "Props.Size", label: "Size", kind: "select", options: [["small", "Small"], ["medium", "Medium"], ["large", "Large"], ["huge", "Huge"]] },
       colorSelect("Props.Color", "Colour"),
       { key: "Props.Label", label: "Text under the symbol", kind: "text" }

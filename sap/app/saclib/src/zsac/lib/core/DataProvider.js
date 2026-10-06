@@ -20,6 +20,27 @@ sap.ui.define(["./QueryEngine", "./Access", "../planning/DataActionEngine", "../
     // --- ownership and sharing of stories and models (see core/Access) -----------------------------
     /** The user the data source works for ("" when it cannot tell). */
     currentUser() { return Promise.resolve(""); }
+    /**
+     * The users this data source knows about, for the value help of user fields: owners of stories, models, actions and events, the people on events,
+     * the users things are shared with, and the current user. Names of users that never appear in the data cannot be listed.
+     */
+    async listUsers() {
+      const set = new Set();
+      const add = (u) => { const n = String(u || "").trim().toUpperCase(); if (n && n !== "*" && n !== "SYSTEM" && n !== "SEED") { set.add(n); } };
+      add(await this.currentUser());
+      const safe = async (fn) => { try { return await fn(); } catch (e) { return []; } };
+      [await safe(() => this.listStories()), await safe(() => this.listModels()), await safe(() => this.listDataActions()), await safe(() => this.listMultiActions())].forEach((list) => list.forEach((o) => add(o.Owner)));
+      (await safe(() => this.listTasks())).forEach((t) => {
+        add(t.Owner); add(t.Approver);
+        const p = t.People || {};
+        ["Owners", "Assignees", "Viewers"].forEach((k) => (p[k] || []).forEach(add));
+      });
+      (await safe(() => this._shareUsers())).forEach(add);
+      return Array.from(set).sort();
+    }
+    /** The users named on shares (a provider that can list them says so). */
+    _shareUsers() { return Promise.resolve([]); }
+
     /** The name to greet the user with: the full name of the business user where the data source knows it, else the user id. */
     async currentUserName() { return this.currentUser(); }
     /**

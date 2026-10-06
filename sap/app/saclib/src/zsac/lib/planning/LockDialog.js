@@ -9,9 +9,9 @@
 sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/ui/core/Item", "sap/m/Label", "sap/m/Text", "sap/m/VBox", "sap/m/HBox",
   "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem", "sap/m/ScrollContainer", "sap/m/MessageBox", "sap/m/MessageToast", "sap/ui/core/HTML",
-  "../designer/FilterEditor",
+  "../designer/FilterEditor", "../designer/ValueHelp",
   "./LockEngine"
-], function (Dialog, Button, Input, Select, Item, Label, Text, VBox, HBox, Table, Column, ColumnListItem, ScrollContainer, MessageBox, MessageToast, HTML, FilterEditor, LockEngine) {
+], function (Dialog, Button, Input, Select, Item, Label, Text, VBox, HBox, Table, Column, ColumnListItem, ScrollContainer, MessageBox, MessageToast, HTML, FilterEditor, ValueHelp, LockEngine) {
   "use strict";
 
   const chip = (state) => '<span class="zsacLockChip zsacLockChip' + state + '">' + LockEngine.STATES[state].label + "</span>";
@@ -50,7 +50,7 @@ sap.ui.define([
       const name = new Input({ value: r.Name, width: "100%", enabled: canEdit, placeholder: "For example Q1 closed" });
       const state = new Select({ width: "100%", enabled: canEdit, selectedKey: r.State, change: () => { owners.setEnabled(canEdit && state.getSelectedKey() === "RESTRICTED"); } });
       Object.keys(LockEngine.STATES).forEach((k) => state.addItem(new Item({ key: k, text: LockEngine.STATES[k].label })));
-      const owners = new Input({ value: r.Owners.join(", "), width: "100%", enabled: canEdit && r.State === "RESTRICTED", placeholder: "User names, separated by commas" });
+      const owners = ValueHelp.input({ items: ValueHelp.lazyUsers(provider), multi: true, title: "Users", value: r.Owners.join(", "), enabled: canEdit && r.State === "RESTRICTED", placeholder: "User names, separated by commas" });
       const holder = new VBox({ width: "100%" });
       holder.addItem(FilterEditor.build({ model, versions, filters: r.Filter, periodNodes: true, onChange: (f) => { r.Filter = f; } }));
       const dlg = new Dialog({

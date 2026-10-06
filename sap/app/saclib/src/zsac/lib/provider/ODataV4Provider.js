@@ -179,6 +179,8 @@ sap.ui.define([
       return "";
     }
 
+    async _shareUsers() { return (await this._allShares()).map((x) => x.Principal); }
+
     /** The full name of the business user (service entity CurrentUserInfo); the user id when the service does not give it. */
     async currentUserName() {
       if (this._userName) { return this._userName; }

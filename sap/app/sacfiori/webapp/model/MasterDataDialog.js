@@ -2,9 +2,9 @@ sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem",
   "sap/m/ScrollContainer", "sap/m/OverflowToolbar", "sap/m/ToolbarSpacer", "sap/m/SearchField", "sap/m/TextArea", "sap/m/VBox", "sap/m/HBox", "sap/m/MessageBox",
-  "zsac/lib/core/HierarchyEngine"
+  "zsac/lib/core/HierarchyEngine", "zsac/lib/designer/ValueHelp"
 ], function (Item, Dialog, Button, Input, Select, Label, Text, Table, Column, ColumnListItem, ScrollContainer, OverflowToolbar, ToolbarSpacer, SearchField, TextArea, VBox, HBox,
-  MessageBox, HierarchyEngine) {
+  MessageBox, HierarchyEngine, ValueHelp) {
   "use strict";
 
   const SELECT_LIMIT = 60;   // up to this many members the parent column is a select, above it a typed (validated) id
@@ -85,7 +85,11 @@ sap.ui.define([
               } }));
             }
           }
-          attrs.forEach((a) => cells.push(new Input({ value: (m.Props || {})[a.Id] || "", width: "100%", change: (e) => { m.Props = m.Props || {}; m.Props[a.Id] = e.getParameter("value"); } })));
+          attrs.forEach((a) => {
+            const settings = { value: (m.Props || {})[a.Id] || "", width: "100%", change: (e) => { m.Props = m.Props || {}; m.Props[a.Id] = e.getParameter("value"); } };
+            // a currency attribute is picked from the currency codes
+            cells.push(a.Id === "CURRENCY" ? ValueHelp.input(Object.assign({ items: ValueHelp.CURRENCIES, title: "Currencies" }, settings)) : new Input(settings));
+          });
           cells.push(new Button({ icon: "sap-icon://delete", type: "Transparent", enabled: !locked.has(m.Id), tooltip: "Remove member", press: () => {
             members = members.filter((x) => x !== m);
             hierarchies.forEach((hh) => { const p = hh.Parents || {}; delete p[m.Id]; Object.keys(p).forEach((c) => { if (p[c] === m.Id) { delete p[c]; } }); });

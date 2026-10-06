@@ -68,6 +68,14 @@ sap.ui.define([
       return this.getView().swap ? Object.assign({}, s, { rows: s.columns, columns: s.rows }) : s;
     },
 
+    /** What a formula of this table can name: the versions, the measures and `current`, for the value help of formula fields. */
+    getFormulaNames() {
+      const c = this._ctx || {};
+      return [{ key: "current", text: "current", description: "the value of the cell" }]
+        .concat((c.versions || []).map((v) => ({ key: v.VersionId, text: v.VersionId, description: "version " + v.Name })))
+        .concat(((c.model && c.model.Measures) || []).map((m) => ({ key: m.MeasureId, text: m.MeasureId, description: "measure " + m.Label })));
+    },
+
     /** The leaf columns on screen, to pick the column to sort by. */
     getColumnChoices() {
       return (this._cols || []).map((k) => ({ key: k, label: k.map((m, i) => (this._spec().columns[i] === "PERIOD" ? Format.period(m) : m)).join(" / ") }));

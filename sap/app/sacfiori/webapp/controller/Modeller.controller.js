@@ -10,8 +10,9 @@ sap.ui.define([
   "sap/m/Dialog", "sap/m/Button", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/ui/core/Item",
   "zsac/lib/core/ModelSchema",
   "zsac/lib/core/History",
+  "zsac/lib/designer/ValueHelp",
   "zsac/lib/planning/DataActionEngine"
-], function (BaseController, DataTools, MasterDataDialog, SourceDialog, ShareDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema, History) {
+], function (BaseController, DataTools, MasterDataDialog, SourceDialog, ShareDialog, JSONModel, Filter, FilterOperator, Dialog, Button, Select, Label, Text, Item, ModelSchema, History, ValueHelp) {
   "use strict";
 
   const BUILTIN_ROWS = (versions, periods) => [
@@ -34,7 +35,7 @@ sap.ui.define([
       this._rel = new JSONModel({ items: [] });
       this._data = new JSONModel({ items: [] });
       const v = this.getView();
-      v.setModel(new JSONModel({ dimTypes: Object.keys(ModelSchema.DIM_TYPES).map((k) => ({ key: k, text: ModelSchema.DIM_TYPES[k].label })) }), "view");
+      v.setModel(new JSONModel({ dimTypes: Object.keys(ModelSchema.DIM_TYPES).map((k) => ({ key: k, text: ModelSchema.DIM_TYPES[k].label })), currencies: ValueHelp.CURRENCIES, unitsAll: ValueHelp.CURRENCIES.concat(ValueHelp.UNITS) }), "view");
       v.setModel(this._m, "m"); v.setModel(this._sel, "sel"); v.setModel(this._rel, "rel"); v.setModel(this._data, "data");
       this.onRoute("modeller", (args) => this._load(args.id));
     },
@@ -58,6 +59,28 @@ sap.ui.define([
     },
     onUndo() { this._record(); this._restore(this._hist.undo()); },
     onRedo() { this._restore(this._hist.redo()); },
+
+    /** The value help button of a field: currency codes, units, or (a formula) the measures it can use. */
+    onHelp(e) {
+      const input = e.getSource();
+      const kind = input.data("help");
+      const ctx = input.getBindingContext("m");
+      const d = this._m.getData();
+      if (kind === "formula") {
+        const own = ctx ? ctx.getObject().MeasureId : "";
+        const above = (d.CalcMeasures || []).slice(0, ctx ? Number(ctx.getPath().split("/").pop()) : 0).map((c) => c.MeasureId);
+        const items = (d.Measures || []).map((m) => ({ key: m.MeasureId, text: m.MeasureId, description: m.Label })).concat(above.filter((id) => id && id !== own).map((id) => ({ key: id, text: id, description: "calculated" })));
+        ValueHelp.open({ title: "Measures", items, onSelect: (keys) => {
+          const v = input.getValue();
+          input.setValue(v + (v && !/[\s(+\-*/]$/.test(v) ? " " : "") + keys[0]);
+          input.fireChange({ value: input.getValue() });
+        } });
+        return;
+      }
+      const type = ctx && ctx.getObject().UnitType;
+      const items = kind === "currency" || type === "Currency" ? ValueHelp.CURRENCIES : type === "Unit" ? ValueHelp.UNITS : ValueHelp.CURRENCIES.concat(ValueHelp.UNITS);
+      ValueHelp.open({ title: kind === "currency" || type === "Currency" ? "Currencies" : "Units", items, onSelect: (keys) => { input.setValue(keys[0]); input.fireChange({ value: keys[0] }); } });
+    },
 
     // ---- formatters ------------------------------------------------------------------------
     measureDetails(aggregation, exception, unitType, unit, scaleKey) {

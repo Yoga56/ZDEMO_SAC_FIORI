@@ -1,8 +1,8 @@
 sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/Dialog", "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/VBox", "sap/m/DatePicker", "sap/m/StepInput", "sap/m/Text", "sap/m/MessageStrip",
-  "zsac/lib/calendar/CalendarEngine", "zsac/lib/core/StorySchema"
-], function (Item, Dialog, Button, Input, Select, Label, VBox, DatePicker, StepInput, Text, MessageStrip, Engine, StorySchema) {
+  "zsac/lib/calendar/CalendarEngine", "zsac/lib/core/StorySchema", "zsac/lib/designer/ValueHelp"
+], function (Item, Dialog, Button, Input, Select, Label, VBox, DatePicker, StepInput, Text, MessageStrip, Engine, StorySchema, ValueHelp) {
   "use strict";
 
   const newId = () => StorySchema.uid("E");
@@ -38,7 +38,7 @@ sap.ui.define([
     const repeat = new Select({ width: "100%", selectedKey: "MONTHLY" });
     [["DAILY", "Every day"], ["WEEKLY", "Every week"], ["MONTHLY", "Every month"], ["QUARTERLY", "Every quarter"], ["YEARLY", "Every year"]].forEach((r) => repeat.addItem(new Item({ key: r[0], text: r[1] })));
     const count = new StepInput({ value: 12, min: 1, max: 60, width: "8rem" });
-    const approver = new Input({ width: "100%", placeholder: "CFO (review tasks)", maxLength: 12 });
+    const approver = ValueHelp.input({ items: ValueHelp.lazyUsers(ctx.provider), title: "Users", placeholder: "CFO (review tasks)", maxLength: 12 });
     const p = plan(ctx.models, ctx.versions);
     return dialog("Generate events", [new Label({ text: "Title", required: true }), title, new Label({ text: "Type" }), type, new Label({ text: "First start" }), start,
       new Label({ text: "Lasts (days)" }), days, new Label({ text: "Repeats" }), repeat, new Label({ text: "How many events (1 to 60)" }), count].concat(p.controls, [new Label({ text: "Reviewer" }), approver]), () => {
@@ -63,7 +63,7 @@ sap.ui.define([
     tpl.attachChange(() => { const t = current(); info.setText((t.description ? t.description + " " : "") + t.steps.length + " tasks."); drop.setVisible(!!t.saved); });
     const title = new Input({ width: "100%", placeholder: "Name of the process (e.g. Budget 2027)" });
     const start = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd", displayFormat: "medium", value: today() });
-    const approver = new Input({ width: "100%", placeholder: "CFO", maxLength: 12 });
+    const approver = ValueHelp.input({ items: ValueHelp.lazyUsers(ctx.provider), title: "Users", placeholder: "CFO", maxLength: 12 });
     const p = plan(ctx.models, ctx.versions);
     return dialog("Process from template", [new Label({ text: "Template" }), tpl, info, drop, new Label({ text: "Name" }), title, new Label({ text: "Start" }), start].concat(p.controls, [new Label({ text: "Reviewer of the review tasks" }), approver]), () =>
       Engine.instantiate(current(), { Title: title.getValue().trim(), Start: start.getValue(), ModelId: p.model.getSelectedKey(), VersionId: p.version.getSelectedKey(),

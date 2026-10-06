@@ -3,9 +3,9 @@ sap.ui.define([
   "sap/m/Button", "sap/m/Input", "sap/m/Select", "sap/m/Label", "sap/m/Text", "sap/m/Title", "sap/m/VBox", "sap/m/HBox", "sap/m/TextArea", "sap/m/DatePicker", "sap/m/StepInput",
   "sap/m/MessageStrip", "sap/m/MultiComboBox", "sap/m/ObjectStatus", "sap/m/Link", "sap/m/FlexItemData",
   "sap/m/MultiInput", "sap/m/Token", "sap/m/CheckBox", "sap/m/Dialog", "sap/m/List", "sap/m/StandardListItem", "sap/m/SearchField", "sap/m/MenuButton", "sap/m/Menu", "sap/m/MenuItem",
-  "zsac/lib/calendar/CalendarEngine", "zsac/lib/calendar/TaskRunner", "zsac/lib/planning/DataActionRun", "zsac/lib/core/Access", "zsac/lib/core/WebContent"
+  "zsac/lib/calendar/CalendarEngine", "zsac/lib/calendar/TaskRunner", "zsac/lib/planning/DataActionRun", "zsac/lib/core/Access", "zsac/lib/core/WebContent", "zsac/lib/designer/ValueHelp"
 ], function (Item, Button, Input, Select, Label, Text, Title, VBox, HBox, TextArea, DatePicker, StepInput, MessageStrip, MultiComboBox, ObjectStatus, Link, FlexItemData,
-  MultiInput, Token, CheckBox, Dialog, List, StandardListItem, SearchField, MenuButton, Menu, MenuItem, Engine, TaskRunner, Run, Access, WebContent) {
+  MultiInput, Token, CheckBox, Dialog, List, StandardListItem, SearchField, MenuButton, Menu, MenuItem, Engine, TaskRunner, Run, Access, WebContent, ValueHelp) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -20,6 +20,7 @@ sap.ui.define([
     box.destroyItems();
     let draft = Engine.normalize(clone(ctx.event));
     const readOnly = ctx.canEdit === false;
+    const users = ValueHelp.lazyUsers(ctx.provider);
     const notes = new VBox();
     const note = (text, type) => { notes.destroyItems(); if (text) { notes.addItem(new MessageStrip({ text, type: type || "Error", showIcon: true }).addStyleClass("sapUiTinyMarginTop")); } };
     const field = (label, control, required) => { body.addItem(new Label({ text: label, required: !!required })); body.addItem(control); return control; };
@@ -103,7 +104,7 @@ sap.ui.define([
     const remind = new Select({ width: "100%", selectedKey: String(draft.Config.Remind === undefined ? 3 : draft.Config.Remind), enabled: !readOnly, change: (e) => { draft.Config.Remind = Number(e.getParameter("selectedItem").getKey()); } });
     [["0", "Never"], ["1", "1 day before the end"], ["3", "3 days before the end"], ["7", "A week before the end"], ["14", "Two weeks before the end"]].forEach((o) => remind.addItem(new Item({ key: o[0], text: o[1] })));
     field("Remind the people on it", remind);
-    if (draft.Type === "REVIEW" || draft.Approver) { field("Reviewer", new Input({ value: draft.Approver, width: "100%", placeholder: "CFO", maxLength: 12, enabled: !readOnly, liveChange: (e) => { draft.Approver = e.getParameter("value"); showFlow(); } }), draft.Type === "REVIEW"); }
+    if (draft.Type === "REVIEW" || draft.Approver) { field("Reviewer", ValueHelp.input({ items: users, title: "Users", value: draft.Approver, placeholder: "CFO", maxLength: 12, enabled: !readOnly, liveChange: (e) => { draft.Approver = e.getParameter("value"); showFlow(); } }), draft.Type === "REVIEW"); }
 
     // planning tasks: which action or version, the parameters kept for the run, what the last run did, and Run
     if (Engine.isRunnable(draft)) {
@@ -149,6 +150,7 @@ sap.ui.define([
     body.addItem(new Title({ text: "People", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
     const peopleInput = (label, key) => {
       const mi = new MultiInput({ width: "100%", placeholder: canPeople ? "User names" : "", enabled: canPeople, showValueHelp: false });
+      ValueHelp.attachTokens(mi, users, "Users");
       mi.addValidator((args) => { const t = String(args.text || "").trim().toUpperCase(); return t && t !== "*" ? new Token({ key: t, text: t }) : null; });
       (draft.People[key] || []).filter((u) => u !== "*").forEach((u) => mi.addToken(new Token({ key: u, text: u })));
       mi.attachTokenUpdate(() => setTimeout(() => { const keep = key === "Viewers" && draft.People.Viewers.indexOf("*") >= 0 ? ["*"] : []; draft.People[key] = keep.concat(mi.getTokens().map((t) => t.getKey())); }, 0));

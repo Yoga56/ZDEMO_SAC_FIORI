@@ -409,3 +409,8 @@ path.zsacCp { fill-opacity: .3; }
 .zsacCpTarget { display: flex; align-items: center; gap: .4rem; }
 .zsacCpTarget input { flex: 1; min-width: 0; }
 .zsacCpOrMore { font-size: .75rem; font-weight: 400; color: var(--sapContent_LabelColor, #556b82); white-space: nowrap; }
+
+/* the icons of icon tab bars (Modeller, Data Actions): smaller circles */
+.sapMITBFilterIcon.sapUiIcon { width: 1.875rem; height: 1.875rem; line-height: 1.875rem; font-size: .95rem; }
+.sapMITBVertical.sapMITBFilter { padding-top: .35rem; }
+.sapMITBVertical .sapMITBText { margin-top: .15rem; font-size: .8125rem; }

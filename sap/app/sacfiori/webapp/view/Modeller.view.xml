@@ -124,8 +124,13 @@
                   <cells>
                     <Input value="{m>MeasureId}" placeholder="PROFIT"/>
                     <Input value="{m>Label}" placeholder="Profit"/>
-                    <Input value="{m>Formula}" placeholder="REVENUE - COST"/>
-                    <Input value="{m>Unit}" enabled="{= !${m>Percent}}"/>
+                    <Input value="{m>Formula}" placeholder="REVENUE - COST" showValueHelp="true" valueHelpRequest=".onHelp">
+                      <customData><core:CustomData key="help" value="formula"/></customData>
+                    </Input>
+                    <Input value="{m>Unit}" enabled="{= !${m>Percent}}" showValueHelp="true" valueHelpRequest=".onHelp" showSuggestion="true" suggestionItems="{path: 'view>/unitsAll', templateShareable: false}">
+                      <customData><core:CustomData key="help" value="unit"/></customData>
+                      <suggestionItems><core:ListItem key="{view>key}" text="{view>key}" additionalText="{view>description}"/></suggestionItems>
+                    </Input>
                     <Input value="{m>Decimals}" type="Number"/>
                     <CheckBox selected="{m>Percent}"/>
                     <Button icon="sap-icon://delete" type="Transparent" press=".onDeleteCalc"/>
@@ -180,11 +185,14 @@
                   <Label text="Description"/>
                   <Input value="{m>/Description}"/>
                   <Label text="Currency"/>
-                  <Input value="{m>/Currency}" maxLength="5"/>
+                  <Input value="{m>/Currency}" maxLength="5" showValueHelp="true" valueHelpRequest=".onHelp" showSuggestion="true" suggestionItems="{path: 'view>/currencies', templateShareable: false}">
+                      <customData><core:CustomData key="help" value="currency"/></customData>
+                      <suggestionItems><core:ListItem key="{view>key}" text="{view>key}" additionalText="{view>description}"/></suggestionItems>
+                    </Input>
                   <Label text="Periods (YYYY-MM)"/>
                   <HBox>
-                    <Input value="{m>/PeriodFrom}" placeholder="2026-01" class="sapUiTinyMarginEnd"/>
-                    <Input value="{m>/PeriodTo}" placeholder="2026-12"/>
+                    <DatePicker value="{m>/PeriodFrom}" valueFormat="yyyy-MM" displayFormat="yyyy-MM" placeholder="2026-01" width="8rem" class="sapUiTinyMarginEnd"/>
+                    <DatePicker value="{m>/PeriodTo}" valueFormat="yyyy-MM" displayFormat="yyyy-MM" placeholder="2026-12" width="8rem"/>
                   </HBox>
 
                   <Title text="Preferences" level="H5" class="sapUiMediumMarginTop"/>
@@ -257,7 +265,10 @@
                       <core:Item key="None" text="None"/><core:Item key="Currency" text="Currency"/><core:Item key="Unit" text="Unit of measure"/>
                     </Select>
                     <Label text="Unit"/>
-                    <Input value="{m>Unit}" maxLength="10" enabled="{= ${m>UnitType} !== 'None'}" placeholder="USD"/>
+                    <Input value="{m>Unit}" maxLength="10" enabled="{= ${m>UnitType} !== 'None'}" placeholder="USD" showValueHelp="true" valueHelpRequest=".onHelp" showSuggestion="true" suggestionItems="{path: 'view>/unitsAll', templateShareable: false}">
+                      <customData><core:CustomData key="help" value="measureunit"/></customData>
+                      <suggestionItems><core:ListItem key="{view>key}" text="{view>key}" additionalText="{view>description}"/></suggestionItems>
+                    </Input>
 
                     <Title text="Formatting" level="H5" class="sapUiMediumMarginTop"/>
                     <Label text="Scale"/>

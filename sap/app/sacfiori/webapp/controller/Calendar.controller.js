@@ -10,8 +10,9 @@ sap.ui.define([
   "zsac/lib/calendar/TaskRunner",
   "zsac/lib/planning/DataActionRun",
   "../model/EventPanel",
-  "../model/EventWizard"
-], function (BaseController, Item, IconPool, MenuItem, Popover, List, StandardListItem, Title, Button, Dialog, Select, MultiComboBox, Input, Label, VBox, CheckBox, Text, Engine, View, StorySchema, TaskRunner, Run, EventPanel, EventWizard) {
+  "../model/EventWizard",
+  "zsac/lib/designer/ValueHelp"
+], function (BaseController, Item, IconPool, MenuItem, Popover, List, StandardListItem, Title, Button, Dialog, Select, MultiComboBox, Input, Label, VBox, CheckBox, Text, Engine, View, StorySchema, TaskRunner, Run, EventPanel, EventWizard, ValueHelp) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -222,7 +223,7 @@ sap.ui.define([
       Object.keys(Engine.TYPES).forEach((k) => types.addItem(new Item({ key: k, text: Engine.TYPES[k].label })));
       const statuses = new MultiComboBox({ width: "100%", selectedKeys: f.statuses, placeholder: "All statuses" });
       Object.keys(Engine.STATUSES).forEach((k) => statuses.addItem(new Item({ key: k, text: Engine.STATUSES[k].label })));
-      const who = new Input({ width: "100%", value: f.assignee, placeholder: "User name" });
+      const who = ValueHelp.input({ items: ValueHelp.lazyUsers(this._p), title: "Users", value: f.assignee, placeholder: "User name" });
       const model = new Select({ width: "100%", selectedKey: f.model });
       model.addItem(new Item({ key: "", text: "Any plan" })); (this._models || []).forEach((m) => model.addItem(new Item({ key: m.ModelId, text: m.Name })));
       const dlg = new Dialog({ title: "Filter events", contentWidth: "24rem", content: [new VBox({ items: [new Label({ text: "Due" }), due, new Label({ text: "Type" }), types, new Label({ text: "Status" }), statuses,
@@ -401,7 +402,7 @@ sap.ui.define([
         const sel = this._events.find((x) => x.Id === this._selected);
         const parentId = sel && Engine.TYPES[sel.Type].container ? sel.Id : (sel ? sel.ParentId : "");
         if (key === "WIZARD" || key === "TEMPLATE") {
-          const made = await (key === "WIZARD" ? EventWizard.generate : EventWizard.fromTemplate)({ models: this._models, versions: this._versions, parentId, saved: this._templates, deleteTemplate: async (id) => { await this._p.deleteTask(id); await this._load(); } });
+          const made = await (key === "WIZARD" ? EventWizard.generate : EventWizard.fromTemplate)({ provider: this._p, models: this._models, versions: this._versions, parentId, saved: this._templates, deleteTemplate: async (id) => { await this._p.deleteTask(id); await this._load(); } });
           if (!made) { return; }
           for (const ev of made) { await this._p.saveTask(Engine.toRecord(ev)); }
           this._cursor = made[0].StartDate;
