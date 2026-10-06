@@ -2,7 +2,7 @@ sap.ui.define([
   "./BaseController",
   "sap/ui/core/Item",
   "sap/ui/core/IconPool",
-  "sap/m/MenuItem",
+  "sap/m/MenuItem", "sap/m/Popover", "sap/m/List", "sap/m/StandardListItem", "sap/m/Title", "sap/m/Button",
   "zsac/lib/calendar/CalendarEngine",
   "zsac/lib/calendar/CalendarView",
   "zsac/lib/core/StorySchema",
@@ -10,7 +10,7 @@ sap.ui.define([
   "zsac/lib/planning/DataActionRun",
   "../model/EventPanel",
   "../model/EventWizard"
-], function (BaseController, Item, IconPool, MenuItem, Engine, View, StorySchema, TaskRunner, Run, EventPanel, EventWizard) {
+], function (BaseController, Item, IconPool, MenuItem, Popover, List, StandardListItem, Title, Button, Engine, View, StorySchema, TaskRunner, Run, EventPanel, EventWizard) {
   "use strict";
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -39,7 +39,7 @@ sap.ui.define([
       status.addItem(new Item({ key: "", text: "All statuses" }));
       Object.keys(Engine.STATUSES).forEach((k) => status.addItem(new Item({ key: k, text: Engine.STATUSES[k].label })));
       this.getView().addEventDelegate({ onAfterRendering: () => this._bind() }, this);
-      this.onRoute("calendar", () => this._load());
+      this.onRoute("calendar", (args) => this._load().then(() => { if ((args["?query"] || {}).reminders) { this._openReminders(); } }));
     },
 
     // ---- data -------------------------------------------------------------------------------------------------------------------------
@@ -53,6 +53,7 @@ sap.ui.define([
         das.map((x) => ({ Type: "DATAACTION", Id: x.Id, Name: x.Name })), mas.map((x) => ({ Type: "MULTIACTION", Id: x.Id, Name: x.Name })));
       if (this._selected && !this._events.some((e) => e.Id === this._selected)) { this._selected = ""; this._hidePanel(); }
       this._render();
+      sap.ui.getCore().getEventBus().publish("zsac", "remindersChanged"); // the bell in the header counts them too
     },
 
     _rows() {
@@ -88,6 +89,8 @@ sap.ui.define([
       this.byId("zoom").setSelectedKey(zoom);
       this.byId("yearItem").setVisible(this._space === "list");
       this.byId("period").setText(new Date(Engine.toDay(this._cursor) * 86400000).toLocaleDateString("en", zoom === "day" ? { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" } : { month: "long", year: "numeric", timeZone: "UTC" }));
+      const due = Engine.reminders(this._events, this._me, t).length;
+      this.byId("reminders").setText(String(due)); this.byId("reminders").setType(due ? "Emphasized" : "Default");
       const sel = this._events.find((e) => e.Id === this._selected);
       this.byId("copy").setEnabled(!!sel);
       this.byId("del").setEnabled(!!sel && sel.Access !== "READ");
@@ -146,7 +149,7 @@ sap.ui.define([
       const children = this._events.some((e) => e.ParentId === event.Id);
       EventPanel.show(panel, {
         event, isNew, events: this._events.filter((e) => e.Id !== event.Id || !isNew), models: this._models, versions: this._versions, hasChildren: children,
-        provider: this._p, dataActions: this._dataActions, multiActions: this._multiActions, files: this._files, onRun: (e) => this._runTask(e), onOpenFile: (f) => this._openFile(f),
+        provider: this._p, me: this._me, dataActions: this._dataActions, multiActions: this._multiActions, files: this._files, onRun: (e) => this._runTask(e), onOpenFile: (f) => this._openFile(f),
         canEdit: event.Access !== "READ", canDelete: event.Access === "OWNER" || !event.Owner,
         onSave: (e, o) => this._save(e, isNew, o), onDelete: (e) => this._deleteEvent(e), onClose: () => { this._selected = ""; this._hidePanel(); this._render(); },
         onOpenPlan: (e) => this.router().navTo("planning", { query: { model: e.ModelId, version: e.VersionId } })
@@ -168,12 +171,45 @@ sap.ui.define([
         // who may see and edit the event is kept as shares; only the owner of the event can change them
         if (opts && opts.shares && this._p.capabilities && this._p.capabilities.sharing) { await this._p.saveShares("CALEVENT", event.Id, Engine.sharesOf(event)).catch((err) => { this.fail(err); }); }
         await this._load();
+        const started = await this._advance(event);
         this._selected = event.Id;
         this._showPanel(this._events.find((e) => e.Id === event.Id) || event, false);
         this._render();
-        this.toast(isNew ? "Event created" : "Saved");
+        this.toast((isNew ? "Event created" : "Saved") + (started.length ? ". Started: " + started.map((x) => x.Title).join(", ") : ""));
       } catch (e) { this.fail(e); }
       void opts;
+    },
+
+    /** A completed event starts the ones that waited for it (see CalendarEngine.advance). Returns the events it started. */
+    async _advance(event) {
+      if (event.Status !== "DONE") { return []; }
+      const started = Engine.advance(this._events, event.Id);
+      for (const e of started) { await this._p.saveTask(Engine.toRecord(e)); }
+      if (started.length) { await this._load(); }
+      return started;
+    },
+
+    // ---- reminders -----------------------------------------------------------------------------------------------------------------------
+    onReminders() { this._openReminders(); },
+
+    _openReminders() {
+      const items = Engine.reminders(this._events, this._me, today());
+      const ICON = { REVIEW: "sap-icon://approvals", OVERDUE: "sap-icon://alert", DELAYED: "sap-icon://past", DUE_SOON: "sap-icon://history", STARTING: "sap-icon://begin" };
+      const STATE = { REVIEW: "Warning", OVERDUE: "Error", DELAYED: "Warning", DUE_SOON: "Information", STARTING: "Success" };
+      const list = new List({ noDataText: "Nothing needs your attention", items: items.map((r) => new StandardListItem({ title: r.title, description: r.text, icon: ICON[r.kind], info: r.kind === "REVIEW" ? "Review" : r.kind === "OVERDUE" ? "Overdue" : r.kind === "DELAYED" ? "Delayed" : r.kind === "DUE_SOON" ? "Soon" : "Starts",
+        infoState: STATE[r.kind], type: "Active", press: () => { pop.close(); this._focus(r.Id); } })) });
+      const pop = new Popover({ title: "Reminders", contentWidth: "24rem", placement: "Bottom", content: [list], afterClose: () => pop.destroy(),
+        endButton: new Button({ text: "Close", press: () => pop.close() }) });
+      pop.openBy(this.byId("reminders"));
+    },
+
+    /** Shows an event: selects it and moves the page to its dates. */
+    _focus(id) {
+      const e = this._events.find((x) => x.Id === id);
+      if (!e) { return; }
+      this._cursor = e.StartDate || this._cursor;
+      this._select(id);
+      this._scrollToCursor();
     },
 
     _openFile(f) {
@@ -187,9 +223,12 @@ sap.ui.define([
     _runTask(event) {
       const record = async (outcome) => {
         const current = this._events.find((x) => x.Id === event.Id) || event;
-        await this._p.saveTask(Engine.toRecord(Engine.afterRun(current, outcome)));
+        const updated = Engine.afterRun(current, outcome);
+        await this._p.saveTask(Engine.toRecord(updated));
         await this._load();
+        const started = await this._advance(updated);
         this._select(event.Id);
+        if (started.length) { this.toast("Started: " + started.map((x) => x.Title).join(", ")); }
       };
       const done = (outcome) => record(outcome).catch((e) => this.fail(e));
       if (event.Type === "DATAACTION") {

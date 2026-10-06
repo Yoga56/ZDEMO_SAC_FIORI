@@ -282,10 +282,79 @@ sap.ui.define([], function () {
     Reopen: { from: ["DONE", "CANCELLED"], to: "OPEN" }
   };
   const actionsFor = (event) => { const e = normalize(event); return Object.keys(FLOW).filter((k) => FLOW[k].from.indexOf(e.Status) >= 0 && (!FLOW[k].needs || String(e[FLOW[k].needs]).trim())); };
-  function apply(event, action) {
+  const sameUser = (a, b) => !!a && !!b && String(a).toUpperCase() === String(b).toUpperCase();
+
+  /**
+   * apply(event, action, { user, comment, at }) -> the event after the action. With a user the change is written into Config.History
+   * (who, when, what, the comment, from which status to which); the last 50 entries are kept.
+   */
+  function apply(event, action, opts) {
     const e = normalize(event); const f = FLOW[action];
     if (!f || actionsFor(e).indexOf(action) < 0) { throw new Error("'" + action + "' is not possible while the event is " + (STATUSES[e.Status] || {}).label); }
-    return Object.assign({}, e, { Status: f.to, Progress: f.progress !== undefined ? f.progress : (f.to === "OPEN" ? 0 : e.Progress) });
+    const out = Object.assign({}, e, { Status: f.to, Progress: f.progress !== undefined ? f.progress : (f.to === "OPEN" ? 0 : e.Progress) });
+    if (opts && (opts.user || opts.comment)) {
+      const entry = { At: opts.at || new Date().toISOString(), User: opts.user || "", Action: action, Comment: String(opts.comment || "").slice(0, 255), From: e.Status, To: f.to };
+      out.Config = Object.assign({}, e.Config, { History: (e.Config.History || []).concat([entry]).slice(-50) });
+    }
+    return out;
+  }
+
+  /**
+   * Who may do what in the approval: a review is approved or rejected by its reviewer (or by the owner of the event); an event without an owner
+   * is open to everyone. Everything else is open to whoever may edit the event (the page checks that).
+   */
+  function canDo(event, action, user) {
+    const e = normalize(event);
+    if (action !== "Approve" && action !== "Reject") { return true; }
+    return !e.Owner || sameUser(e.Approver, user) || sameUser(e.Owner, user);
+  }
+
+  /**
+   * A task that has been completed starts the tasks that were waiting for it: those that are open and whose every predecessor is done or cancelled
+   * become in progress, and say so in their history. Returns only the events that changed.
+   */
+  function advance(events, doneId, at) {
+    const all = events.map(normalize);
+    const byId = new Map(all.map((e) => [e.Id, e]));
+    const done = byId.get(doneId);
+    if (!done || done.Status !== "DONE") { return []; }
+    return all.filter((e) => e.Status === "OPEN" && (e.Config.After || []).indexOf(doneId) >= 0
+      && (e.Config.After || []).every((id) => { const p = byId.get(id); return !p || p.Status === "DONE" || p.Status === "CANCELLED"; }))
+      .map((e) => Object.assign({}, e, { Status: "ACTIVE", Config: Object.assign({}, e.Config, { History: (e.Config.History || []).concat([{ At: at || new Date().toISOString(), User: "", Action: "Start", Comment: "Started after \"" + done.Title + "\" was completed", From: "OPEN", To: "ACTIVE" }]).slice(-50) }) }));
+  }
+
+  /** "Approve by ALICE on Oct 6, 2026: looks right" */
+  function describeHistory(entry) {
+    const day = new Date(entry.At).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    return entry.Action + (entry.User ? " by " + entry.User : "") + " on " + day + (entry.Comment ? ": " + entry.Comment : "");
+  }
+
+  // ---- reminders -------------------------------------------------------------------------------------------------------------------------
+  const KIND_ORDER = { REVIEW: 0, OVERDUE: 1, DELAYED: 2, DUE_SOON: 3, STARTING: 4 };
+
+  /**
+   * What needs a person's attention today: reviews waiting for them, their events that are overdue or delayed, that end soon (Config.Remind days, 3 when it is
+   * not set, 0 for never) or start today or tomorrow. A person is involved as reviewer, owner or assignee. Containers are left out (their tasks speak).
+   */
+  function reminders(events, user, today) {
+    const t = toDay(today);
+    const out = [];
+    build(events, today).rows.forEach((r) => {
+      const e = r.event;
+      if (r.hasChildren && TYPES[e.Type].container) { return; }
+      const mine = sameUser(e.Owner, user) || e.People.Owners.concat(e.People.Assignees).some((u) => sameUser(u, user));
+      const reviewer = sameUser(e.Approver, user);
+      const add = (kind, text, date) => out.push({ Id: e.Id, kind, title: e.Title, text, date });
+      if (e.Status === "IN_REVIEW" && reviewer) { add("REVIEW", "Waiting for your review", r.eff.end); return; }
+      if (!mine || finished(r.eff.status)) { return; }
+      const remind = e.Config.Remind === undefined ? 3 : Number(e.Config.Remind);
+      const end = toDay(r.eff.end); const start = toDay(r.eff.start);
+      if (r.flags.overdue) { add("OVERDUE", "Overdue since " + r.eff.end, r.eff.end); }
+      else if (r.flags.delayed) { add("DELAYED", "Should have started on " + r.eff.start, r.eff.start); }
+      else if (remind > 0 && end !== null && end - t >= 0 && end - t <= remind) { add("DUE_SOON", end === t ? "Ends today" : "Ends in " + (end - t) + (end - t === 1 ? " day" : " days"), r.eff.end); }
+      else if (r.eff.status === "OPEN" && start !== null && start - t >= 0 && start - t <= 1) { add("STARTING", start === t ? "Starts today" : "Starts tomorrow", r.eff.start); }
+    });
+    return out.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || String(a.date).localeCompare(String(b.date)) || a.title.localeCompare(b.title));
   }
 
   // ---- people and work files --------------------------------------------------------------------------------------------------------------
@@ -398,5 +467,5 @@ sap.ui.define([], function () {
     return [process].concat(tasks);
   }
 
-  return { TYPES, STATUSES, FLOW, TEMPLATES, FILE_TYPES, sharesOf, addFile, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
+  return { TYPES, STATUSES, FLOW, TEMPLATES, FILE_TYPES, sharesOf, addFile, RUNNABLE, isRunnable, afterRun, describeRun, toRecord, normalize, build, descendants, filterRows, validate, actionsFor, apply, canDo, advance, describeHistory, reminders, generate, instantiate, flags, monthGrid, weekDays, gantt, toDay, fromDay, addDays, addMonths, finished, PPD };
 });

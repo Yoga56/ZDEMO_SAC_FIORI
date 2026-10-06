@@ -14,6 +14,7 @@
         <Button id="copy" icon="sap-icon://duplicate" tooltip="Copy the selected event" press=".onCopy" enabled="false"/>
         <Button id="del" icon="sap-icon://delete" tooltip="Delete the selected event" press=".onDelete" enabled="false"/>
         <Button icon="sap-icon://refresh" tooltip="Refresh" press=".onRefresh"/>
+        <Button id="reminders" icon="sap-icon://bell" text="0" tooltip="Reminders: reviews waiting for you, events that are overdue or end soon" press=".onReminders"/>
         <ToolbarSpacer/>
         <SearchField width="11rem" liveChange=".onSearch" placeholder="Search events"/>
         <Select id="statusFilter" width="9rem" change=".onStatusFilter"/>

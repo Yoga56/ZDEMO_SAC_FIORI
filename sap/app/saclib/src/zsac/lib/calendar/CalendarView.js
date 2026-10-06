@@ -35,6 +35,30 @@ sap.ui.define(["../core/Format", "./CalendarEngine"], function (Format, Engine) 
       + (r.flags.overdue ? ' <span class="zsacCalFlag zsacCalOverdue">Overdue</span>' : r.flags.delayed ? ' <span class="zsacCalFlag zsacCalDelayed">Delayed</span>' : "");
   }
 
+  /**
+   * The lines from an event to the events that wait for it (Config.After): out of the end of the bar, down or up to the row of the later one, into its start.
+   * Red when the later one starts before the earlier one ends. shown = the visible rows, bars = the bars by event id.
+   */
+  function linkPaths(shown, bars) {
+    const index = new Map(shown.map((r, i) => [r.event.Id, i]));
+    const out = [];
+    shown.forEach((r, j) => {
+      const to = bars.get(r.event.Id);
+      if (!to) { return; }
+      (r.event.Config.After || []).forEach((id) => {
+        const i = index.get(id); const from = bars.get(id);
+        if (i === undefined || !from) { return; }
+        const x1 = from.x + from.w; const y1 = i * ROW + ROW / 2; const x2 = to.x; const y2 = j * ROW + ROW / 2;
+        const gap = 7;
+        const d = x2 >= x1 + gap * 2
+          ? "M" + x1.toFixed(1) + "," + y1 + " H" + (x1 + gap).toFixed(1) + " V" + y2 + " H" + x2.toFixed(1)
+          : "M" + x1.toFixed(1) + "," + y1 + " H" + (x1 + gap).toFixed(1) + " V" + ((y1 + y2) / 2 + (y2 >= y1 ? ROW / 2 : -ROW / 2)).toFixed(1) + " H" + (x2 - gap).toFixed(1) + " V" + y2 + " H" + x2.toFixed(1);
+        out.push({ d, from: id, to: r.event.Id, violated: x2 < x1 });
+      });
+    });
+    return out;
+  }
+
   function listHtml(rows, opts) {
     const o = Object.assign({ collapsed: new Set(), selected: "", icon: noIcon, gantt: null }, opts);
     const shown = visibleRows(rows, o.collapsed);
@@ -62,6 +86,12 @@ sap.ui.define(["../core/Format", "./CalendarEngine"], function (Format, Engine) 
             + '" data-id="' + esc(r.event.Id) + '" style="left:' + b.x.toFixed(1) + "px;width:" + b.w.toFixed(1) + 'px" title="' + esc(r.event.Title + ": " + fmt(r.eff.start) + " to " + fmt(r.eff.end)) + '"><span class="zsacCalGDone" style="width:' + b.done.toFixed(1) + 'px"></span></div>' : "")
           + "</div>";
       });
+      const links = linkPaths(shown, byId);
+      if (links.length) {
+        right += '<svg class="zsacCalLinks" width="' + Math.ceil(g.width) + '" height="' + (shown.length * ROW) + '" style="top:40px"><defs><marker id="zsacArrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" class="zsacCalArrow"/></marker>'
+          + '<marker id="zsacArrowBad" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" class="zsacCalArrowBad"/></marker></defs>'
+          + links.map((l) => '<path class="zsacCalLink' + (l.violated ? " zsacCalLinkBad" : "") + '" d="' + l.d + '" fill="none" marker-end="url(#' + (l.violated ? "zsacArrowBad" : "zsacArrow") + ')"><title>' + esc((l.violated ? "Starts before it can: " : "After: ") + l.from + " to " + l.to) + "</title></path>").join("") + "</svg>";
+      }
       right += '<div class="zsacCalToday" style="left:' + g.todayX.toFixed(1) + 'px;height:' + (shown.length * ROW + 40) + 'px"></div></div>';
     }
     return '<div class="zsacCal"><div class="zsacCalLeft">' + left + "</div>" + right + "</div>";
@@ -92,5 +122,5 @@ sap.ui.define(["../core/Format", "./CalendarEngine"], function (Format, Engine) 
       + (day.events.length ? day.events.map((r) => chip(r, o)).join("") : '<div class="zsacVMsg">Nothing is planned for this day.</div>') + "</div>";
   }
 
-  return { listHtml, gridHtml, dayHtml, visibleRows, fmt, ROW };
+  return { listHtml, gridHtml, dayHtml, visibleRows, linkPaths, fmt, ROW };
 });

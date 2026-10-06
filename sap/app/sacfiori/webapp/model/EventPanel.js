@@ -13,7 +13,7 @@ sap.ui.define([
   /**
    * The details of one event, on the right of the calendar: its fields, what can be done with its status, Save and Delete.
    *
-   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, files, onRun(event), onOpenFile(file), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
+   * EventPanel.show(box, { event, isNew, events, models, versions, provider, dataActions, multiActions, files, me, onRun(event), onOpenFile(file), canEdit, canDelete, onSave(event), onDelete(event), onClose(), onOpenPlan(event) })
    * Nothing is written until Save; a status change on an event that exists is saved at once, as in SAC.
    */
   function show(box, ctx) {
@@ -34,15 +34,35 @@ sap.ui.define([
 
     // status changes: the ones the status allows; saved at once for an event that exists
     const flow = new HBox({ wrap: "Wrap" });
+    const decide = (action) => new Promise((resolve) => {
+      // approving or rejecting asks for a comment (a rejection must say why); it is kept in the history of the event
+      const comment = new TextArea({ rows: 3, width: "100%", maxLength: 255, placeholder: action === "Reject" ? "Say what has to change" : "Comment (optional)" });
+      const err = new VBox();
+      const dlg = new Dialog({ title: action + " " + draft.Title, contentWidth: "24rem", content: [new VBox({ items: [comment, err] }).addStyleClass("sapUiSmallMargin")],
+        beginButton: new Button({ text: action, type: action === "Approve" ? "Accept" : "Reject", press: () => {
+          if (action === "Reject" && !comment.getValue().trim()) { err.destroyItems(); err.addItem(new MessageStrip({ text: "A rejection needs a comment", type: "Error", showIcon: true })); return; }
+          dlg.close(); resolve(comment.getValue().trim());
+        } }), endButton: new Button({ text: "Cancel", press: () => { dlg.close(); resolve(undefined); } }), afterClose: () => dlg.destroy() });
+      dlg.open();
+    });
     const showFlow = () => {
       flow.destroyItems(); status.setText(Engine.STATUSES[draft.Status].label); status.setState(Engine.STATUSES[draft.Status].state);
       if (readOnly) { return; }
-      Engine.actionsFor(draft).forEach((a) => flow.addItem(new Button({ text: a, type: a === "Approve" ? "Accept" : a === "Reject" || a === "Cancel" ? "Reject" : "Transparent", press: () => {
-        draft = Engine.apply(draft, a); progress.setValue(draft.Progress); showFlow();
+      Engine.actionsFor(draft).filter((a) => Engine.canDo(draft, a, ctx.me)).forEach((a) => flow.addItem(new Button({ text: a, type: a === "Approve" ? "Accept" : a === "Reject" || a === "Cancel" ? "Reject" : "Transparent", press: async () => {
+        let comment = "";
+        if (a === "Approve" || a === "Reject") { comment = await decide(a); if (comment === undefined) { return; } }
+        draft = Engine.apply(draft, a, { user: ctx.me || "", comment }); progress.setValue(draft.Progress); showFlow(); showHistory();
         if (!ctx.isNew) { ctx.onSave(clone(draft), { keepOpen: true }); }
       } }).addStyleClass("sapUiTinyMarginEnd")));
+      const waiting = Engine.actionsFor(draft).filter((a) => !Engine.canDo(draft, a, ctx.me));
+      if (waiting.length) { flow.addItem(new Text({ text: "Only the reviewer (" + (draft.Approver || draft.Owner) + ") can " + waiting.join(" or ").toLowerCase() + "." }).addStyleClass("zsacSmall")); }
     };
     body.addItem(flow);
+    const historyBox = new VBox();
+    const showHistory = () => {
+      historyBox.destroyItems();
+      (draft.Config.History || []).slice().reverse().slice(0, 10).forEach((h) => historyBox.addItem(new Text({ text: Engine.describeHistory(h) }).addStyleClass("zsacCalHist")));
+    };
     const progress = field("Progress (%)", new StepInput({ value: draft.Progress, min: 0, max: 100, step: 5, width: "9rem", enabled: !readOnly && !(Engine.TYPES[draft.Type].container && ctx.hasChildren),
       change: (e) => { draft.Progress = e.getParameter("value"); } }));
     if (Engine.TYPES[draft.Type].container && ctx.hasChildren) { body.addItem(new Text({ text: "A process shows the average progress of what is inside it." }).addStyleClass("zsacSmall")); }
@@ -76,6 +96,9 @@ sap.ui.define([
     };
     field("Plan (model)", model); field("Version", version); fillVersions();
     if (draft.ModelId && draft.VersionId && ctx.onOpenPlan) { body.addItem(new Link({ text: "Open the plan", press: () => ctx.onOpenPlan(draft) })); }
+    const remind = new Select({ width: "100%", selectedKey: String(draft.Config.Remind === undefined ? 3 : draft.Config.Remind), enabled: !readOnly, change: (e) => { draft.Config.Remind = Number(e.getParameter("selectedItem").getKey()); } });
+    [["0", "Never"], ["1", "1 day before the end"], ["3", "3 days before the end"], ["7", "A week before the end"], ["14", "Two weeks before the end"]].forEach((o) => remind.addItem(new Item({ key: o[0], text: o[1] })));
+    field("Remind the people on it", remind);
     if (draft.Type === "REVIEW" || draft.Approver) { field("Reviewer", new Input({ value: draft.Approver, width: "100%", placeholder: "CFO", maxLength: 12, enabled: !readOnly, liveChange: (e) => { draft.Approver = e.getParameter("value"); showFlow(); } }), draft.Type === "REVIEW"); }
 
     // planning tasks: which action or version, the parameters kept for the run, what the last run did, and Run
@@ -176,6 +199,9 @@ sap.ui.define([
     }
     showFiles();
 
+    body.addItem(new Title({ text: "Activity", level: "H5" }).addStyleClass("sapUiSmallMarginTop"));
+    body.addItem(historyBox); showHistory();
+    if (!(draft.Config.History || []).length) { historyBox.addItem(new Text({ text: "Nothing yet" }).addStyleClass("zsacSmall")); }
     const buttons = new HBox({ justifyContent: "End", items: [
       new Button({ text: "Delete", type: "Reject", visible: !ctx.isNew && ctx.canDelete !== false, press: () => ctx.onDelete(draft) }).addStyleClass("sapUiTinyMarginEnd"),
       new Button({ text: ctx.isNew ? "Create" : "Save", type: "Emphasized", visible: !readOnly, press: () => {

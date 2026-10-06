@@ -1,7 +1,8 @@
 sap.ui.define([
   "./BaseController",
-  "sap/ui/core/Theming"
-], function (BaseController, Theming) {
+  "sap/ui/core/Theming",
+  "zsac/lib/calendar/CalendarEngine"
+], function (BaseController, Theming, Engine) {
   "use strict";
 
   const ROUTE_TO_KEY = { home: "home", files: "files", stories: "stories", story: "stories", analyser: "analyser", datasets: "datasets",
@@ -16,12 +17,27 @@ sap.ui.define([
       this.router().attachRouteMatched((e) => {
         const key = ROUTE_TO_KEY[e.getParameter("name")];
         if (key) { this.byId("side").setSelectedKey(key); }
+        this._refreshBell();
       });
+      sap.ui.getCore().getEventBus().subscribe("zsac", "remindersChanged", () => this._refreshBell());
       this.provider().then((p) => {
         this.byId("providerBadge").setText("Data: " + p.id);
         this.byId("resetBtn").setVisible(p.id === "mock");
       });
     },
+
+    /** The bell shows how many reminders the calendar has for the user (reviews waiting, overdue, ending soon); it is hidden when there are none. */
+    async _refreshBell() {
+      try {
+        const p = await this.provider();
+        const [tasks, me] = await Promise.all([p.listTasks(), p.currentUser()]);
+        const n = Engine.reminders(tasks.map(Engine.normalize), me, new Date().toISOString().slice(0, 10)).length;
+        const bell = this.byId("bell");
+        bell.setVisible(n > 0); bell.setText(String(n)); bell.setTooltip(n + (n === 1 ? " reminder" : " reminders"));
+      } catch (e) { this.byId("bell").setVisible(false); }
+    },
+
+    onBell() { this.navTo("calendar", { query: { reminders: "1" } }); },
 
     onToggleSide() {
       const page = this.byId("toolPage");

@@ -74,7 +74,7 @@
         { "name": "dataaction", "pattern": "dataactions/{id}", "target": "dataaction" },
         { "name": "multiactions", "pattern": "multiactions:?query:", "target": "multiactions" },
         { "name": "multiaction", "pattern": "multiactions/{id}", "target": "multiaction" },
-        { "name": "calendar", "pattern": "calendar", "target": "calendar" }
+        { "name": "calendar", "pattern": "calendar:?query:", "target": "calendar" }
       ],
       "targets": {
         "home": { "viewName": "Home", "viewId": "home" },

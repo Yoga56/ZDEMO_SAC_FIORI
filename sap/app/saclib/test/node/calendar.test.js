@@ -305,3 +305,76 @@ test("work files: stories, datasets, actions and addresses, once each, at most t
   const many = Array.from({ length: 20 }, (_, i) => ({ Type: "URL", Url: "https://e.com/" + i, Id: "", Name: "n" }));
   assert.throws(() => C.addFile(Object.assign({}, e, { Files: many }), { Type: "URL", Url: "https://e.com/new" }), /20 work files/);
 });
+
+test("approval: the reviewer or the owner decides, an event without an owner is open, every step is written to the history", () => {
+  const rev = ev("R", { Type: "REVIEW", Approver: "CFO", Owner: "ALICE", Status: "IN_REVIEW" });
+  assert.strictEqual(C.canDo(rev, "Approve", "cfo"), true);
+  assert.strictEqual(C.canDo(rev, "Reject", "ALICE"), true);
+  assert.strictEqual(C.canDo(rev, "Approve", "BOB"), false);
+  assert.strictEqual(C.canDo(rev, "Approve", ""), false);
+  assert.strictEqual(C.canDo(Object.assign({}, rev, { Owner: "" }), "Approve", "BOB"), true); // no owner: open
+  assert.strictEqual(C.canDo(rev, "Submit", "BOB"), true);
+  const rejected = C.apply(rev, "Reject", { user: "CFO", comment: "Numbers do not add up", at: "2026-10-06T09:00:00.000Z" });
+  assert.deepStrictEqual([rejected.Status, rejected.Config.History.length], ["ACTIVE", 1]);
+  assert.deepStrictEqual(rejected.Config.History[0], { At: "2026-10-06T09:00:00.000Z", User: "CFO", Action: "Reject", Comment: "Numbers do not add up", From: "IN_REVIEW", To: "ACTIVE" });
+  assert.strictEqual(C.describeHistory(rejected.Config.History[0]), "Reject by CFO on Oct 6, 2026: Numbers do not add up");
+  const again = C.apply(C.apply(rejected, "Submit", { user: "ALICE", at: "2026-10-07T09:00:00.000Z" }), "Approve", { user: "CFO", comment: "ok", at: "2026-10-08T09:00:00.000Z" });
+  assert.deepStrictEqual(again.Config.History.map((h) => h.Action), ["Reject", "Submit", "Approve"]);
+  assert.deepStrictEqual([again.Status, again.Progress], ["DONE", 100]);
+  assert.strictEqual(C.apply(ev("N"), "Start").Config.History, undefined); // no user, no entry: older callers are unchanged
+  let h = ev("H"); for (let i = 0; i < 60; i++) { h = C.apply(C.apply(h, "Hold", { user: "U" }), "Resume", { user: "U" }); }
+  assert.strictEqual(h.Config.History.length, 50);
+});
+
+test("a completed task starts what waited for it, only when everything it waits for is done", () => {
+  const set = [ev("A", { Status: "DONE", Progress: 100 }), ev("B", { Status: "DONE", Progress: 100 }),
+    ev("C", { Config: { After: ["A"] } }), ev("D", { Config: { After: ["A", "X"] } }), ev("X"), ev("E", { Config: { After: ["A"] }, Status: "ON_HOLD" }), ev("F", { Config: { After: ["B"] } })];
+  const started = C.advance(set, "A", "2026-10-06T09:00:00.000Z");
+  assert.deepStrictEqual(started.map((e) => e.Id), ["C"]); // D still waits for X, E is on hold, F waits for B
+  assert.strictEqual(started[0].Status, "ACTIVE");
+  assert.match(C.describeHistory(started[0].Config.History[0]), /Started after "A" was completed/);
+  assert.deepStrictEqual(C.advance(set, "X", "2026-10-06T09:00:00.000Z"), []); // X is not done
+  const twoDone = set.map((e) => (e.Id === "X" ? Object.assign({}, e, { Status: "CANCELLED" }) : e));
+  assert.deepStrictEqual(C.advance(twoDone, "A").map((e) => e.Id), ["C", "D"]); // a cancelled predecessor does not hold it back
+  assert.deepStrictEqual(C.advance(set, "NOPE"), []);
+});
+
+test("reminders: reviews, overdue, delayed, ending soon and starting, for the people they are about", () => {
+  const events = [
+    ev("R1", { Type: "REVIEW", Approver: "CFO", Status: "IN_REVIEW", EndDate: "2026-10-09" }),
+    ev("O1", { Status: "ACTIVE", EndDate: "2026-10-05", People: { Assignees: ["ME"] } }),
+    ev("D1", { StartDate: "2026-10-02", EndDate: "2026-10-30", Owner: "ME" }),
+    ev("S1", { Status: "ACTIVE", StartDate: "2026-09-01", EndDate: "2026-10-08", People: { Owners: ["ME"] } }),
+    ev("S2", { Status: "ACTIVE", StartDate: "2026-09-01", EndDate: "2026-10-30", People: { Owners: ["ME"] }, Config: { Remind: 30 } }),
+    ev("N1", { Status: "ACTIVE", StartDate: "2026-09-01", EndDate: "2026-10-08", People: { Owners: ["ME"] }, Config: { Remind: 0 } }),
+    ev("T1", { StartDate: "2026-10-07", EndDate: "2026-10-20", People: { Assignees: ["ME"] } }),
+    ev("DONE", { Status: "DONE", EndDate: "2026-10-05", People: { Assignees: ["ME"] } }),
+    ev("OTHER", { Status: "ACTIVE", EndDate: "2026-10-05", People: { Assignees: ["BOB"] } }),
+    ev("P", { Type: "PROCESS", StartDate: "2026-09-01", EndDate: "2026-10-05", People: { Assignees: ["ME"] } }), ev("PC", { ParentId: "P", Status: "DONE", StartDate: "2026-09-01", EndDate: "2026-09-02" })
+  ];
+  const mine = C.reminders(events, "me", TODAY);
+  assert.deepStrictEqual(mine.map((r) => r.Id + ":" + r.kind), ["O1:OVERDUE", "D1:DELAYED", "S1:DUE_SOON", "S2:DUE_SOON", "T1:STARTING"]);
+  assert.deepStrictEqual(mine.map((r) => r.text), ["Overdue since 2026-10-05", "Should have started on 2026-10-02", "Ends in 2 days", "Ends in 24 days", "Starts tomorrow"]);
+  assert.deepStrictEqual(C.reminders(events, "CFO", TODAY).map((r) => r.Id + ":" + r.kind + ":" + r.text), ["R1:REVIEW:Waiting for your review"]);
+  assert.deepStrictEqual(C.reminders(events, "NOBODY", TODAY), []);
+  assert.strictEqual(C.reminders([ev("E", { Status: "ACTIVE", EndDate: "2026-10-06", People: { Assignees: ["ME"] } })], "ME", TODAY)[0].text, "Ends today");
+  assert.strictEqual(C.reminders([ev("E", { Status: "ACTIVE", EndDate: "2026-10-07", People: { Assignees: ["ME"] } })], "ME", TODAY)[0].text, "Ends in 1 day");
+});
+
+test("dependency lines: from the end of the earlier bar into the start of the later one, red when it starts too early", () => {
+  const events = [ev("A", { StartDate: "2026-10-01", EndDate: "2026-10-05" }), ev("B", { StartDate: "2026-10-10", EndDate: "2026-10-12", Config: { After: ["A"] } }),
+    ev("C", { StartDate: "2026-10-03", EndDate: "2026-10-04", Config: { After: ["A", "NOPE"] } })];
+  const { rows } = C.build(events, TODAY);
+  const g = C.gantt(rows, { zoom: "day", today: TODAY });
+  const bars = new Map(g.bars.map((b) => [b.id, b]));
+  const links = V.linkPaths(rows, bars);
+  assert.deepStrictEqual(links.map((l) => [l.from, l.to, l.violated]), [["A", "C", true], ["A", "B", false]]); // rows are in date order; the missing predecessor draws nothing
+  assert.match(links[1].d, /^M[\d.]+,17 H[\d.]+ V\d+ H[\d.]+$/); // forward: out, down, in
+  assert.ok(links[0].d.split(" ").length > 4); // a line that goes back has to go around
+  const html = V.listHtml(rows, { gantt: g, today: TODAY });
+  assert.strictEqual((html.match(/class="zsacCalLink( zsacCalLinkBad)?"/g) || []).length, 2); // the svg itself is zsacCalLinks
+  assert.match(html, /zsacCalLinkBad/);
+  assert.ok(!/NaN/.test(html));
+  assert.deepStrictEqual(V.linkPaths(rows.slice(0, 1), new Map(g.bars.map((b) => [b.id, b]))), []); // the later one is not shown
+  assert.strictEqual(V.listHtml(C.build([ev("Z")], TODAY).rows, { gantt: C.gantt(C.build([ev("Z")], TODAY).rows, { today: TODAY }), today: TODAY }).includes("zsacCalLinks"), false);
+});

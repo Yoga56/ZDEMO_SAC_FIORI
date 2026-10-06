@@ -99,7 +99,7 @@
     "Progress": 0,
     "ModelId": "SALES_PLAN",
     "VersionId": "BUD",
-    "Approver": "CFO",
+    "Approver": "ME",
     "ParentId": "P_BUD",
     "Notes": "",
     "People": {
@@ -198,7 +198,9 @@
     "Notes": "",
     "People": {
       "Owners": [],
-      "Assignees": [],
+      "Assignees": [
+        "ME"
+      ],
       "Viewers": []
     },
     "Files": [],
@@ -271,6 +273,29 @@
     "People": {
       "Owners": [],
       "Assignees": [],
+      "Viewers": []
+    },
+    "Files": [],
+    "Config": {}
+  },
+  {
+    "Id": "E_OVER",
+    "Type": "GENERAL",
+    "Title": "Update the price file",
+    "StartDate": "2026-09-28",
+    "EndDate": "2026-10-02",
+    "Status": "ACTIVE",
+    "Progress": 60,
+    "ModelId": "",
+    "VersionId": "",
+    "Approver": "",
+    "ParentId": "",
+    "Notes": "",
+    "People": {
+      "Owners": [],
+      "Assignees": [
+        "ME"
+      ],
       "Viewers": []
     },
     "Files": [],
