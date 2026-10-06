@@ -62,7 +62,8 @@ sap.ui.define([
         if (!el || el._zsacDrag) { return; }
         el._zsacDrag = true;
         try { const p = JSON.parse(window.localStorage.getItem(KEY) || "null"); if (p) { place(el, p.x, p.y); } } catch (e) { /* no storage: it stays bottom left */ }
-        const keepInside = () => { if (el.style.top) { place(el, el.offsetLeft, el.offsetTop); } else if (el.getBoundingClientRect().right > window.innerWidth - 8) { place(el, el.offsetLeft, el.offsetTop); } };
+        // only a button that was moved is kept inside the window; the default place is anchored to the bottom left by CSS
+        const keepInside = () => { if (el.style.top) { place(el, el.offsetLeft, el.offsetTop); } };
         window.addEventListener("resize", keepInside);
         el.addEventListener("transitionend", keepInside);   // the button grows with its text: it must not grow out of the window
         el.addEventListener("pointerdown", (e) => {

@@ -73,3 +73,8 @@
 .zsacFab .sapMBtnInner { border: 0 !important; }
 .zsacFab.sapMBtn::before, .zsacFab.sapMBtn::after, .zsacFab .sapMBtnInner::before, .zsacFab .sapMBtnInner::after { display: none !important; }
 .zsacFab .sapMBtnInner:focus-visible { box-shadow: inset 0 0 0 2px #fff; }
+
+/* the outer element of the button is only a frame: no background of its own (it showed as a white box behind the blue part in the light theme),
+   and the blue part fills it completely */
+.zsacFab.sapMBtn { background: transparent !important; border: 0 !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box; display: inline-flex; align-items: stretch; }
+.zsacFab.sapMBtn .sapMBtnInner { box-sizing: border-box; flex: 1 1 auto; min-height: 100%; height: 100% !important; line-height: 1; }
