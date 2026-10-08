@@ -40,3 +40,31 @@ round trips, each 200 to 500 ms, made one after the other.
 ## To measure again
 
 Open each page from the launchpad and count the `$batch` calls as above. The expected result is a few round trips per page, not ten.
+
+## Memory
+
+Checked on 8 October 2026 in the browser preview (sample data): the pages were opened over and over and the number of UI5 controls (`Element.registry`),
+the DOM nodes and the JS heap were read after each round.
+
+| | Before | After |
+|---|---|---|
+| DOM nodes | stable (the pages are kept) | stable |
+| JS heap | about 37 to 44 MB, no steady growth | same |
+| UI5 controls, Data Analyser | +253 at every visit | +0 |
+| UI5 controls, Planning | +0 | +0 |
+| UI5 controls, other pages | +0 (Calendar and story: only the first visit creates its controls) | +0 |
+
+Leaks found and fixed:
+
+* **BuilderPanel** (Data Analyser and the story designer's right panel): `setAggregation("_form", ...)` removes the old form but does not destroy it, so each
+  rebuild left the whole old form with its popovers alive. The old form is destroyed now.
+* **StoryViewer**: the same with its `_layout` (a story with its canvas and cards left behind at each reload). Fixed the same way.
+* **PlanGrid**: a `mouseup` listener on `document` was added for every grid and never taken off; a grid is made anew at each reload, and every listener kept its
+  grid and its data alive. It is removed in `exit()`.
+* **ODataV4Provider**: every read made a list binding that was never destroyed, and the OData model keeps a binding with the rows it loaded (up to 10 000 facts).
+  Bindings of reads, patches and actions are destroyed after use. This one cannot be seen with the sample data; check it on the deployed app.
+
+Not a leak, but a cost: `Resizer` observes the whole page and rescans every 1.5 seconds. It is cheap and does not grow.
+
+To check again: open the pages several times and compare the number of UI5 controls (`sap.ui.require("sap/ui/core/Element").registry.size`) and the heap
+(`performance.memory.usedJSHeapSize`, in Chrome) after the first round.

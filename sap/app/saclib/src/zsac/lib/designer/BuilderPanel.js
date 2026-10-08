@@ -72,7 +72,7 @@ sap.ui.define([
       this._provider = provider;
       const token = (this._token = (this._token || 0) + 1);
       if (!widget) {
-        this.setAggregation("_form", new VBox({ items: [new Text({ text: "Select a widget on the canvas to configure it." })] }));
+        this._setForm(new VBox({ items: [new Text({ text: "Select a widget on the canvas to configure it." })] }));
         return;
       }
       const def = WidgetRegistry.get(widget.Type);
@@ -94,7 +94,14 @@ sap.ui.define([
           form.addItem(field);
         }
       });
+      this._setForm(form);
+    },
+
+    /** setAggregation only removes the form it replaces: without destroy, every rebuild would leave the whole old form (and its popovers) alive. */
+    _setForm(form) {
+      const old = this.getAggregation("_form");
       this.setAggregation("_form", form);
+      if (old && old !== form) { old.destroy(); }
     },
 
     _changed() { this.fireChange({ widget: this._widget }); },

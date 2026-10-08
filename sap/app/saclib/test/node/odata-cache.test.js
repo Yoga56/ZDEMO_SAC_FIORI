@@ -78,3 +78,20 @@ test("run history: the server sends the newest runs, a few more than shown, not 
   assert.strictEqual(t.n, 600);
   assert.strictEqual(t.params.$orderby, "StartedAt desc");
 });
+
+test("every binding made for a read, a patch or an action is destroyed after it (the model keeps bindings and their rows otherwise)", async () => {
+  let made = 0, destroyed = 0;
+  const bind = (fail) => { made++; return {
+    requestContexts: async () => { if (fail) { throw new Error("down"); } return [{ getObject: () => ({ A: 1 }) }]; },
+    getBoundContext: () => ({ getObject: () => ({}), requestObject: async () => ({}), setProperty: async () => {} }),
+    setParameter() {}, execute: async () => {}, destroy() { destroyed++; } }; };
+  const model = { bindList: () => bind(false), bindContext: () => bind(false), getServiceUrl: () => "/svc/" };
+  const p = new ODataV4Provider({ model });
+  await p._list("/Model", []);
+  await p._patch("/Model(a)", { X: 1 });
+  await p._action("/Model(a)/Publish", {});
+  const bad = new ODataV4Provider({ model: { bindList: () => bind(true), getServiceUrl: () => "/svc/" } });
+  await assert.rejects(bad._list("/Model", []), /down/);
+  assert.strictEqual(destroyed, made);
+  assert.strictEqual(made, 4);
+});

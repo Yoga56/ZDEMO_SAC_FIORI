@@ -69,11 +69,18 @@ sap.ui.define([
           layout.addItem(new PlanToolbar().attach({ plan: this._canvas.getPlan(), provider, onChange: () => this._canvas.refreshAll() }));
         }
         layout.addItem(this._canvas);
-        this.setAggregation("_layout", layout);
+        this._setLayout(layout);
         this.fireStoryLoaded({ story });
       } catch (e) {
-        this.setAggregation("_layout", new MessageStrip({ text: e.message, type: "Error", showIcon: true }));
+        this._setLayout(new MessageStrip({ text: e.message, type: "Error", showIcon: true }));
       }
+    },
+
+    /** setAggregation only removes the layout it replaces; the old canvas and its cards must be destroyed or each reload leaves a whole story behind. */
+    _setLayout(layout) {
+      const old = this.getAggregation("_layout");
+      this.setAggregation("_layout", layout);
+      if (old && old !== layout) { old.destroy(); }
     }
   });
 });

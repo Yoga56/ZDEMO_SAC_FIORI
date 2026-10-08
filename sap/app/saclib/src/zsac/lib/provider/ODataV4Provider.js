@@ -75,8 +75,13 @@ sap.ui.define([
       if (hit && now - hit.t < hit.ttl) { return (await hit.p).map((r) => Object.assign({}, r)); }
       const p = (async () => {
         const binding = this._m.bindList(path, null, null, filters || [], params);
-        const contexts = await binding.requestContexts(0, top || PAGE);
-        return contexts.map((c) => c.getObject());
+        try {
+          const contexts = await binding.requestContexts(0, top || PAGE);
+          return contexts.map((c) => c.getObject());
+        } finally {
+          // the model keeps every binding (and the rows it loaded) until it is destroyed; the rows are in our hands now
+          if (binding.destroy) { binding.destroy(); }
+        }
       })();
       if (key) {
         this._cache.set(key, { t: now, ttl: /^\/(Model|Version|Share)\b/.test(path) ? SLOW_TTL : READ_TTL, p });
@@ -181,9 +186,12 @@ sap.ui.define([
     async _patch(keyPath, values) {
       this._bust();
       try {
-        const context = this._m.bindContext(keyPath).getBoundContext();
-        await context.requestObject();
-        for (const k of Object.keys(values)) { await context.setProperty(k, values[k]); }
+        const binding = this._m.bindContext(keyPath);
+        try {
+          const context = binding.getBoundContext();
+          await context.requestObject();
+          for (const k of Object.keys(values)) { await context.setProperty(k, values[k]); }
+        } finally { if (binding.destroy) { binding.destroy(); } }
       } finally { this._bust(); }
     }
 
@@ -195,8 +203,10 @@ sap.ui.define([
       try {
         const op = this._m.bindContext(path);
         Object.keys(params || {}).forEach((k) => op.setParameter(k, params[k]));
-        await op.execute(undefined, !!onInstance);
-        return op.getBoundContext().getObject();
+        try {
+          await op.execute(undefined, !!onInstance);
+          return op.getBoundContext().getObject();
+        } finally { if (op.destroy) { op.destroy(); } }
       } finally { this._bust(); }
     }
 

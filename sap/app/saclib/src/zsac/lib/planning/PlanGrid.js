@@ -36,6 +36,7 @@ sap.ui.define([
     },
 
     exit() {
+      if (this._docUp) { document.removeEventListener("mouseup", this._docUp); this._docUp = null; }
       if (this._ctx && this._ctx.plan) { this._ctx.plan.detachChange(this._onPlan); if (this._onSel) { this._ctx.plan.detachSelection(this._onSel); } }
     },
 
@@ -422,7 +423,9 @@ sap.ui.define([
         const c = cellOf(e);
         if (c && this._sel && (c.ri !== this._sel.b.ri || c.ci !== this._sel.b.ci)) { this._sel.b = c; touch(); }
       });
-      document.addEventListener("mouseup", () => { this._dragging = false; });
+      // a listener on the document outlives the grid unless it is taken off again (exit): a grid is made anew at every reload
+      this._docUp = () => { this._dragging = false; };
+      document.addEventListener("mouseup", this._docUp);
       root.addEventListener("keydown", (e) => {
         if (!e.target.matches("input.zsacFx")) { return; }
         if (e.key === "Enter") { e.preventDefault(); this._applyFormula(e.target.value); } else if (e.key === "Escape") { this._syncBar(); }
