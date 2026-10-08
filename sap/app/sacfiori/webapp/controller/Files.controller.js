@@ -30,8 +30,9 @@ sap.ui.define([
 
     async _load() {
       const p = await this.provider();
-      this._files = await p.listFiles();
-      this._me = String(await p.currentUser()).toUpperCase();
+      const [files, me] = await Promise.all([p.listFiles(), p.currentUser()]);
+      this._files = files;
+      this._me = String(me).toUpperCase();
       this._render();
     },
 

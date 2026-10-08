@@ -24,6 +24,8 @@ sap.ui.define([
 
   const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
   const PAGE = 10000;
+  const READ_TTL = 5000;     // ms a read is kept (facts, lists)
+  const SLOW_TTL = 20000;    // models, versions and shares change rarely, and every page needs them
   const json = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch (e) { return fallback; } };
   const str = (o) => JSON.stringify(o === undefined ? null : o);
 
@@ -53,16 +55,38 @@ sap.ui.define([
       super();
       if (!options || !options.model) { throw new Error("ODataV4Provider needs the app's OData V4 model"); }
       this._m = options.model;
+      this._cache = new Map();
     }
 
     get id() { return "odata"; }
 
     // ---- plumbing ---------------------------------------------------------------------------
-    async _list(path, filters, params) {
-      const binding = this._m.bindList(path, null, null, filters || [], params);
-      const contexts = await binding.requestContexts(0, PAGE);
-      return contexts.map((c) => c.getObject());
+    /**
+     * Reads are shared: a page asks for the same model, versions or facts several times (each widget and helper asks for itself), and every
+     * ask is a round trip to the server. The same read made at the same time is one request, and its answer is kept for a few seconds
+     * (models, versions and shares a little longer). Every write empties the cache (_bust), so nobody reads what they just changed from here.
+     * The rows are handed out as copies, so a caller can change them.
+     */
+    async _list(path, filters, params, top) {
+      let key = null;
+      try { key = path + "|" + JSON.stringify(filters || []) + "|" + JSON.stringify(params || {}) + "|" + (top || ""); } catch (e) { key = null; }
+      const now = Date.now();
+      const hit = key && this._cache.get(key);
+      if (hit && now - hit.t < hit.ttl) { return (await hit.p).map((r) => Object.assign({}, r)); }
+      const p = (async () => {
+        const binding = this._m.bindList(path, null, null, filters || [], params);
+        const contexts = await binding.requestContexts(0, top || PAGE);
+        return contexts.map((c) => c.getObject());
+      })();
+      if (key) {
+        this._cache.set(key, { t: now, ttl: /^\/(Model|Version|Share)\b/.test(path) ? SLOW_TTL : READ_TTL, p });
+        p.catch(() => { const e = this._cache.get(key); if (e && e.p === p) { this._cache.delete(key); } });
+      }
+      return (await p).map((r) => Object.assign({}, r));
     }
+
+    /** Called before and after every write: what was read before may be wrong now. */
+    _bust() { this._cache.clear(); }
 
     async _one(path, key, params) {
       const rows = await this._list(path, [new Filter(key[0], FilterOperator.EQ, key[1])], params);
@@ -95,10 +119,15 @@ sap.ui.define([
     }
 
     async _request(method, path, body, headers, retried) {
+      if (method !== "GET") { this._bust(); }
+      try { return await this._requestNow(method, path, body, headers, retried); } finally { if (method !== "GET") { this._bust(); } }
+    }
+
+    async _requestNow(method, path, body, headers, retried) {
       const url = this._m.getServiceUrl() + encodeURI(String(path).replace(/^\//, ""));
       const h = Object.assign({ Accept: "application/json", "X-CSRF-Token": await this._token() }, body ? { "Content-Type": "application/json" } : {}, headers || {});
       const res = await fetch(url, { method, headers: h, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
-      if (res.status === 403 && res.headers.get("x-csrf-token") === "Required" && !retried) { await this._token(true); return this._request(method, path, body, headers, true); }
+      if (res.status === 403 && res.headers.get("x-csrf-token") === "Required" && !retried) { await this._token(true); return this._requestNow(method, path, body, headers, true); }
       if (!res.ok) { throw Object.assign(new Error(await this._errorText(res)), { status: res.status }); }
       return res;
     }
@@ -150,19 +179,25 @@ sap.ui.define([
 
     /** Changes fields of an existing row with a PATCH (no delete, so determinations and dependants of a delete do not fire). Rejects when the row is missing. */
     async _patch(keyPath, values) {
-      const context = this._m.bindContext(keyPath).getBoundContext();
-      await context.requestObject();
-      for (const k of Object.keys(values)) { await context.setProperty(k, values[k]); }
+      this._bust();
+      try {
+        const context = this._m.bindContext(keyPath).getBoundContext();
+        await context.requestObject();
+        for (const k of Object.keys(values)) { await context.setProperty(k, values[k]); }
+      } finally { this._bust(); }
     }
 
     async _invokeDelete(keyPath) { return this._delete(keyPath); }
 
     /** Runs an action. `onInstance`: the action is bound to one row, which the service changes under an ETag: the request says "whatever the version of the row" (If-Match: *). */
     async _action(path, params, onInstance) {
-      const op = this._m.bindContext(path);
-      Object.keys(params || {}).forEach((k) => op.setParameter(k, params[k]));
-      await op.execute(undefined, !!onInstance);
-      return op.getBoundContext().getObject();
+      this._bust();
+      try {
+        const op = this._m.bindContext(path);
+        Object.keys(params || {}).forEach((k) => op.setParameter(k, params[k]));
+        await op.execute(undefined, !!onInstance);
+        return op.getBoundContext().getObject();
+      } finally { this._bust(); }
     }
 
     // ---- ownership and sharing ---------------------------------------------------------------
@@ -458,7 +493,9 @@ sap.ui.define([
     // ---- run history ------------------------------------------------------------------------
     async listRuns(actionId, limit) {
       const filters = actionId ? [new Filter("ActionId", FilterOperator.EQ, actionId)] : [];
-      const rows = (await this._list("/ActionRun", filters)).map((e) => ({
+      // the history only grows: the server sends the newest runs (a few more than shown, as runs of actions the user may not open are dropped below), not all of them
+      const newest = await this._list("/ActionRun", filters, { $orderby: "StartedAt desc" }, Math.min(PAGE, (limit || 100) * 3)).catch(() => this._list("/ActionRun", filters));
+      const rows = newest.map((e) => ({
         Id: e.RunId, ActionId: e.ActionId, ActionName: e.ActionName, ModelId: e.ModelId, Kind: e.RunKind, Status: e.Status, Changed: e.Changed,
         DurationMs: e.DurationMs, User: e.UserName, At: e.StartedAt, ParamsText: e.ParamsText, Log: String(e.LogText || "").split("\n").filter(Boolean), Steps: json(e.StepsJson, []) }));
       // the history of an action the user may not open is not shown (the server does not filter runs, see docs/sharing-and-security.md)

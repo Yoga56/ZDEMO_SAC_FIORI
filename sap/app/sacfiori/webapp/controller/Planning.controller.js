@@ -40,8 +40,9 @@ sap.ui.define([
       this.byId("planBar").attach({ plan: this._plan, provider: p, onChange: () => this._reload(), modelId: () => (this._model ? this._model.ModelId : ""),
         onVersions: () => this._versions(), onSelect: (id) => { this.byId("version").setSelectedKey(id); this._reload(); }, onView: (v) => { this._view = v; } });
       const storage = { getItem: (k) => window.localStorage.getItem(k), setItem: (k, v) => window.localStorage.setItem(k, v) };
-      this._bm = Bookmarks.open(storage, "zsac.bookmarks.planning", await p.currentUser());
-      this._models = await p.listModels();
+      const [user, models] = await Promise.all([p.currentUser(), p.listModels()]);
+      this._bm = Bookmarks.open(storage, "zsac.bookmarks.planning", user);
+      this._models = models;
       const sel = this.byId("model");
       sel.destroyItems();
       this._models.forEach((m) => sel.addItem(new Item({ key: m.ModelId, text: m.Name })));
@@ -156,6 +157,10 @@ sap.ui.define([
       const m = this._model;
       const v = this._cur();
       const measure = this.byId("measure").getSelectedKey();
+      // the facts to compare with are read together with the facts of the version, not after them
+      const cmpKey = this.byId("compare").getSelectedKey();
+      this._cmpRead = cmpKey && cmpKey !== v.VersionId ? { k: cmpKey + "|" + measure, p: this._p.readFacts(m.ModelId, { VERSION: [cmpKey], MEASURE: [measure] }) } : null;
+      if (this._cmpRead) { this._cmpRead.p.catch(() => {}); }
       this._facts = await this._p.readFacts(m.ModelId, { VERSION: [v.VersionId], MEASURE: [measure] });
       const off = !m.PlanningEnabled;
       const [dimId, hierId] = (this.byId("hier").getSelectedKey() || "|").split("|");
@@ -200,7 +205,8 @@ sap.ui.define([
       this.byId("kpiCard").setTitle("Total " + v.VersionId);
       let cmp = [];
       if (cmpKey && cmpKey !== v.VersionId) {
-        cmp = QueryEngine.applyFilters(m, await this._p.readFacts(m.ModelId, { VERSION: [cmpKey], MEASURE: [measure] }), prompts);
+        cmp = QueryEngine.applyFilters(m, await ((this._cmpRead && this._cmpRead.k === cmpKey + "|" + measure) ? this._cmpRead.p : this._p.readFacts(m.ModelId, { VERSION: [cmpKey], MEASURE: [measure] })), prompts);
+        this._cmpRead = null;
         kpi.setCompare(cmp.reduce((a, f) => a + f.Value, 0)); kpi.setCompareLabel(cmpKey);
       } else { kpi.setCompare(null); }
       const periods = HierarchyEngine.monthRange(m.PeriodFrom, m.PeriodTo);

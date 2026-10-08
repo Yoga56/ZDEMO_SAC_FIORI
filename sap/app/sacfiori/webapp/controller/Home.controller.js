@@ -24,14 +24,16 @@ sap.ui.define([
 
     async _load() {
       const p = await this.provider();
-      this._files = await p.listFiles();
-      this._tasks = await p.listTasks();
+      // the pieces of the page do not depend on each other: ask for all of them at once, and let the metrics fill in when they are ready
+      const metrics = this._metrics(p);
+      const [files, tasks, who] = await Promise.all([p.listFiles(), p.listTasks(), this.userName()]);
+      this._files = files;
+      this._tasks = tasks;
       const now = new Date();
-      const who = await this.userName();
       this.byId("hello").setText("Hello" + (who ? ", " + who : ""));
       this.byId("date").setText(now.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }));
       this._tab(this.byId("tabs").getSelectedKey());
-      this._metrics(p);
+      await metrics.catch(() => {});
     },
 
     async _metrics(p) {

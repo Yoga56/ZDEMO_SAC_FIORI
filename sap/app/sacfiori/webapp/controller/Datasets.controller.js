@@ -15,8 +15,7 @@ sap.ui.define([
 
     async _load() {
       const p = await this.provider();
-      const models = await p.listModels();
-      const versions = await p.listVersions();
+      const [models, versions] = await Promise.all([p.listModels(), p.listVersions()]);
       this._model.setProperty("/items", models.map((m) => Object.assign({}, m, {
         dims: m.Dimensions.map((d) => d.Label).join(", "),
         measures: m.Measures.map((x) => x.Label).join(", "),

@@ -116,8 +116,7 @@ sap.ui.define([
         model = ModelSchema.newModel();
         model.isNew = true;
       } else {
-        model = await p.getModel(id);
-        versions = await p.listVersions(id);
+        [model, versions] = await Promise.all([p.getModel(id), p.listVersions(id)]);
         model.isNew = false;
       }
       const months = this._months(model.PeriodFrom, model.PeriodTo);
