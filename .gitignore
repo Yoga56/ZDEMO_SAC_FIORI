@@ -7,3 +7,7 @@ dist/
 .vscode/
 __pycache__/
 .claude/
+
+# browser test output and the deploy archive
+.playwright-mcp/
+archive.zip
