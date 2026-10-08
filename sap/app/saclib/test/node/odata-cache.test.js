@@ -95,3 +95,15 @@ test("every binding made for a read, a patch or an action is destroyed after it 
   assert.strictEqual(destroyed, made);
   assert.strictEqual(made, 4);
 });
+
+test("a model that is in the list of models needs no request of its own", async () => {
+  const model = { ModelId: "M1", ModelName: "One", Description: "", Currency: "USD", PeriodFrom: "2026-01", PeriodTo: "2026-12", PlanningEnabled: true, CurrentUser: "ALICE", OwnerId: "ALICE", _Dimension: [], _Measure: [] };
+  const { p, trips } = provider({ "/Model": [model], "/Share": [] });
+  const list = await p.listModels();
+  const one = await p.getModel("M1");
+  assert.strictEqual(one.ModelId, "M1");
+  assert.strictEqual(list.length, 1);
+  assert.strictEqual(trips.filter((t) => t.path === "/Model").length, 1);     // the list only
+  await p.getModel("OTHER").catch(() => {});                                  // one that is not in the list is asked for
+  assert.strictEqual(trips.filter((t) => t.path === "/Model").length, 2);
+});

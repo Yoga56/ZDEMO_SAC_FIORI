@@ -292,6 +292,9 @@ sap.ui.define([
       return this._withAccess("MODEL", rows.map((e) => this._toModel(e)));
     }
     async getModel(id) {
+      // the list of models is read by almost every page and kept for a few seconds: a model that is in it needs no request of its own
+      const known = (await this.listModels().catch(() => [])).find((m) => m.ModelId === id);
+      if (known) { return known; }
       const row = await this._one("/Model", ["ModelId", id], { $expand: "_Dimension,_Measure" });
       this._noteUser([row]);
       return (await this._withAccess("MODEL", [this._toModel(row)]))[0];

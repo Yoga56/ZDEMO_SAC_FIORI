@@ -41,6 +41,28 @@ round trips, each 200 to 500 ms, made one after the other.
 
 Open each page from the launchpad and count the `$batch` calls as above. The expected result is a few round trips per page, not ten.
 
+## After (measured on the deployed app, 8 October 2026, after the deploy of the changes above)
+
+The same method, each page opened after another page. Models, versions and shares are kept for 20 seconds, so a page opened a few seconds after another one
+can use what that one read; the "before" numbers had no such help.
+
+| Page | Before: round trips, time | After: round trips, time |
+|---|---|---|
+| Home | 13, 5.9 s | 6, 1.4 s |
+| Planning | 11, 3.2 s | 5, 1.4 s |
+| Calendar | 3, 2.5 s | 1, 0.3 s |
+| Data Actions | 2, 2.6 s | 2, 0.6 s |
+| Multi Actions | 2, 2.1 s | 2, 0.5 s |
+| Data Analyser | 5, 2.1 s | 3, 0.9 s |
+| Datasets | 2, 0.6 s | 1, 0.2 s |
+| Files | 1, 0.3 s | 1, 0.2 s |
+| Stories | 2, 0.3 s | 2, 0.3 s |
+
+The deployed files contain the cache, the destroyed bindings, the limit on the run history and the three UI fixes.
+
+Next saving made after this measurement: `getModel` answers from the cached list of models (one round trip less on Home, Planning and the Data Analyser).
+What is left on Home is the model list, the versions and three rounds of fact reads for the two key figures.
+
 ## Memory
 
 Checked on 8 October 2026 in the browser preview (sample data): the pages were opened over and over and the number of UI5 controls (`Element.registry`),
