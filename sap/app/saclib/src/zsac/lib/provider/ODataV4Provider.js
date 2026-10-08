@@ -25,6 +25,7 @@ sap.ui.define([
   const NS = "com.sap.gateway.srvd.zui_sac_o4.v0001.";
   const PAGE = 10000;
   const READ_TTL = 5000;     // ms a read is kept (facts, lists)
+  const MAX_KEPT = 40;       // answers kept at most
   const SLOW_TTL = 20000;    // models, versions and shares change rarely, and every page needs them
   const json = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch (e) { return fallback; } };
   const str = (o) => JSON.stringify(o === undefined ? null : o);
@@ -71,6 +72,7 @@ sap.ui.define([
       let key = null;
       try { key = path + "|" + JSON.stringify(filters || []) + "|" + JSON.stringify(params || {}) + "|" + (top || ""); } catch (e) { key = null; }
       const now = Date.now();
+      this._prune(now);
       const hit = key && this._cache.get(key);
       if (hit && now - hit.t < hit.ttl) { return (await hit.p).map((r) => Object.assign({}, r)); }
       const p = (async () => {
@@ -85,6 +87,7 @@ sap.ui.define([
       })();
       if (key) {
         this._cache.set(key, { t: now, ttl: /^\/(Model|Version|Share)\b/.test(path) ? SLOW_TTL : READ_TTL, p });
+        this._prune(now);       // the cap counts the answer just added
         p.catch(() => { const e = this._cache.get(key); if (e && e.p === p) { this._cache.delete(key); } });
       }
       return (await p).map((r) => Object.assign({}, r));
@@ -92,6 +95,12 @@ sap.ui.define([
 
     /** Called before and after every write: what was read before may be wrong now. */
     _bust() { this._cache.clear(); }
+
+    /** An answer that is out of date is of no use and holds its rows (up to 10 000 facts): it goes at the next read, and the cache never holds more than MAX_KEPT answers. */
+    _prune(now) {
+      this._cache.forEach((v, k) => { if (now - v.t >= v.ttl) { this._cache.delete(k); } });
+      while (this._cache.size > MAX_KEPT) { this._cache.delete(this._cache.keys().next().value); }
+    }
 
     async _one(path, key, params) {
       const rows = await this._list(path, [new Filter(key[0], FilterOperator.EQ, key[1])], params);

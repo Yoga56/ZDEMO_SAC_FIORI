@@ -90,3 +90,37 @@ Not a leak, but a cost: `Resizer` observes the whole page and rescans every 1.5 
 
 To check again: open the pages several times and compare the number of UI5 controls (`sap.ui.require("sap/ui/core/Element").registry.size`) and the heap
 (`performance.memory.usedJSHeapSize`, in Chrome) after the first round.
+
+## Deep test of the deployed app, 8 October 2026 (second round)
+
+Done on the deployed app with the Chrome extension, after the deploy of the changes above (the deployed files had `getModel` from the list and the destroyed bindings).
+
+Cold pages (the provider's cache emptied before each page; round trips, first to last):
+
+| Page | Round trips | Time |
+|---|---|---|
+| Home | 5 | 1.1 s |
+| Planning | 4 | 1.0 s (the table of SALES_PLAN is on screen after 1.0 s) |
+| Data Analyser | 3 | 0.9 s |
+| Data Actions | 2 | 0.6 s |
+| Multi Actions | 2 | 0.5 s |
+| Calendar | 2 | 0.6 s |
+| Stories | 2 | 0.3 s |
+| Datasets | 1 | 0.3 s |
+| Files | 1 | 0.2 s |
+
+Idle: no long task (over 50 ms) in 12 seconds on the Planning page, so the Resizer's observer and timer cost nothing noticeable.
+
+Memory:
+
+| Test | UI5 controls | DOM nodes | JS heap |
+|---|---|---|---|
+| Four rounds through all nine pages | 5 083 before and after each round | stable | 283 to 317 MB, up and down, no trend (most of it is the launchpad) |
+| Planning: 14 reloads across the versions | no growth | stable | no growth |
+| Data Analyser: 15 rebuilds of the builder panel | no growth (before the fix: +253 per visit) | stable | no growth |
+| Story page: 12 rounds of open, edit, view, close | +122 in the first 6 rounds (first-time creation), +0 in the next 6 | | no growth |
+
+Found in this round: the cache of the provider kept answers that were out of date (22 of 24 entries) with their rows until the next write. On a big model
+that would hold many reads of up to 10 000 facts. Out-of-date answers are now dropped at the next read, and at most 40 answers are kept
+(`_prune`, 2 tests).
+

@@ -107,3 +107,13 @@ test("a model that is in the list of models needs no request of its own", async 
   await p.getModel("OTHER").catch(() => {});                                  // one that is not in the list is asked for
   assert.strictEqual(trips.filter((t) => t.path === "/Model").length, 2);
 });
+
+test("the cache lets go of answers that are out of date, and never holds more than a few dozen", async () => {
+  const { p } = provider({ "/Fact": [{ Value: 1 }] });
+  await p._list("/Fact", [{ path: "VersionId", value: "A" }]);
+  p._cache.forEach((v) => { v.t -= 60000; });                                     // an hour later in no time: everything is old
+  await p._list("/Fact", [{ path: "VersionId", value: "B" }]);
+  assert.strictEqual(p._cache.size, 1);                                           // the old one is gone, the new one is there
+  for (let i = 0; i < 100; i++) { await p._list("/Fact", [{ path: "VersionId", value: "V" + i }]); }
+  assert.ok(p._cache.size <= 40, "size " + p._cache.size);
+});
